@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>RND Staking Register</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+
+body{
+background:linear-gradient(135deg,#0f172a,#1e293b);
+min-height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+padding:20px;
+}
+
+.register-card{
+max-width:450px;
+width:100%;
+background:white;
+border-radius:20px;
+padding:35px;
+box-shadow:0 0 30px rgba(0,0,0,0.3);
+}
+
+.logo{
+width:90px;
+height:90px;
+border-radius:50%;
+display:block;
+margin:auto;
+margin-bottom:15px;
+}
+
+.title{
+text-align:center;
+font-weight:bold;
+font-size:28px;
+margin-bottom:5px;
+}
+
+.subtitle{
+text-align:center;
+color:gray;
+margin-bottom:25px;
+}
+
+.btn-google{
+background:#dc3545;
+color:white;
+font-weight:bold;
+}
+
+.btn-google:hover{
+background:#bb2d3b;
+color:white;
+}
+
+.footer-text{
+text-align:center;
+margin-top:15px;
+}
+
+.message{
+text-align:center;
+margin-top:15px;
+font-weight:bold;
+}
+
+</style>
+
+</head>
+<body>
+
+<div class="register-card">
+
+<img src="logo.png" class="logo">
+
+<div class="title">
+RND STAKING
+</div>
+
+<div class="subtitle">
+Create Your Account
+</div>
+
+<div class="mb-3">
+<input type="text"
+id="name"
+class="form-control"
+placeholder="Full Name">
+</div>
+
+<div class="mb-3">
+<input type="email"
+id="email"
+class="form-control"
+placeholder="Email Address">
+</div>
+
+<div class="mb-3">
+<input type="password"
+id="password"
+class="form-control"
+placeholder="Password">
+</div>
+
+<div class="mb-3">
+<input type="text"
+id="referral"
+class="form-control"
+placeholder="Referral Code"
+readonly>
+</div>
+
+<button
+class="btn btn-success w-100"
+onclick="registerUser()">
+Create Account
+</button>
+
+<hr>
+
+<button
+class="btn btn-google w-100"
+onclick="googleLogin()">
+
+Login With Google
+
+</button>
+
+<div class="footer-text">
+
+Already have account?
+
+<a href="login.html">
+Login Here
+</a>
+
+</div>
+
+<div
+class="message"
+id="message">
+</div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+getAuth,
+createUserWithEmailAndPassword,
+GoogleAuthProvider,
+signInWithPopup
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+getFirestore,
+doc,
+setDoc,
+serverTimestamp
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+
+apiKey:"AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+
+authDomain:"rnd2-70080.firebaseapp.com",
+
+projectId:"rnd2-70080",
+
+storageBucket:"rnd2-70080.firebasestorage.app",
+
+messagingSenderId:"468625887938",
+
+appId:"1:468625887938:web:5cb4ddbcf31b6fc0a4615b"
+
+};
+
+const app = initializeApp(firebaseConfig);
+
+const auth = getAuth(app);
+
+const db = getFirestore(app);
+
+const provider = new GoogleAuthProvider();
+
+const params =
+new URLSearchParams(window.location.search);
+
+const ref =
+params.get("ref");
+
+if(ref){
+
+document.getElementById("referral").value = ref;
+
+}
+
+window.registerUser = async () => {
+
+try{
+
+const name =
+document.getElementById("name").value;
+
+const email =
+document.getElementById("email").value;
+
+const password =
+document.getElementById("password").value;
+
+const referral =
+document.getElementById("referral").value;
+
+const result =
+await createUserWithEmailAndPassword(
+auth,
+email,
+password
+);
+
+const uid =
+result.user.uid;
+
+const myReferralCode =
+"RND" +
+Math.floor(
+100000 +
+Math.random()*900000
+);
+
+await setDoc(
+doc(db,"users",uid),
+{
+name:name,
+email:email,
+referralCode:myReferralCode,
+referredBy:referral || "",
+stakeAmount:0,
+rewardBalance:0,
+status:"active",
+createdAt:serverTimestamp()
+}
+);
+
+document.getElementById("message").innerHTML =
+"Registration Successful";
+
+setTimeout(()=>{
+window.location.href="dashboard.html";
+},1500);
+
+}catch(error){
+
+document.getElementById("message").innerHTML =
+error.message;
+
+}
+
+};
+
+window.googleLogin = async () => {
+
+try{
+
+const result =
+await signInWithPopup(
+auth,
+provider
+);
+
+const user =
+result.user;
+
+const myReferralCode =
+"RND" +
+Math.floor(
+100000 +
+Math.random()*900000
+);
+
+await setDoc(
+doc(db,"users",user.uid),
+{
+name:user.displayName,
+email:user.email,
+referralCode:myReferralCode,
+referredBy:ref || "",
+stakeAmount:0,
+rewardBalance:0,
+status:"active",
+createdAt:serverTimestamp()
+}
+);
+
+window.location.href =
+"dashboard.html";
+
+}catch(error){
+
+document.getElementById("message").innerHTML =
+error.message;
+
+}
+
+};
+
+</script>
+
+</body>
+</html>
