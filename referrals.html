@@ -1,159 +1,312 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Referrals - RND Staking</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    * { font-family: 'Segoe UI', sans-serif; }
-    body { background: #0b1120; color: #f0f4ff; }
-    .navbar-custom { background: #0f1a2e; border-bottom: 1px solid #1f334f; }
-    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 1.5rem; }
-    .text-green { color: #2ecc71; }
-    .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
-    .btn-primary-custom:hover { background: #27ae60; color: #fff; }
-    .referral-box { background: #0b1120; border-radius: 16px; padding: 1rem; border: 1px dashed #2a3a5a; }
-    .copy-btn { cursor: pointer; }
-    .table-custom { color: #f0f4ff; border-color: #1f334f; }
-    .table-custom th { border-bottom: 2px solid #2a3a5a; color: #a0b8d0; }
-    .table-custom td { border-color: #1f334f; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referrals - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080e1a; color: #f0f4ff; }
+        
+        .navbar-custom {
+            background: rgba(8,14,26,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(46,204,113,0.15);
+            padding: 12px 0;
+        }
+        .nav-link-custom {
+            color: #a0b8d0 !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 8px 20px !important;
+            border-radius: 10px;
+        }
+        .nav-link-custom:hover, .nav-link-custom.active {
+            color: #2ecc71 !important;
+            background: rgba(46,204,113,0.1);
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 8px 18px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .card-glass {
+            background: rgba(19,34,55,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .card-glass:hover {
+            border-color: rgba(46,204,113,0.2);
+        }
+        .referral-box {
+            background: rgba(8,14,26,0.6);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px dashed rgba(46,204,113,0.2);
+        }
+        .copy-btn {
+            cursor: pointer;
+            padding: 4px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(46,204,113,0.2);
+            background: transparent;
+            color: #a0b8d0;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+        }
+        .copy-btn:hover {
+            background: rgba(46,204,113,0.1);
+            color: #2ecc71;
+        }
+        .table-custom {
+            color: #f0f4ff;
+            border-color: rgba(46,204,113,0.1);
+        }
+        .table-custom th {
+            border-bottom: 2px solid rgba(46,204,113,0.15);
+            color: #a0b8d0;
+            font-weight: 600;
+        }
+        .table-custom td {
+            border-color: rgba(46,204,113,0.08);
+        }
+        .commission-box {
+            background: rgba(8,14,26,0.5);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(46,204,113,0.08);
+        }
+        
+        @media (max-width: 768px) {
+            .card-glass { padding: 1rem; }
+        }
+    </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-custom py-3">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-custom">
     <div class="container">
-      <a class="navbar-brand text-white fw-bold" href="dashboard.html"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link text-light" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
-          <li class="nav-item"><a class="nav-link text-light active" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
-        </ul>
-      </div>
+        <a class="navbar-brand fw-bold text-white" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin text-success me-2"></i>RND Staking
+        </a>
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom active" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+            </ul>
+        </div>
     </div>
-  </nav>
+</nav>
 
-  <div class="container py-4" id="referralContent">
-    <div class="text-center text-muted">Loading referral data...</div>
-  </div>
+<!-- Referrals Content -->
+<div class="container py-4" id="referralContent">
+    <div class="text-center text-muted py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2">Loading referral data...</p>
+    </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-  <script type="importmap">
-    {
-      "imports": {
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
-      }
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
     }
-  </script>
-  <script type="module">
-    import { initializeApp } from 'firebase/app';
-    import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-    import { getDatabase, ref, get } from 'firebase/database';
+}
+</script>
+<script type="module">
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { getDatabase, ref, get } from "firebase/database";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-      authDomain: "rnd2-70080.firebaseapp.com",
-      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "rnd2-70080",
-      storageBucket: "rnd2-70080.firebasestorage.app",
-      messagingSenderId: "468625887938",
-      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-      measurementId: "G-ELVJD5NQKB"
-    };
+const firebaseConfig = {
+    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+    authDomain: "rnd2-70080.firebaseapp.com",
+    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rnd2-70080",
+    storageBucket: "rnd2-70080.firebasestorage.app",
+    messagingSenderId: "468625887938",
+    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+    measurementId: "G-ELVJD5NQKB"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await signOut(auth);
-      window.location.href = 'login.html';
-    });
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+});
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
         window.location.href = 'login.html';
         return;
-      }
+    }
 
-      const userSnapshot = await get(ref(db, 'users/' + user.uid));
-      if (!userSnapshot.exists()) return;
-      const userData = userSnapshot.val();
+    const userSnapshot = await get(ref(db, 'users/' + user.uid));
+    if (!userSnapshot.exists()) return;
+    const userData = userSnapshot.val();
 
-      const allUsersSnapshot = await get(ref(db, 'users'));
-      let referrals = [];
-      if (allUsersSnapshot.exists()) {
+    // Get all referrals
+    const allUsersSnapshot = await get(ref(db, 'users'));
+    let referrals = [];
+    if (allUsersSnapshot.exists()) {
         const allUsers = allUsersSnapshot.val();
         for (let key in allUsers) {
-          if (allUsers[key].referredBy === userData.referralCode) {
-            referrals.push(allUsers[key]);
-          }
+            if (allUsers[key].referredBy === userData.referralCode) {
+                referrals.push(allUsers[key]);
+            }
         }
-      }
+    }
 
-      document.getElementById('referralContent').innerHTML = `
-        <div class="row">
-          <div class="col-12">
-            <h4><i class="bi bi-people text-green me-2"></i>Referral Program</h4>
-            <hr class="border-secondary">
-          </div>
-          <div class="col-md-6">
-            <div class="card-dark">
-              <h5>Your Referral Link</h5>
-              <div class="referral-box d-flex flex-wrap align-items-center gap-2">
-                <code class="text-light bg-dark p-2 rounded flex-grow-1">https://randigital.in/register.html?ref=${userData.referralCode}</code>
-                <button class="btn btn-sm btn-primary-custom copy-btn" data-copy="https://randigital.in/register.html?ref=${userData.referralCode}"><i class="bi bi-clipboard"></i> Copy</button>
-              </div>
+    document.getElementById('referralContent').innerHTML = `
+        <div class="row g-4">
+            <div class="col-12">
+                <h4 class="fw-bold"><i class="bi bi-people text-success me-2"></i>Referral Program</h4>
+                <hr class="border-secondary">
             </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card-dark">
-              <h5>Commission Structure</h5>
-              <div class="row g-2">
-                <div class="col-6"><small>Level 1 (8%)</small></div>
-                <div class="col-6"><small>Level 2 (4%)</small></div>
-                <div class="col-6"><small>Level 3 (2%)</small></div>
-                <div class="col-6"><small>Level 4 (1%)</small></div>
-                <div class="col-6"><small>Level 5 (1%)</small></div>
-                <div class="col-6"><strong class="text-green">Total 16%</strong></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 mt-4">
-            <div class="card-dark">
-              <h5>Your Referrals (${referrals.length})</h5>
-              ${referrals.length === 0 ? '<p class="text-muted">No referrals yet. Share your referral link to earn!</p>' : `
-                <div class="table-responsive">
-                  <table class="table table-custom">
-                    <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
-                    <tbody>
-                      ${referrals.map(r => `
-                        <tr><td>${r.name || 'N/A'}</td><td>${r.email || 'N/A'}</td><td>${new Date(r.createdAt).toLocaleDateString()}</td></tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
+
+            <!-- Referral Link -->
+            <div class="col-md-6">
+                <div class="card-glass h-100">
+                    <h5><i class="bi bi-link-45deg text-success me-2"></i>Your Referral Link</h5>
+                    <div class="referral-box d-flex flex-wrap align-items-center gap-2 mt-2">
+                        <code class="text-light small flex-grow-1">https://randigital.in/register.html?ref=${userData.referralCode}</code>
+                        <button class="copy-btn" data-copy="https://randigital.in/register.html?ref=${userData.referralCode}"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                    </div>
+                    <div class="mt-3">
+                        <span class="text-muted">Total Referrals:</span> <strong class="text-success">${referrals.length}</strong>
+                    </div>
                 </div>
-              `}
             </div>
-          </div>
-        </div>
-      `;
 
-      document.querySelectorAll('.copy-btn').forEach(btn => {
+            <!-- Commission Structure -->
+            <div class="col-md-6">
+                <div class="card-glass h-100">
+                    <h5><i class="bi bi-percent text-success me-2"></i>Commission Structure</h5>
+                    <div class="row g-2 mt-2">
+                        <div class="col-6">
+                            <div class="commission-box text-center">
+                                <small class="text-muted">Level 1</small>
+                                <h6 class="text-success mb-0">8%</h6>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commission-box text-center">
+                                <small class="text-muted">Level 2</small>
+                                <h6 class="text-success mb-0">4%</h6>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commission-box text-center">
+                                <small class="text-muted">Level 3</small>
+                                <h6 class="text-success mb-0">2%</h6>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commission-box text-center">
+                                <small class="text-muted">Level 4</small>
+                                <h6 class="text-success mb-0">1%</h6>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="commission-box text-center" style="border-color: rgba(46,204,113,0.2);">
+                                <small class="text-muted">Level 5</small>
+                                <h6 class="text-success mb-0">1%</h6>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="commission-box text-center bg-success bg-opacity-10" style="border-color: #2ecc71;">
+                                <small class="text-muted">Total Commission</small>
+                                <h5 class="text-success mb-0 fw-bold">16%</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Referrals List -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <h5><i class="bi bi-list-ul text-success me-2"></i>Your Referrals</h5>
+                    ${referrals.length === 0 ? `
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-people fs-1 d-block mb-2"></i>
+                            <p>No referrals yet. Share your link to start earning!</p>
+                        </div>
+                    ` : `
+                        <div class="table-responsive mt-3">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${referrals.map((r, i) => `
+                                        <tr>
+                                            <td>${i + 1}</td>
+                                            <td>${r.name || 'N/A'}</td>
+                                            <td>${r.email || 'N/A'}</td>
+                                            <td>${new Date(r.createdAt).toLocaleDateString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Copy referral link
+    document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('✅ Link copied!'));
+            navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+                btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy';
+                }, 2000);
+            });
         });
-      });
     });
-  </script>
+});
+</script>
 </body>
 </html>
