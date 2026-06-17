@@ -119,7 +119,7 @@
             <div class="d-flex justify-content-between mb-3">
                 <a href="#" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
             </div>
-            <button type="submit" class="btn-primary-custom">Sign In <i class="bi bi-arrow-right ms-2"></i></button>
+            <button type="submit" class="btn-primary-custom" id="loginBtn">Sign In <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
 
         <div class="divider">or continue with</div>
@@ -168,85 +168,68 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
-// 🔥 FIX: Auto-redirect if already logged in - WITH PROPER USER DATA CHECK
-onAuthStateChanged(auth, async (user) => {
+// ============================================================
+// 🔥 IMPORTANT: Check if user is already logged in
+// ============================================================
+onAuthStateChanged(auth, (user) => {
     if (user) {
-        try {
-            const snapshot = await get(ref(db, 'users/' + user.uid));
-            if (snapshot.exists()) {
-                const userData = snapshot.val();
-                // Check if user is banned
-                if (userData.banned) {
-                    alert('Your account has been banned.');
-                    await signOut(auth);
-                    return;
-                }
-                // Redirect based on role
-                if (userData.role === 'admin') {
-                    window.location.href = 'admin-dashboard.html';
-                } else {
-                    window.location.href = 'dashboard.html';
-                }
-            } else {
-                // User exists in auth but not in database - create entry
-                const refCodeGen = 'RND' + user.uid.slice(-5).toUpperCase();
-                await set(ref(db, 'users/' + user.uid), {
-                    name: user.displayName || 'User',
-                    email: user.email,
-                    uid: user.uid,
-                    referralCode: refCodeGen,
-                    referredBy: '',
-                    createdAt: Date.now(),
-                    totalStake: 0,
-                    totalReward: 0,
-                    availableReward: 0,
-                    totalWithdrawn: 0,
-                    totalReferrals: 0,
-                    teamBusiness: 0,
-                    banned: false,
-                    role: 'user'
-                });
-                window.location.href = 'dashboard.html';
-            }
-        } catch (error) {
-            console.error('Error checking user:', error);
-        }
+        // User is logged in - redirect to dashboard
+        window.location.href = 'dashboard.html';
     }
 });
 
-// Email Login
+// ============================================================
+// EMAIL LOGIN
+// ============================================================
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('loginEmail').value.trim();
     const pass = document.getElementById('loginPassword').value;
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = 'Signing In...';
+    const loginBtn = document.getElementById('loginBtn');
+    
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing In...';
 
     try {
-        await signInWithEmailAndPassword(auth, email, pass);
+        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+        // Success - redirect will happen automatically via onAuthStateChanged
+        window.location.href = 'dashboard.html';
     } catch (err) {
-        let msg = err.message;
+        let msg = '❌ Login failed. Please try again.';
         if (err.code === 'auth/user-not-found') msg = '❌ No account found with this email. Please register first.';
         else if (err.code === 'auth/wrong-password') msg = '❌ Incorrect password. Please try again.';
-        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email.';
+        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
         else if (err.code === 'auth/too-many-requests') msg = '❌ Too many failed attempts. Please try again later.';
         alert(msg);
     }
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = 'Sign In <i class="bi bi-arrow-right ms-2"></i>';
+    
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = 'Sign In <i class="bi bi-arrow-right ms-2"></i>';
 });
 
-// Google Login
+// ============================================================
+// GOOGLE LOGIN
+// ============================================================
 document.getElementById('googleLoginBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('googleLoginBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+    
     try {
         await signInWithPopup(auth, provider);
+        // Redirect will happen automatically via onAuthStateChanged
+        window.location.href = 'dashboard.html';
     } catch (err) {
         alert('❌ ' + err.message);
     }
+    
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-google me-2"></i> Sign in with Google';
 });
 
-// Forgot Password
+// ============================================================
+// FORGOT PASSWORD
+// ============================================================
 document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
     e.preventDefault();
     const email = prompt('Enter your email address to reset password:');
