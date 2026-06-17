@@ -57,16 +57,17 @@
   <script type="module">
     import { initializeApp } from 'firebase/app';
     import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-    import { getDatabase, ref, get, query, orderByChild, equalTo } from 'firebase/database';
+    import { getDatabase, ref, get } from 'firebase/database';
 
     const firebaseConfig = {
-      apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
-      authDomain: "rnd-staking.firebaseapp.com",
-      databaseURL: "https://rnd-staking-default-rtdb.firebaseio.com",
-      projectId: "rnd-staking",
-      storageBucket: "rnd-staking.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
+      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+      authDomain: "rnd2-70080.firebaseapp.com",
+      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "rnd2-70080",
+      storageBucket: "rnd2-70080.firebasestorage.app",
+      messagingSenderId: "468625887938",
+      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+      measurementId: "G-ELVJD5NQKB"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -88,7 +89,6 @@
       if (!userSnapshot.exists()) return;
       const userData = userSnapshot.val();
 
-      // Get all users to find referrals
       const allUsersSnapshot = await get(ref(db, 'users'));
       let referrals = [];
       if (allUsersSnapshot.exists()) {
@@ -100,7 +100,6 @@
         }
       }
 
-      // Render
       document.getElementById('referralContent').innerHTML = `
         <div class="row">
           <div class="col-12">
@@ -132,7 +131,7 @@
           <div class="col-12 mt-4">
             <div class="card-dark">
               <h5>Your Referrals (${referrals.length})</h5>
-              ${referrals.length === 0 ? '<p class="text-muted">No referrals yet.</p>' : `
+              ${referrals.length === 0 ? '<p class="text-muted">No referrals yet. Share your referral link to earn!</p>' : `
                 <div class="table-responsive">
                   <table class="table table-custom">
                     <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
@@ -151,7 +150,7 @@
 
       document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('Link copied!'));
+          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('✅ Link copied!'));
         });
       });
     });
