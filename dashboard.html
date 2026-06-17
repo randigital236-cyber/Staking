@@ -61,26 +61,25 @@
     import { getDatabase, ref, get } from 'firebase/database';
 
     const firebaseConfig = {
-      apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
-      authDomain: "rnd-staking.firebaseapp.com",
-      databaseURL: "https://rnd-staking-default-rtdb.firebaseio.com",
-      projectId: "rnd-staking",
-      storageBucket: "rnd-staking.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
+      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+      authDomain: "rnd2-70080.firebaseapp.com",
+      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "rnd2-70080",
+      storageBucket: "rnd2-70080.firebasestorage.app",
+      messagingSenderId: "468625887938",
+      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+      measurementId: "G-ELVJD5NQKB"
     };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Logout
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await signOut(auth);
       window.location.href = 'login.html';
     });
 
-    // Load dashboard
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
         window.location.href = 'login.html';
@@ -101,7 +100,6 @@
         return;
       }
 
-      // Render dashboard
       document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
           <div class="col-12">
@@ -157,10 +155,9 @@
         </div>
       `;
 
-      // Copy referral link
       document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('Link copied!'));
+          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('✅ Link copied!'));
         });
       });
     });
