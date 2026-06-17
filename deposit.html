@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deposit - RND Staking</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    * { font-family: 'Segoe UI', sans-serif; }
+    body { background: #0b1120; color: #f0f4ff; }
+    .navbar-custom { background: #0f1a2e; border-bottom: 1px solid #1f334f; }
+    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 2rem; }
+    .input-group-custom input, .input-group-custom select { background: #0b1120; border: 1px solid #2a3a5a; color: #f0f4ff; }
+    .input-group-custom input:focus, .input-group-custom select:focus { background: #0b1120; border-color: #2ecc71; color: #fff; box-shadow: 0 0 0 0.2rem rgba(46,204,113,0.25); }
+    .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
+    .btn-primary-custom:hover { background: #27ae60; color: #fff; }
+    .text-green { color: #2ecc71; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-custom py-3">
+    <div class="container">
+      <a class="navbar-brand text-white fw-bold" href="dashboard.html"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link text-light" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link text-light active" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
+          <li class="nav-item"><a class="nav-link text-light" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
+          <li class="nav-item"><a class="nav-link text-light" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        <div class="card-dark">
+          <h4><i class="bi bi-arrow-down-circle text-green me-2"></i>Manual Deposit (USDT BEP20)</h4>
+          <div class="alert alert-info mt-3">
+            <strong>Wallet Address:</strong><br>
+            <code id="walletAddress">0x1234567890abcdef1234567890abcdef12345678</code>
+            <button class="btn btn-sm btn-outline-light ms-2" id="copyWalletBtn"><i class="bi bi-clipboard"></i> Copy</button>
+          </div>
+          <form id="depositForm">
+            <div class="mb-3">
+              <label>Amount (USDT) - Minimum 10 USDT</label>
+              <input type="number" id="depAmount" class="form-control input-group-custom" min="10" step="0.01" required>
+            </div>
+            <div class="mb-3">
+              <label>Transaction Hash</label>
+              <input type="text" id="depTx" class="form-control input-group-custom" placeholder="0x..." required>
+            </div>
+            <div class="mb-3">
+              <label>Select Plan</label>
+              <select id="depPlan" class="form-select input-group-custom">
+                <option value="6">6 Months (25% Reward)</option>
+                <option value="12">12 Months (60% Reward)</option>
+                <option value="18">18 Months (100% Reward)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary-custom w-100 py-2">Submit Deposit</button>
+          </form>
+          <div class="mt-3">
+            <a href="dashboard.html" class="text-green">← Back to Dashboard</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import { initializeApp } from 'firebase/app';
+    import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
+    import { getDatabase, ref, push, get, set } from 'firebase/database';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
+      authDomain: "rnd-staking.firebaseapp.com",
+      databaseURL: "https://rnd-staking-default-rtdb.firebaseio.com",
+      projectId: "rnd-staking",
+      storageBucket: "rnd-staking.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'login.html';
+    });
+
+    // Check auth
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = 'login.html';
+        return;
+      }
+    });
+
+    // Copy wallet address
+    document.getElementById('copyWalletBtn').addEventListener('click', () => {
+      const addr = document.getElementById('walletAddress').textContent;
+      navigator.clipboard.writeText(addr).then(() => alert('Wallet address copied!'));
+    });
+
+    // Submit deposit
+    document.getElementById('depositForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = auth.currentUser;
+      if (!user) return alert('Please login');
+
+      const amount = document.getElementById('depAmount').value;
+      const tx = document.getElementById('depTx').value;
+      const plan = document.getElementById('depPlan').value;
+
+      await push(ref(db, 'deposits'), {
+        uid: user.uid,
+        amount: parseFloat(amount),
+        txHash: tx,
+        plan: parseInt(plan),
+        status: 'pending',
+        timestamp: Date.now()
+      });
+
+      alert('Deposit submitted for admin approval.');
+      window.location.href = 'dashboard.html';
+    });
+  </script>
+</body>
+</html>
