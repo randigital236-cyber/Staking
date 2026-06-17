@@ -64,13 +64,14 @@
     import { getDatabase, ref, get } from 'firebase/database';
 
     const firebaseConfig = {
-      apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
-      authDomain: "rnd-staking.firebaseapp.com",
-      databaseURL: "https://rnd-staking-default-rtdb.firebaseio.com",
-      projectId: "rnd-staking",
-      storageBucket: "rnd-staking.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
+      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+      authDomain: "rnd2-70080.firebaseapp.com",
+      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "rnd2-70080",
+      storageBucket: "rnd2-70080.firebasestorage.app",
+      messagingSenderId: "468625887938",
+      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+      measurementId: "G-ELVJD5NQKB"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -78,7 +79,6 @@
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
-    // Check if already logged in
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const snapshot = await get(ref(db, 'users/' + user.uid));
@@ -99,13 +99,21 @@
       const pass = document.getElementById('loginPassword').value;
       try {
         await signInWithEmailAndPassword(auth, email, pass);
-      } catch (err) { alert(err.message); }
+      } catch (err) { 
+        let errorMsg = err.message;
+        if (err.code === 'auth/user-not-found') {
+          errorMsg = 'No account found with this email. Please register first.';
+        } else if (err.code === 'auth/wrong-password') {
+          errorMsg = 'Incorrect password. Please try again.';
+        }
+        alert('❌ ' + errorMsg);
+      }
     });
 
     document.getElementById('googleLoginBtn').addEventListener('click', async () => {
       try { 
         await signInWithPopup(auth, provider); 
-      } catch (err) { alert(err.message); }
+      } catch (err) { alert('❌ ' + err.message); }
     });
 
     document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
@@ -114,8 +122,8 @@
       if (email) {
         try { 
           await sendPasswordResetEmail(auth, email); 
-          alert('Reset link sent to your email.'); 
-        } catch (err) { alert(err.message); }
+          alert('✅ Reset link sent to your email.'); 
+        } catch (err) { alert('❌ ' + err.message); }
       }
     });
   </script>
