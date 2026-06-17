@@ -65,24 +65,21 @@
     import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
     import { getDatabase, ref, set, get } from 'firebase/database';
 
-    // ============================================
-    // 🔥 REPLACE THIS WITH YOUR ACTUAL FIREBASE CONFIG
-    // ============================================
     const firebaseConfig = {
-      apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
-      authDomain: "rnd-staking.firebaseapp.com",
-      databaseURL: "https://rnd-staking-default-rtdb.firebaseio.com",
-      projectId: "rnd-staking",
-      storageBucket: "rnd-staking.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
+      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+      authDomain: "rnd2-70080.firebaseapp.com",
+      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "rnd2-70080",
+      storageBucket: "rnd2-70080.firebasestorage.app",
+      messagingSenderId: "468625887938",
+      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+      measurementId: "G-ELVJD5NQKB"
     };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Auto-fill referral from URL
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     if (refCode) document.getElementById('regRef').value = refCode;
@@ -94,7 +91,6 @@
       const pass = document.getElementById('regPassword').value;
       const ref = document.getElementById('regRef').value.trim();
 
-      // Basic validation
       if (pass.length < 6) {
         alert('Password must be at least 6 characters long!');
         return;
@@ -122,7 +118,6 @@
           role: 'user'
         });
 
-        // Update referrer if referral code was used
         if (ref) {
           const snapshot = await get(ref(db, 'users'));
           if (snapshot.exists()) {
