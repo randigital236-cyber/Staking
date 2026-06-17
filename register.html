@@ -229,8 +229,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const uid = cred.user.uid;
         const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
         
-        // Save user data in Realtime Database
-        await set(ref(db, 'users/' + uid), {
+        // ✅ SAVE USER DATA IN DATABASE
+        const userRef = ref(db, 'users/' + uid);
+        await set(userRef, {
             name: name,
             email: email,
             uid: uid,
@@ -246,6 +247,12 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             banned: false,
             role: 'user'
         });
+
+        // ✅ Verify data was saved
+        const checkSnapshot = await get(ref(db, 'users/' + uid));
+        if (!checkSnapshot.exists()) {
+            throw new Error('Data was not saved properly. Please check database rules.');
+        }
 
         // Update referrer's referral count (if referral code provided)
         if (ref) {
@@ -271,7 +278,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         if (err.code === 'auth/email-already-in-use') msg = '❌ This email is already registered. Please login instead.';
         else if (err.code === 'auth/weak-password') msg = '❌ Password is too weak. Please use at least 6 characters.';
         else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
+        else if (err.message && err.message.includes('permission_denied')) {
+            msg = '❌ Database permission denied! Please check Firebase Rules.';
+        }
         alert(msg);
+        console.error('Registration Error:', err);
     }
     
     registerBtn.disabled = false;
@@ -318,7 +329,12 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         window.location.href = 'dashboard.html';
         
     } catch (err) {
-        alert('❌ ' + err.message);
+        let msg = '❌ ' + err.message;
+        if (err.message && err.message.includes('permission_denied')) {
+            msg = '❌ Database permission denied! Please check Firebase Rules.';
+        }
+        alert(msg);
+        console.error('Google Registration Error:', err);
     }
     
     btn.disabled = false;
