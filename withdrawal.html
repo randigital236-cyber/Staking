@@ -1,141 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Withdraw - RND Staking</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    * { font-family: 'Segoe UI', sans-serif; }
-    body { background: #0b1120; color: #f0f4ff; }
-    .navbar-custom { background: #0f1a2e; border-bottom: 1px solid #1f334f; }
-    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 2rem; }
-    .input-group-custom input { background: #0b1120; border: 1px solid #2a3a5a; color: #f0f4ff; }
-    .input-group-custom input:focus { background: #0b1120; border-color: #2ecc71; color: #fff; box-shadow: 0 0 0 0.2rem rgba(46,204,113,0.25); }
-    .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
-    .btn-primary-custom:hover { background: #27ae60; color: #fff; }
-    .text-green { color: #2ecc71; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Withdraw - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080e1a; color: #f0f4ff; }
+        
+        .navbar-custom {
+            background: rgba(8,14,26,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(46,204,113,0.15);
+            padding: 12px 0;
+        }
+        .nav-link-custom {
+            color: #a0b8d0 !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 8px 20px !important;
+            border-radius: 10px;
+        }
+        .nav-link-custom:hover, .nav-link-custom.active {
+            color: #2ecc71 !important;
+            background: rgba(46,204,113,0.1);
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .card-glass {
+            background: rgba(19,34,55,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+        .form-control-custom {
+            background: rgba(8,14,26,0.8) !important;
+            border: 1px solid rgba(46,204,113,0.15) !important;
+            color: #f0f4ff !important;
+            padding: 12px 16px !important;
+            border-radius: 12px !important;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        .form-control-custom:focus {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 0 3px rgba(46,204,113,0.15) !important;
+            background: rgba(8,14,26,0.9) !important;
+        }
+        .form-control-custom::placeholder { color: #556688 !important; }
+        .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
+        .alert-info-custom {
+            background: rgba(46,204,113,0.05);
+            border: 1px solid rgba(46,204,113,0.1);
+            color: #a0b8d0;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .card-glass { padding: 1.25rem; }
+        }
+    </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-custom py-3">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-custom">
     <div class="container">
-      <a class="navbar-brand text-white fw-bold" href="dashboard.html"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link text-light" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
-          <li class="nav-item"><a class="nav-link text-light active" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
-        </ul>
-      </div>
-    </div>
-  </nav>
-
-  <div class="container py-4">
-    <div class="row justify-content-center">
-      <div class="col-md-8 col-lg-6">
-        <div class="card-dark">
-          <h4><i class="bi bi-arrow-up-circle text-green me-2"></i>Withdraw Funds</h4>
-          <div class="alert alert-warning mt-3">
-            <small>Minimum withdrawal: 10 USDT. All withdrawals are manually processed.</small>
-          </div>
-          <form id="withdrawForm">
-            <div class="mb-3">
-              <label>Amount (USDT)</label>
-              <input type="number" id="withAmount" class="form-control input-group-custom" min="10" step="0.01" required>
-            </div>
-            <div class="mb-3">
-              <label>Wallet Address (BEP20)</label>
-              <input type="text" id="withAddr" class="form-control input-group-custom" placeholder="0x..." required>
-            </div>
-            <button type="submit" class="btn btn-primary-custom w-100 py-2">Submit Withdrawal</button>
-          </form>
-          <div class="mt-3">
-            <a href="dashboard.html" class="text-green">← Back to Dashboard</a>
-          </div>
+        <a class="navbar-brand fw-bold text-white" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin text-success me-2"></i>RND Staking
+        </a>
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom active" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+            </ul>
         </div>
-      </div>
     </div>
-  </div>
+</nav>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-  <script type="importmap">
-    {
-      "imports": {
+<!-- Withdrawal Content -->
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card-glass">
+                <h4 class="fw-bold"><i class="bi bi-arrow-up-circle text-success me-2"></i>Withdraw Funds</h4>
+                <p class="text-muted small">Withdraw your available rewards to your wallet.</p>
+
+                <div class="alert-info-custom mt-3">
+                    <i class="bi bi-info-circle text-success me-2"></i>
+                    <small>Minimum withdrawal: 10 USDT. All withdrawals are manually processed within 24-48 hours.</small>
+                </div>
+
+                <form id="withdrawForm" class="mt-4">
+                    <div class="mb-3">
+                        <label class="form-label">Amount (USDT)</label>
+                        <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Min. 10 USDT" min="10" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Wallet Address (BEP20)</label>
+                        <input type="text" id="withAddr" class="form-control form-control-custom" placeholder="0x..." required>
+                    </div>
+                    <button type="submit" class="btn-primary-custom w-100 text-center">Submit Withdrawal <i class="bi bi-arrow-right ms-2"></i></button>
+                </form>
+
+                <div class="mt-3">
+                    <a href="dashboard.html" class="text-success text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
-      }
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
     }
-  </script>
-  <script type="module">
-    import { initializeApp } from 'firebase/app';
-    import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-    import { getDatabase, ref, push, get } from 'firebase/database';
+}
+</script>
+<script type="module">
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { getDatabase, ref, push, get } from "firebase/database";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-      authDomain: "rnd2-70080.firebaseapp.com",
-      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "rnd2-70080",
-      storageBucket: "rnd2-70080.firebasestorage.app",
-      messagingSenderId: "468625887938",
-      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-      measurementId: "G-ELVJD5NQKB"
-    };
+const firebaseConfig = {
+    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+    authDomain: "rnd2-70080.firebaseapp.com",
+    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rnd2-70080",
+    storageBucket: "rnd2-70080.firebasestorage.app",
+    messagingSenderId: "468625887938",
+    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+    measurementId: "G-ELVJD5NQKB"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await signOut(auth);
-      window.location.href = 'login.html';
-    });
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+});
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
         window.location.href = 'login.html';
         return;
-      }
-    });
+    }
+});
 
-    document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const user = auth.currentUser;
-      if (!user) return alert('Please login');
+document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = auth.currentUser;
+    if (!user) return alert('Please login');
 
-      const amount = document.getElementById('withAmount').value;
-      const addr = document.getElementById('withAddr').value;
+    const amount = parseFloat(document.getElementById('withAmount').value);
+    const wallet = document.getElementById('withAddr').value.trim();
 
-      const settingsSnap = await get(ref(db, 'settings'));
-      let minWithdrawal = 10;
-      if (settingsSnap.exists()) {
+    // Get min withdrawal from settings
+    const settingsSnap = await get(ref(db, 'settings'));
+    let minWithdrawal = 10;
+    if (settingsSnap.exists()) {
         const settings = settingsSnap.val();
         minWithdrawal = settings.minWithdrawal || 10;
-      }
+    }
 
-      if (parseFloat(amount) < minWithdrawal) {
-        alert(`Minimum withdrawal is ${minWithdrawal} USDT!`);
+    if (amount < minWithdrawal) {
+        alert(`❌ Minimum withdrawal is ${minWithdrawal} USDT!`);
         return;
-      }
+    }
+    if (!wallet || wallet.length < 10) {
+        alert('❌ Please enter a valid wallet address.');
+        return;
+    }
 
-      await push(ref(db, 'withdrawals'), {
+    await push(ref(db, 'withdrawals'), {
         uid: user.uid,
-        amount: parseFloat(amount),
-        wallet: addr,
+        amount: amount,
+        wallet: wallet,
         status: 'pending',
         timestamp: Date.now()
-      });
-
-      alert('✅ Withdrawal submitted for admin approval.');
-      window.location.href = 'dashboard.html';
     });
-  </script>
+
+    alert('✅ Withdrawal submitted successfully! Waiting for admin approval.');
+    window.location.href = 'dashboard.html';
+});
+</script>
 </body>
 </html>
