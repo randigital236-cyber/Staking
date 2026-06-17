@@ -175,11 +175,17 @@
 }
 </script>
 <script type="module">
+// ============================================================
+// 🔥 FIREBASE IMPORTS - CORRECT WAY
+// ============================================================
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, get, set } from "firebase/database";
 
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -191,13 +197,18 @@ const firebaseConfig = {
     measurementId: "G-ELVJD5NQKB"
 };
 
+// ============================================================
+// 🔥 INIT FIREBASE
+// ============================================================
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+console.log('🔥 Firebase initialized successfully!');
+
 // ============================================================
-// LOGOUT
+// 🔥 LOGOUT
 // ============================================================
 document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
@@ -205,23 +216,26 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 // ============================================================
-// CHECK AUTH & LOAD DASHBOARD
+// 🔥 CHECK AUTH & LOAD DASHBOARD
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        // Not logged in - redirect to login
+        console.log('❌ No user logged in. Redirecting to login...');
         window.location.href = 'login.html';
         return;
     }
 
+    console.log('✅ User logged in. UID:', user.uid);
+    
     try {
+        // Check if user data exists in database
         const snapshot = await get(ref(db, 'users/' + user.uid));
         
         if (!snapshot.exists()) {
-            // ⚠️ User data not found - Create it now
-            console.log('User data not found. Creating new entry...');
-            const refCodeGen = 'RND' + user.uid.slice(-5).toUpperCase();
+            console.log('⚠️ User data not found in database. Creating now...');
             
+            // Create user data
+            const refCodeGen = 'RND' + user.uid.slice(-5).toUpperCase();
             await set(ref(db, 'users/' + user.uid), {
                 name: user.displayName || 'User',
                 email: user.email,
@@ -239,25 +253,32 @@ onAuthStateChanged(auth, async (user) => {
                 role: 'user'
             });
             
-            // Reload to get fresh data
+            console.log('✅ User data created in database!');
+            
+            // Load fresh data
             const newSnapshot = await get(ref(db, 'users/' + user.uid));
-            if (!newSnapshot.exists()) {
-                throw new Error('Unable to create user data. Please check database permissions.');
+            if (newSnapshot.exists()) {
+                loadDashboard(newSnapshot.val());
+            } else {
+                throw new Error('Unable to create user data');
             }
-            loadDashboard(newSnapshot.val());
         } else {
             const u = snapshot.val();
+            
+            // Check if user is banned
             if (u.banned) {
                 alert('Your account has been banned.');
                 await signOut(auth);
                 window.location.href = 'login.html';
                 return;
             }
+            
+            console.log('✅ User data loaded from database.');
             loadDashboard(u);
         }
 
     } catch (error) {
-        console.error('Error loading dashboard:', error);
+        console.error('❌ Error loading dashboard:', error);
         document.getElementById('dashboardContent').innerHTML = `
             <div class="text-center py-5">
                 <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
@@ -270,7 +291,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ============================================================
-// LOAD DASHBOARD FUNCTION
+// 🔥 LOAD DASHBOARD FUNCTION
 // ============================================================
 function loadDashboard(u) {
     document.getElementById('dashboardContent').innerHTML = `
