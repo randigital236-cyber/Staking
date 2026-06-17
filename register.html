@@ -1,151 +1,278 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register - RND Staking</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    * { font-family: 'Segoe UI', sans-serif; }
-    body { background: #0b1120; color: #f0f4ff; min-height: 100vh; display: flex; align-items: center; }
-    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 2rem; }
-    .input-group-custom input { background: #0b1120; border: 1px solid #2a3a5a; color: #f0f4ff; }
-    .input-group-custom input:focus { background: #0b1120; border-color: #2ecc71; color: #fff; box-shadow: 0 0 0 0.2rem rgba(46,204,113,0.25); }
-    .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
-    .btn-primary-custom:hover { background: #27ae60; color: #fff; }
-    .text-green { color: #2ecc71; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: linear-gradient(135deg, #080e1a 0%, #0f1f3a 50%, #1a2a4a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .register-container {
+            width: 100%;
+            max-width: 480px;
+        }
+        .card-glass {
+            background: rgba(19,34,55,0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(46,204,113,0.15);
+            border-radius: 24px;
+            padding: 2.5rem;
+        }
+        .form-control-custom {
+            background: rgba(8,14,26,0.8) !important;
+            border: 1px solid rgba(46,204,113,0.15) !important;
+            color: #f0f4ff !important;
+            padding: 12px 16px !important;
+            border-radius: 12px !important;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        .form-control-custom:focus {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 0 3px rgba(46,204,113,0.15) !important;
+            background: rgba(8,14,26,0.9) !important;
+        }
+        .form-control-custom::placeholder { color: #556688 !important; }
+        .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 14px;
+            border-radius: 12px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .btn-google {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #a0b8d0;
+            padding: 12px;
+            border-radius: 12px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .btn-google:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .text-link { color: #2ecc71; text-decoration: none; font-weight: 600; }
+        .text-link:hover { text-decoration: underline; }
+        .divider { 
+            display: flex; 
+            align-items: center; 
+            color: #556688;
+            font-size: 0.85rem;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(46,204,113,0.15);
+        }
+        .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
+        .logo-text span { color: #2ecc71; }
+        
+        @media (max-width: 576px) {
+            .card-glass { padding: 1.5rem; }
+            .logo-text { font-size: 1.5rem; }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-6 col-lg-5">
-        <div class="card-dark">
-          <h3 class="fw-bold text-center mb-4"><i class="bi bi-person-plus text-green me-2"></i>Create Account</h3>
-          <form id="registerForm">
-            <div class="mb-3">
-              <label class="form-label">Full Name</label>
-              <input type="text" id="regName" class="form-control input-group-custom" placeholder="John Doe" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Email</label>
-              <input type="email" id="regEmail" class="form-control input-group-custom" placeholder="you@example.com" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Password</label>
-              <input type="password" id="regPassword" class="form-control input-group-custom" placeholder="••••••••" required minlength="6">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Referral Code (optional)</label>
-              <input type="text" id="regRef" class="form-control input-group-custom" placeholder="RNDXXXXX">
-            </div>
-            <button type="submit" class="btn btn-primary-custom w-100 py-2">Create Account</button>
-          </form>
-          <div class="mt-3 text-center">
-            <a href="login.html" class="text-green">Already have an account? Login</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-  <script type="importmap">
-    {
-      "imports": {
+<div class="register-container">
+    <div class="card-glass">
+        <!-- Logo -->
+        <div class="text-center mb-4">
+            <div class="logo-text"><i class="bi bi-currency-bitcoin me-2"></i>RND<span>Staking</span></div>
+            <p class="text-muted small">Create your account</p>
+        </div>
+
+        <!-- Form -->
+        <form id="registerForm">
+            <div class="mb-3">
+                <label class="form-label">Full Name</label>
+                <input type="text" id="regName" class="form-control form-control-custom" placeholder="John Doe" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email Address</label>
+                <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Referral Code <span class="text-muted">(optional)</span></label>
+                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="RNDXXXXX">
+            </div>
+            <button type="submit" class="btn-primary-custom">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
+        </form>
+
+        <div class="divider">or continue with</div>
+
+        <button id="googleRegisterBtn" class="btn-google">
+            <i class="bi bi-google me-2"></i> Sign up with Google
+        </button>
+
+        <p class="text-center mt-4 text-muted small">
+            Already have an account? <a href="login.html" class="text-link">Login</a>
+        </p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
-      }
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
     }
-  </script>
-  <script type="module">
-    import { initializeApp } from 'firebase/app';
-    import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-    import { getDatabase, ref, set, get } from 'firebase/database';
+}
+</script>
+<script type="module">
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getDatabase, ref, set, get } from "firebase/database";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-      authDomain: "rnd2-70080.firebaseapp.com",
-      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "rnd2-70080",
-      storageBucket: "rnd2-70080.firebasestorage.app",
-      messagingSenderId: "468625887938",
-      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-      measurementId: "G-ELVJD5NQKB"
-    };
+const firebaseConfig = {
+    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+    authDomain: "rnd2-70080.firebaseapp.com",
+    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rnd2-70080",
+    storageBucket: "rnd2-70080.firebasestorage.app",
+    messagingSenderId: "468625887938",
+    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+    measurementId: "G-ELVJD5NQKB"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getDatabase(app);
+const provider = new GoogleAuthProvider();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get('ref');
-    if (refCode) document.getElementById('regRef').value = refCode;
+// Auto-fill referral from URL
+const urlParams = new URLSearchParams(window.location.search);
+const refCode = urlParams.get('ref');
+if (refCode) document.getElementById('regRef').value = refCode;
 
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = document.getElementById('regName').value;
-      const email = document.getElementById('regEmail').value;
-      const pass = document.getElementById('regPassword').value;
-      const ref = document.getElementById('regRef').value.trim();
+// Email Registration
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const pass = document.getElementById('regPassword').value;
+    const ref = document.getElementById('regRef').value.trim();
 
-      if (pass.length < 6) {
-        alert('Password must be at least 6 characters long!');
+    if (pass.length < 6) {
+        alert('❌ Password must be at least 6 characters long!');
         return;
-      }
+    }
 
-      try {
+    try {
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
         
         await set(ref(db, 'users/' + uid), {
-          name: name,
-          email: email,
-          uid: uid,
-          referralCode: refCodeGen,
-          referredBy: ref || '',
-          createdAt: Date.now(),
-          totalStake: 0,
-          totalReward: 0,
-          availableReward: 0,
-          totalWithdrawn: 0,
-          totalReferrals: 0,
-          teamBusiness: 0,
-          banned: false,
-          role: 'user'
+            name: name,
+            email: email,
+            uid: uid,
+            referralCode: refCodeGen,
+            referredBy: ref || '',
+            createdAt: Date.now(),
+            totalStake: 0,
+            totalReward: 0,
+            availableReward: 0,
+            totalWithdrawn: 0,
+            totalReferrals: 0,
+            teamBusiness: 0,
+            banned: false,
+            role: 'user'
         });
 
+        // Update referrer
         if (ref) {
-          const snapshot = await get(ref(db, 'users'));
-          if (snapshot.exists()) {
-            const users = snapshot.val();
-            for (let key in users) {
-              if (users[key].referralCode === ref) {
-                const refCount = (users[key].totalReferrals || 0) + 1;
-                await set(ref(db, 'users/' + key + '/totalReferrals'), refCount);
-                break;
-              }
+            const snapshot = await get(ref(db, 'users'));
+            if (snapshot.exists()) {
+                const users = snapshot.val();
+                for (let key in users) {
+                    if (users[key].referralCode === ref) {
+                        const refCount = (users[key].totalReferrals || 0) + 1;
+                        await set(ref(db, 'users/' + key + '/totalReferrals'), refCount);
+                        break;
+                    }
+                }
             }
-          }
         }
         
-        alert('✅ Account created successfully! Redirecting to login...');
+        alert('✅ Account created successfully!');
         window.location.href = 'login.html';
-      } catch (err) { 
-        let errorMsg = err.message;
-        if (err.code === 'auth/email-already-in-use') {
-          errorMsg = 'This email is already registered. Please login instead.';
-        } else if (err.code === 'auth/weak-password') {
-          errorMsg = 'Password is too weak. Please use at least 6 characters.';
-        } else if (err.code === 'auth/invalid-email') {
-          errorMsg = 'Please enter a valid email address.';
-        }
-        alert('❌ ' + errorMsg);
-      }
-    });
-  </script>
+    } catch (err) {
+        let msg = err.message;
+        if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered.';
+        else if (err.code === 'auth/weak-password') msg = 'Password is too weak.';
+        else if (err.code === 'auth/invalid-email') msg = 'Please enter a valid email.';
+        alert('❌ ' + msg);
+    }
+});
+
+// Google Registration
+document.getElementById('googleRegisterBtn').addEventListener('click', async () => {
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        const uid = user.uid;
+        const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
+        
+        await set(ref(db, 'users/' + uid), {
+            name: user.displayName || 'Google User',
+            email: user.email,
+            uid: uid,
+            referralCode: refCodeGen,
+            referredBy: '',
+            createdAt: Date.now(),
+            totalStake: 0,
+            totalReward: 0,
+            availableReward: 0,
+            totalWithdrawn: 0,
+            totalReferrals: 0,
+            teamBusiness: 0,
+            banned: false,
+            role: 'user'
+        });
+        
+        alert('✅ Account created with Google!');
+        window.location.href = 'dashboard.html';
+    } catch (err) {
+        alert('❌ ' + err.message);
+    }
+});
+</script>
 </body>
 </html>
