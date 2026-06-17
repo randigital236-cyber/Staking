@@ -1,166 +1,346 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - RND Staking</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    * { font-family: 'Segoe UI', sans-serif; }
-    body { background: #0b1120; color: #f0f4ff; }
-    .navbar-custom { background: #0f1a2e; border-bottom: 1px solid #1f334f; }
-    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 1.5rem; }
-    .stat-card { background: #132237; border-radius: 20px; padding: 1.25rem; border: 1px solid #1f334f; }
-    .text-green { color: #2ecc71; }
-    .text-gold { color: #f1c40f; }
-    .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
-    .btn-primary-custom:hover { background: #27ae60; color: #fff; }
-    .btn-outline-light-custom { border: 1px solid #4a6a8a; color: #c8d6e5; }
-    .btn-outline-light-custom:hover { background: #1f334f; color: #fff; }
-    .referral-box { background: #0b1120; border-radius: 16px; padding: 1rem; border: 1px dashed #2a3a5a; }
-    .copy-btn { cursor: pointer; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080e1a; color: #f0f4ff; }
+        
+        .navbar-custom {
+            background: rgba(8,14,26,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(46,204,113,0.15);
+            padding: 12px 0;
+        }
+        .nav-link-custom {
+            color: #a0b8d0 !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 8px 20px !important;
+            border-radius: 10px;
+        }
+        .nav-link-custom:hover, .nav-link-custom.active {
+            color: #2ecc71 !important;
+            background: rgba(46,204,113,0.1);
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .btn-outline-custom {
+            border: 2px solid rgba(46,204,113,0.3);
+            color: #a0b8d0;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            background: transparent;
+        }
+        .btn-outline-custom:hover {
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+        .card-glass {
+            background: rgba(19,34,55,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .card-glass:hover {
+            border-color: rgba(46,204,113,0.3);
+            transform: translateY(-3px);
+        }
+        .stat-card {
+            background: rgba(19,34,55,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            border-color: rgba(46,204,113,0.2);
+        }
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(46,204,113,0.12);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #2ecc71;
+        }
+        .stat-number { font-size: 1.8rem; font-weight: 800; }
+        .stat-label { color: #8899bb; font-size: 0.85rem; font-weight: 500; }
+        .text-green { color: #2ecc71; }
+        .text-gold { color: #f1c40f; }
+        .referral-box {
+            background: rgba(8,14,26,0.6);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px dashed rgba(46,204,113,0.2);
+        }
+        .copy-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(46,204,113,0.2);
+            background: transparent;
+            color: #a0b8d0;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+        }
+        .copy-btn:hover {
+            background: rgba(46,204,113,0.1);
+            color: #2ecc71;
+        }
+        .plan-box {
+            background: rgba(8,14,26,0.5);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid rgba(46,204,113,0.08);
+            transition: all 0.3s ease;
+        }
+        .plan-box:hover { border-color: rgba(46,204,113,0.2); }
+        
+        @media (max-width: 768px) {
+            .stat-number { font-size: 1.3rem; }
+            .card-glass { padding: 1rem; }
+        }
+    </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-custom py-3">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-custom">
     <div class="container">
-      <a class="navbar-brand text-white fw-bold" href="#"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link text-light active" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
-        </ul>
-      </div>
+        <a class="navbar-brand fw-bold text-white" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin text-success me-2"></i>RND Staking
+        </a>
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item"><a class="nav-link nav-link-custom active" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
+                <li class="nav-item"><a class="nav-link nav-link-custom" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+            </ul>
+        </div>
     </div>
-  </nav>
+</nav>
 
-  <div class="container py-4" id="dashboardContent">
-    <div class="text-center text-muted">Loading dashboard...</div>
-  </div>
+<!-- Dashboard Content -->
+<div class="container py-4" id="dashboardContent">
+    <div class="text-center text-muted py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2">Loading dashboard...</p>
+    </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-  <script type="importmap">
-    {
-      "imports": {
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
-      }
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
     }
-  </script>
-  <script type="module">
-    import { initializeApp } from 'firebase/app';
-    import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-    import { getDatabase, ref, get } from 'firebase/database';
+}
+</script>
+<script type="module">
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { getDatabase, ref, get } from "firebase/database";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-      authDomain: "rnd2-70080.firebaseapp.com",
-      databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "rnd2-70080",
-      storageBucket: "rnd2-70080.firebasestorage.app",
-      messagingSenderId: "468625887938",
-      appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-      measurementId: "G-ELVJD5NQKB"
-    };
+const firebaseConfig = {
+    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+    authDomain: "rnd2-70080.firebaseapp.com",
+    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rnd2-70080",
+    storageBucket: "rnd2-70080.firebasestorage.app",
+    messagingSenderId: "468625887938",
+    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+    measurementId: "G-ELVJD5NQKB"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await signOut(auth);
-      window.location.href = 'login.html';
-    });
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+});
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+// Load Dashboard
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
         window.location.href = 'login.html';
         return;
-      }
+    }
 
-      const snapshot = await get(ref(db, 'users/' + user.uid));
-      if (!snapshot.exists()) {
+    const snapshot = await get(ref(db, 'users/' + user.uid));
+    if (!snapshot.exists()) {
         alert('User data not found!');
         return;
-      }
+    }
 
-      const u = snapshot.val();
-      if (u.banned) {
+    const u = snapshot.val();
+    if (u.banned) {
         alert('Your account has been banned.');
         await signOut(auth);
         window.location.href = 'login.html';
         return;
-      }
+    }
 
-      document.getElementById('dashboardContent').innerHTML = `
+    document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
-          <div class="col-12">
-            <h4 class="fw-bold"><i class="bi bi-grid-1x2-fill text-green me-2"></i>Dashboard</h4>
-            <hr class="border-secondary">
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="stat-card"><small class="text-muted">Total Stake</small><h4 class="text-green">$${u.totalStake || 0}</h4></div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="stat-card"><small class="text-muted">Total Reward</small><h4 class="text-gold">$${u.totalReward || 0}</h4></div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="stat-card"><small class="text-muted">Available Reward</small><h4 class="text-green">$${u.availableReward || 0}</h4></div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="stat-card"><small class="text-muted">Total Withdrawn</small><h4 class="text-white">$${u.totalWithdrawn || 0}</h4></div>
-          </div>
-          <div class="col-12">
-            <div class="card-dark">
-              <div class="row align-items-center">
-                <div class="col-md-8">
-                  <p><strong>${u.name || 'User'}</strong> · ${u.email}</p>
-                  <p><span class="text-muted">UID:</span> ${u.uid}</p>
-                  <p><span class="text-muted">Referral Code:</span> <span class="text-green fw-bold">${u.referralCode}</span></p>
-                  <div class="referral-box d-flex flex-wrap align-items-center gap-2">
-                    <span class="text-muted">Link:</span>
-                    <code class="text-light bg-dark p-1 rounded">https://randigital.in/register.html?ref=${u.referralCode}</code>
-                    <button class="btn btn-sm btn-outline-light-custom copy-btn" data-copy="https://randigital.in/register.html?ref=${u.referralCode}"><i class="bi bi-clipboard"></i> Copy</button>
-                  </div>
-                  <div class="mt-2">
-                    <span class="text-muted">Total Referrals:</span> ${u.totalReferrals || 0} · 
-                    <span class="text-muted">Team Business:</span> $${u.teamBusiness || 0}
-                  </div>
+            <!-- Stats -->
+            <div class="col-12"><h4 class="fw-bold"><i class="bi bi-grid-1x2-fill text-success me-2"></i>Dashboard</h4><hr class="border-secondary"></div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-label">Total Stake</div>
+                            <div class="stat-number text-green">$${u.totalStake || 0}</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
+                    </div>
                 </div>
-                <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                  <a href="deposit.html" class="btn btn-primary-custom me-2"><i class="bi bi-plus-circle"></i> Deposit</a>
-                  <a href="withdrawal.html" class="btn btn-outline-light-custom"><i class="bi bi-arrow-up-right"></i> Withdraw</a>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-label">Total Reward</div>
+                            <div class="stat-number text-gold">$${u.totalReward || 0}</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
+                    </div>
                 </div>
-              </div>
             </div>
-          </div>
-          <div class="col-12">
-            <div class="card-dark">
-              <h5><i class="bi bi-boxes text-green me-2"></i>Staking Plans</h5>
-              <div class="row g-3">
-                <div class="col-4"><div class="bg-dark p-3 rounded text-center"><small>6 Months</small><br><strong class="text-green">25%</strong></div></div>
-                <div class="col-4"><div class="bg-dark p-3 rounded text-center"><small>12 Months</small><br><strong class="text-gold">60%</strong></div></div>
-                <div class="col-4"><div class="bg-dark p-3 rounded text-center"><small>18 Months</small><br><strong class="text-green">100%</strong></div></div>
-              </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-label">Available Reward</div>
+                            <div class="stat-number text-green">$${u.availableReward || 0}</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      `;
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="stat-label">Total Withdrawn</div>
+                            <div class="stat-number">$${u.totalWithdrawn || 0}</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-arrow-up-right"></i></div>
+                    </div>
+                </div>
+            </div>
 
-      document.querySelectorAll('.copy-btn').forEach(btn => {
+            <!-- User Info & Referral -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5><i class="bi bi-person-circle text-success me-2"></i>${u.name || 'User'}</h5>
+                            <p class="text-muted small">${u.email} · <span class="text-success">${u.uid}</span></p>
+                            <div class="d-flex flex-wrap gap-3 align-items-center">
+                                <span><span class="text-muted">Referral Code:</span> <strong class="text-success">${u.referralCode}</strong></span>
+                                <div class="referral-box d-flex align-items-center gap-2">
+                                    <code class="text-light small">https://randigital.in/register.html?ref=${u.referralCode}</code>
+                                    <button class="copy-btn" data-copy="https://randigital.in/register.html?ref=${u.referralCode}"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <span class="text-muted">Total Referrals:</span> <strong>${u.totalReferrals || 0}</strong>
+                                <span class="text-muted ms-3">Team Business:</span> <strong>$${u.teamBusiness || 0}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                            <a href="deposit.html" class="btn-primary-custom me-2"><i class="bi bi-plus-circle me-1"></i>Deposit</a>
+                            <a href="withdrawal.html" class="btn-outline-custom"><i class="bi bi-arrow-up-right me-1"></i>Withdraw</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staking Plans -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <h5><i class="bi bi-boxes text-success me-2"></i>Staking Plans</h5>
+                    <div class="row g-3 mt-2">
+                        <div class="col-4">
+                            <div class="plan-box">
+                                <small class="text-muted">6 Months</small>
+                                <h5 class="text-green mb-0">25%</h5>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="plan-box">
+                                <small class="text-muted">12 Months</small>
+                                <h5 class="text-gold mb-0">60%</h5>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="plan-box">
+                                <small class="text-muted">18 Months</small>
+                                <h5 class="text-green mb-0">100%</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Copy referral link
+    document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('✅ Link copied!'));
+            navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+                btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy';
+                }, 2000);
+            });
         });
-      });
     });
-  </script>
+});
+</script>
 </body>
 </html>
