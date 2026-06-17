@@ -65,6 +65,9 @@
     import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
     import { getDatabase, ref, set, get } from 'firebase/database';
 
+    // ============================================
+    // 🔥 REPLACE THIS WITH YOUR ACTUAL FIREBASE CONFIG
+    // ============================================
     const firebaseConfig = {
       apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
       authDomain: "rnd-staking.firebaseapp.com",
@@ -91,13 +94,21 @@
       const pass = document.getElementById('regPassword').value;
       const ref = document.getElementById('regRef').value.trim();
 
+      // Basic validation
+      if (pass.length < 6) {
+        alert('Password must be at least 6 characters long!');
+        return;
+      }
+
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
         
         await set(ref(db, 'users/' + uid), {
-          name, email, uid,
+          name: name,
+          email: email,
+          uid: uid,
           referralCode: refCodeGen,
           referredBy: ref || '',
           createdAt: Date.now(),
@@ -111,6 +122,7 @@
           role: 'user'
         });
 
+        // Update referrer if referral code was used
         if (ref) {
           const snapshot = await get(ref(db, 'users'));
           if (snapshot.exists()) {
@@ -124,10 +136,19 @@
             }
           }
         }
-        alert('Account created successfully! Redirecting to login...');
+        
+        alert('✅ Account created successfully! Redirecting to login...');
         window.location.href = 'login.html';
       } catch (err) { 
-        alert(err.message); 
+        let errorMsg = err.message;
+        if (err.code === 'auth/email-already-in-use') {
+          errorMsg = 'This email is already registered. Please login instead.';
+        } else if (err.code === 'auth/weak-password') {
+          errorMsg = 'Password is too weak. Please use at least 6 characters.';
+        } else if (err.code === 'auth/invalid-email') {
+          errorMsg = 'Please enter a valid email address.';
+        }
+        alert('❌ ' + errorMsg);
       }
     });
   </script>
