@@ -3,45 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Referrals - RND Staking</title>
+  <title>Register - RND Staking</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     * { font-family: 'Segoe UI', sans-serif; }
-    body { background: #0b1120; color: #f0f4ff; }
-    .navbar-custom { background: #0f1a2e; border-bottom: 1px solid #1f334f; }
-    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 1.5rem; }
-    .text-green { color: #2ecc71; }
+    body { background: #0b1120; color: #f0f4ff; min-height: 100vh; display: flex; align-items: center; }
+    .card-dark { background: #132237; border: 1px solid #2a3a5a; border-radius: 24px; padding: 2rem; }
+    .input-group-custom input { background: #0b1120; border: 1px solid #2a3a5a; color: #f0f4ff; }
+    .input-group-custom input:focus { background: #0b1120; border-color: #2ecc71; color: #fff; box-shadow: 0 0 0 0.2rem rgba(46,204,113,0.25); }
     .btn-primary-custom { background: #2ecc71; border: none; color: #0b1120; font-weight: 600; }
     .btn-primary-custom:hover { background: #27ae60; color: #fff; }
-    .referral-box { background: #0b1120; border-radius: 16px; padding: 1rem; border: 1px dashed #2a3a5a; }
-    .copy-btn { cursor: pointer; }
-    .table-custom { color: #f0f4ff; border-color: #1f334f; }
-    .table-custom th { border-bottom: 2px solid #2a3a5a; color: #a0b8d0; }
-    .table-custom td { border-color: #1f334f; }
+    .text-green { color: #2ecc71; }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-custom py-3">
-    <div class="container">
-      <a class="navbar-brand text-white fw-bold" href="dashboard.html"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link text-light" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
-          <li class="nav-item"><a class="nav-link text-light active" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
-          <li class="nav-item"><a class="nav-link text-light" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
-        </ul>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="card-dark">
+          <h3 class="fw-bold text-center mb-4"><i class="bi bi-person-plus text-green me-2"></i>Create Account</h3>
+          <form id="registerForm">
+            <div class="mb-3">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="regName" class="form-control input-group-custom" placeholder="John Doe" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" id="regEmail" class="form-control input-group-custom" placeholder="you@example.com" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input type="password" id="regPassword" class="form-control input-group-custom" placeholder="••••••••" required minlength="6">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Referral Code (optional)</label>
+              <input type="text" id="regRef" class="form-control input-group-custom" placeholder="RNDXXXXX">
+            </div>
+            <button type="submit" class="btn btn-primary-custom w-100 py-2">Create Account</button>
+          </form>
+          <div class="mt-3 text-center">
+            <a href="login.html" class="text-green">Already have an account? Login</a>
+          </div>
+        </div>
       </div>
     </div>
-  </nav>
-
-  <div class="container py-4" id="referralContent">
-    <div class="text-center text-muted">Loading referral data...</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
@@ -56,9 +62,12 @@
   </script>
   <script type="module">
     import { initializeApp } from 'firebase/app';
-    import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-    import { getDatabase, ref, get, query, orderByChild, equalTo } from 'firebase/database';
+    import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+    import { getDatabase, ref, set, get } from 'firebase/database';
 
+    // ============================================
+    // 🔥 REPLACE THIS WITH YOUR ACTUAL FIREBASE CONFIG
+    // ============================================
     const firebaseConfig = {
       apiKey: "AIzaSyDummyKeyReplaceWithYourOwn",
       authDomain: "rnd-staking.firebaseapp.com",
@@ -73,87 +82,74 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await signOut(auth);
-      window.location.href = 'login.html';
-    });
+    // Auto-fill referral from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) document.getElementById('regRef').value = refCode;
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        window.location.href = 'login.html';
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const pass = document.getElementById('regPassword').value;
+      const ref = document.getElementById('regRef').value.trim();
+
+      // Basic validation
+      if (pass.length < 6) {
+        alert('Password must be at least 6 characters long!');
         return;
       }
 
-      const userSnapshot = await get(ref(db, 'users/' + user.uid));
-      if (!userSnapshot.exists()) return;
-      const userData = userSnapshot.val();
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        const uid = cred.user.uid;
+        const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
+        
+        await set(ref(db, 'users/' + uid), {
+          name: name,
+          email: email,
+          uid: uid,
+          referralCode: refCodeGen,
+          referredBy: ref || '',
+          createdAt: Date.now(),
+          totalStake: 0,
+          totalReward: 0,
+          availableReward: 0,
+          totalWithdrawn: 0,
+          totalReferrals: 0,
+          teamBusiness: 0,
+          banned: false,
+          role: 'user'
+        });
 
-      // Get all users to find referrals
-      const allUsersSnapshot = await get(ref(db, 'users'));
-      let referrals = [];
-      if (allUsersSnapshot.exists()) {
-        const allUsers = allUsersSnapshot.val();
-        for (let key in allUsers) {
-          if (allUsers[key].referredBy === userData.referralCode) {
-            referrals.push(allUsers[key]);
+        // Update referrer if referral code was used
+        if (ref) {
+          const snapshot = await get(ref(db, 'users'));
+          if (snapshot.exists()) {
+            const users = snapshot.val();
+            for (let key in users) {
+              if (users[key].referralCode === ref) {
+                const refCount = (users[key].totalReferrals || 0) + 1;
+                await set(ref(db, 'users/' + key + '/totalReferrals'), refCount);
+                break;
+              }
+            }
           }
         }
+        
+        alert('✅ Account created successfully! Redirecting to login...');
+        window.location.href = 'login.html';
+      } catch (err) { 
+        let errorMsg = err.message;
+        if (err.code === 'auth/email-already-in-use') {
+          errorMsg = 'This email is already registered. Please login instead.';
+        } else if (err.code === 'auth/weak-password') {
+          errorMsg = 'Password is too weak. Please use at least 6 characters.';
+        } else if (err.code === 'auth/invalid-email') {
+          errorMsg = 'Please enter a valid email address.';
+        }
+        alert('❌ ' + errorMsg);
       }
-
-      // Render
-      document.getElementById('referralContent').innerHTML = `
-        <div class="row">
-          <div class="col-12">
-            <h4><i class="bi bi-people text-green me-2"></i>Referral Program</h4>
-            <hr class="border-secondary">
-          </div>
-          <div class="col-md-6">
-            <div class="card-dark">
-              <h5>Your Referral Link</h5>
-              <div class="referral-box d-flex flex-wrap align-items-center gap-2">
-                <code class="text-light bg-dark p-2 rounded flex-grow-1">https://randigital.in/register.html?ref=${userData.referralCode}</code>
-                <button class="btn btn-sm btn-primary-custom copy-btn" data-copy="https://randigital.in/register.html?ref=${userData.referralCode}"><i class="bi bi-clipboard"></i> Copy</button>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card-dark">
-              <h5>Commission Structure</h5>
-              <div class="row g-2">
-                <div class="col-6"><small>Level 1 (8%)</small></div>
-                <div class="col-6"><small>Level 2 (4%)</small></div>
-                <div class="col-6"><small>Level 3 (2%)</small></div>
-                <div class="col-6"><small>Level 4 (1%)</small></div>
-                <div class="col-6"><small>Level 5 (1%)</small></div>
-                <div class="col-6"><strong class="text-green">Total 16%</strong></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 mt-4">
-            <div class="card-dark">
-              <h5>Your Referrals (${referrals.length})</h5>
-              ${referrals.length === 0 ? '<p class="text-muted">No referrals yet.</p>' : `
-                <div class="table-responsive">
-                  <table class="table table-custom">
-                    <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
-                    <tbody>
-                      ${referrals.map(r => `
-                        <tr><td>${r.name || 'N/A'}</td><td>${r.email || 'N/A'}</td><td>${new Date(r.createdAt).toLocaleDateString()}</td></tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              `}
-            </div>
-          </div>
-        </div>
-      `;
-
-      document.querySelectorAll('.copy-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          navigator.clipboard.writeText(btn.dataset.copy).then(() => alert('Link copied!'));
-        });
-      });
     });
   </script>
 </body>
