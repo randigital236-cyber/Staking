@@ -40,7 +40,13 @@
             background: rgba(8,14,26,0.9) !important;
         }
         .form-control-custom::placeholder { color: #556688 !important; }
-        .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
+        .form-label { 
+            font-weight: 600; 
+            color: #a0b8d0; 
+            font-size: 0.9rem; 
+            margin-bottom: 6px; 
+        }
+        .form-label .required { color: #ef4444; }
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -57,6 +63,11 @@
             box-shadow: 0 10px 30px rgba(46,204,113,0.3);
             color: #fff;
         }
+        .btn-primary-custom:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
         .btn-google {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -70,6 +81,10 @@
         .btn-google:hover {
             background: rgba(255,255,255,0.1);
             color: #fff;
+        }
+        .btn-google:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         .text-link { color: #2ecc71; text-decoration: none; font-weight: 600; }
         .text-link:hover { text-decoration: underline; }
@@ -89,37 +104,90 @@
         }
         .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .logo-text span { color: #2ecc71; }
-        .forgot-link { color: #556688; font-size: 0.9rem; text-decoration: none; }
-        .forgot-link:hover { color: #2ecc71; }
+        
+        /* Login Hint */
+        .login-hint {
+            font-size: 0.7rem;
+            color: #556688;
+            text-align: center;
+            margin-top: 6px;
+        }
+        .login-hint strong { color: #2ecc71; }
+        
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         
         @media (max-width: 576px) {
             .card-glass { padding: 1.5rem; }
             .logo-text { font-size: 1.5rem; }
+            .toast-container { right: 10px; left: 10px; max-width: none; }
         }
     </style>
 </head>
 <body>
 
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
 <div class="login-container">
     <div class="card-glass">
         <div class="text-center mb-4">
             <div class="logo-text"><i class="bi bi-currency-bitcoin me-2"></i>RND<span>Staking</span></div>
-            <p class="text-muted small">Welcome back</p>
+            <p class="text-muted small">Welcome back! Login to your account</p>
         </div>
 
-        <form id="loginForm">
+        <form id="loginForm" novalidate>
+            <!-- Username or Email -->
             <div class="mb-3">
-                <label class="form-label">Email Address</label>
-                <input type="email" id="loginEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
+                <label class="form-label">
+                    Username or Email <span class="required">*</span>
+                </label>
+                <input type="text" id="loginIdentifier" class="form-control form-control-custom" 
+                       placeholder="Enter your username or email" required autocomplete="off">
+                <div class="login-hint">
+                    <i class="bi bi-info-circle"></i> 
+                    Use your <strong>Username</strong> (e.g. JOHN) or <strong>Email</strong> (e.g. john@example.com)
+                </div>
             </div>
+            
+            <!-- Password -->
             <div class="mb-3">
-                <label class="form-label">Password</label>
-                <input type="password" id="loginPassword" class="form-control form-control-custom" placeholder="••••••••" required>
+                <label class="form-label">Password <span class="required">*</span></label>
+                <input type="password" id="loginPassword" class="form-control form-control-custom" 
+                       placeholder="Enter your password" required minlength="6">
             </div>
-            <div class="d-flex justify-content-between mb-3">
-                <a href="#" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
-            </div>
-            <button type="submit" class="btn-primary-custom" id="loginBtn">Sign In <i class="bi bi-arrow-right ms-2"></i></button>
+            
+            <button type="submit" class="btn-primary-custom" id="loginBtn">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+            </button>
         </form>
 
         <div class="divider">or continue with</div>
@@ -129,7 +197,10 @@
         </button>
 
         <p class="text-center mt-4 text-muted small">
-            Don't have an account? <a href="register.html" class="text-link">Create one</a>
+            Don't have an account? <a href="register.html" class="text-link">Create Account</a>
+        </p>
+        <p class="text-center text-muted small">
+            <a href="forgot-password.html" class="text-link">Forgot Password?</a>
         </p>
     </div>
 </div>
@@ -146,11 +217,17 @@
 }
 </script>
 <script type="module">
+// ============================================================
+// 🔥 FIREBASE IMPORTS
+// ============================================================
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -162,53 +239,199 @@ const firebaseConfig = {
     measurementId: "G-ELVJD5NQKB"
 };
 
+// ============================================================
+// 🔥 INIT FIREBASE
+// ============================================================
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
+console.log('🔥 Firebase initialized successfully!');
+
 // ============================================================
-// 🔥 IMPORTANT: Check if user is already logged in
+// 🔥 CHECK IF ALREADY LOGGED IN
 // ============================================================
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // User is logged in - redirect to dashboard
+        console.log('User already logged in:', user.uid);
         window.location.href = 'dashboard.html';
     }
 });
 
 // ============================================================
-// EMAIL LOGIN
+// 🔥 TOAST SYSTEM
+// ============================================================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-custom ${type}`;
+    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
+    toast.innerHTML = `
+        <i class="bi ${icon}"></i>
+        <span class="toast-msg">${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 6000);
+}
+
+// ============================================================
+// 🔥 GET USER BY USERNAME
+// ============================================================
+async function getUserByUsername(username) {
+    try {
+        const usernameRef = ref(db, 'usernames/' + username.toUpperCase());
+        const snapshot = await get(usernameRef);
+        if (snapshot.exists()) {
+            const uid = snapshot.val();
+            const userRef = ref(db, 'users/' + uid);
+            const userSnap = await get(userRef);
+            if (userSnap.exists()) {
+                return { uid: uid, data: userSnap.val() };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting user by username:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 GET USER BY EMAIL
+// ============================================================
+async function getUserByEmail(email) {
+    try {
+        const usersRef = ref(db, 'users');
+        const snapshot = await get(usersRef);
+        if (snapshot.exists()) {
+            const users = snapshot.val();
+            for (let uid in users) {
+                if (users[uid].email && users[uid].email.toLowerCase() === email.toLowerCase()) {
+                    return { uid: uid, data: users[uid] };
+                }
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting user by email:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 LOGIN FORM SUBMIT
 // ============================================================
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('loginEmail').value.trim();
-    const pass = document.getElementById('loginPassword').value;
+    
+    const identifier = document.getElementById('loginIdentifier').value.trim();
+    const password = document.getElementById('loginPassword').value;
     const loginBtn = document.getElementById('loginBtn');
     
+    // Validation
+    if (!identifier) {
+        showToast('❌ Please enter your username or email', 'error');
+        return;
+    }
+    if (password.length < 6) {
+        showToast('❌ Password must be at least 6 characters', 'error');
+        return;
+    }
+    
     loginBtn.disabled = true;
-    loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing In...';
-
+    loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Logging in...';
+    
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-        // Success - redirect will happen automatically via onAuthStateChanged
-        window.location.href = 'dashboard.html';
-    } catch (err) {
-        let msg = '❌ Login failed. Please try again.';
-        if (err.code === 'auth/user-not-found') msg = '❌ No account found with this email. Please register first.';
-        else if (err.code === 'auth/wrong-password') msg = '❌ Incorrect password. Please try again.';
-        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
-        else if (err.code === 'auth/too-many-requests') msg = '❌ Too many failed attempts. Please try again later.';
-        alert(msg);
+        let email = identifier;
+        let userFound = false;
+        let userUid = null;
+        
+        // Check if identifier is email or username
+        if (identifier.includes('@')) {
+            // It's an email - check if user exists in database
+            const userResult = await getUserByEmail(identifier);
+            if (userResult) {
+                email = userResult.data.email;
+                userFound = true;
+                userUid = userResult.uid;
+                console.log('✅ User found by email:', email);
+            } else {
+                showToast('❌ No account found with this email', 'error');
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Sign In';
+                return;
+            }
+        } else {
+            // It's a username - check if user exists in database
+            const userResult = await getUserByUsername(identifier);
+            if (userResult) {
+                email = userResult.data.email;
+                userFound = true;
+                userUid = userResult.uid;
+                console.log('✅ User found by username:', identifier, 'Email:', email);
+            } else {
+                showToast('❌ No account found with username "' + identifier + '"', 'error');
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Sign In';
+                return;
+            }
+        }
+        
+        // Sign in with Firebase Auth using email
+        console.log('🔐 Signing in with email:', email);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        console.log('✅ Login successful! UID:', cred.user.uid);
+        
+        // Check if user is banned
+        const userRef = ref(db, 'users/' + cred.user.uid);
+        const userSnap = await get(userRef);
+        if (userSnap.exists()) {
+            const userData = userSnap.val();
+            if (userData.banned) {
+                showToast('❌ Your account has been banned. Contact support.', 'error');
+                await auth.signOut();
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Sign In';
+                return;
+            }
+        }
+        
+        showToast('✅ Welcome back! Redirecting to dashboard...', 'success');
+        console.log('🚀 Redirecting to dashboard...');
+        
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
+        
+    } catch (error) {
+        console.error('❌ Login Error:', error);
+        let msg = 'Login failed. Please try again.';
+        if (error.code === 'auth/user-not-found') {
+            msg = '❌ No account found with these credentials';
+        } else if (error.code === 'auth/wrong-password') {
+            msg = '❌ Incorrect password. Please try again.';
+        } else if (error.code === 'auth/invalid-email') {
+            msg = '❌ Invalid email format. Please check and try again.';
+        } else if (error.code === 'auth/too-many-requests') {
+            msg = '❌ Too many failed attempts. Please try again later.';
+        } else if (error.code === 'auth/user-disabled') {
+            msg = '❌ This account has been disabled. Contact support.';
+        }
+        showToast(msg, 'error');
     }
     
     loginBtn.disabled = false;
-    loginBtn.innerHTML = 'Sign In <i class="bi bi-arrow-right ms-2"></i>';
+    loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Sign In';
 });
 
 // ============================================================
-// GOOGLE LOGIN
+// 🔥 GOOGLE LOGIN
 // ============================================================
 document.getElementById('googleLoginBtn').addEventListener('click', async () => {
     const btn = document.getElementById('googleLoginBtn');
@@ -216,31 +439,50 @@ document.getElementById('googleLoginBtn').addEventListener('click', async () => 
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
     
     try {
-        await signInWithPopup(auth, provider);
-        // Redirect will happen automatically via onAuthStateChanged
-        window.location.href = 'dashboard.html';
-    } catch (err) {
-        alert('❌ ' + err.message);
+        console.log('📝 Signing in with Google...');
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        console.log('✅ Google login successful! UID:', user.uid);
+        
+        // Check if user exists in database
+        const userRef = ref(db, 'users/' + user.uid);
+        const snapshot = await get(userRef);
+        
+        if (!snapshot.exists()) {
+            showToast('⚠️ No account linked to this Google account. Please sign up first.', 'error');
+            await auth.signOut();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-google me-2"></i> Sign in with Google';
+            return;
+        }
+        
+        const userData = snapshot.val();
+        if (userData.banned) {
+            showToast('❌ Your account has been banned. Contact support.', 'error');
+            await auth.signOut();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-google me-2"></i> Sign in with Google';
+            return;
+        }
+        
+        showToast('✅ Welcome back! Redirecting to dashboard...', 'success');
+        console.log('🚀 Redirecting to dashboard...');
+        
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
+        
+    } catch (error) {
+        console.error('❌ Google Login Error:', error);
+        let msg = error.message || 'Google sign in failed';
+        if (error.code === 'auth/popup-closed-by-user') {
+            msg = 'Popup closed. Please try again.';
+        }
+        showToast('❌ ' + msg, 'error');
     }
     
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-google me-2"></i> Sign in with Google';
-});
-
-// ============================================================
-// FORGOT PASSWORD
-// ============================================================
-document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
-    e.preventDefault();
-    const email = prompt('Enter your email address to reset password:');
-    if (email) {
-        try {
-            await sendPasswordResetEmail(auth, email);
-            alert('✅ Password reset link sent to your email.');
-        } catch (err) {
-            alert('❌ ' + err.message);
-        }
-    }
 });
 </script>
 </body>
