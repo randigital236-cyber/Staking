@@ -400,14 +400,14 @@ if (refCode) {
 }
 
 // ============================================================
-// 🔥 EMAIL REGISTRATION - FIXED: name properly saved
+// 🔥 EMAIL REGISTRATION - FIXED: username = referral code
 // ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     // GET ALL VALUES
     const username = document.getElementById('regUsername').value.trim().toUpperCase();
-    const name = document.getElementById('regName').value.trim();  // <--- IMPORTANT: name field
+    const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
     const ref = document.getElementById('regRef').value.trim().toUpperCase();
@@ -433,7 +433,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
     }
     
-    // IMPORTANT: Name validation
     if (!name || name.length < 2) {
         showToast('❌ Please enter your full name', 'error');
         return;
@@ -467,17 +466,17 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         });
         console.log('✅ Auth profile updated with name:', name);
         
-        // Step 3: REFERRAL CODE = USERNAME
+        // Step 3: REFERRAL CODE = USERNAME (NOT random code)
         const refCodeGen = username.toUpperCase();
         console.log('🔑 Referral Code:', refCodeGen);
         
-        // Step 4: Save user data - CRITICAL: name MUST be saved
+        // Step 4: Save user data - username = referral code
         const userData = {
-            username: username.toUpperCase(),
-            name: name,  // <--- CRITICAL: name from input
+            username: username.toUpperCase(),  // <--- This is the referral code too
+            name: name,
             email: email,
             uid: uid,
-            referralCode: refCodeGen,
+            referralCode: refCodeGen,  // <--- Same as username
             referredBy: ref || '',
             createdAt: Date.now(),
             totalStake: 0,
@@ -521,7 +520,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         
         // ✅ Success
         const referralLink = `${REGISTER_URL}?ref=${refCodeGen}`;
-        showToast('✅ Account created successfully!<br>Welcome <strong>' + name + '</strong>!<br>Username: <strong>' + username + '</strong>', 'success');
+        showToast('✅ Account created successfully!<br>Welcome <strong>' + name + '</strong>!<br>Your Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
         console.log('🚀 Redirecting to dashboard...');
         
         setTimeout(() => {
@@ -565,6 +564,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
+            // Generate username from email (3-6 chars)
             const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
             let username = baseUsername.slice(0, 6);
             let counter = 1;
@@ -584,13 +584,14 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 if (counter > 100) break;
             }
             
+            // REFERRAL CODE = USERNAME
             const refCodeGen = username.toUpperCase();
             const userData = {
                 username: username.toUpperCase(),
-                name: displayName,  // <--- Google display name
+                name: displayName,
                 email: email,
                 uid: uid,
-                referralCode: refCodeGen,
+                referralCode: refCodeGen,  // <--- Same as username
                 referredBy: '',
                 createdAt: Date.now(),
                 totalStake: 0,
