@@ -259,7 +259,7 @@
         .wallet-address-box {
             background: rgba(8,14,26,0.6);
             border-radius: 12px;
-            padding: 12px 16px;
+            padding: 14px 18px;
             border: 1px dashed rgba(46,204,113,0.2);
             display: flex;
             align-items: center;
@@ -275,13 +275,13 @@
         }
         .copy-btn {
             cursor: pointer;
-            padding: 4px 14px;
+            padding: 6px 18px;
             border-radius: 8px;
             border: 1px solid rgba(46,204,113,0.2);
             background: transparent;
             color: #a0b8d0;
             transition: all 0.3s ease;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             white-space: nowrap;
         }
         .copy-btn:hover {
@@ -289,27 +289,15 @@
             color: #2ecc71;
         }
         
-        .qr-container {
-            background: rgba(8,14,26,0.6);
-            border-radius: 16px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid rgba(46,204,113,0.08);
-        }
-        .qr-container img {
-            max-width: 180px;
-            border-radius: 12px;
-            border: 2px solid rgba(46,204,113,0.15);
-        }
-        .qr-container .scan-hint {
-            font-size: 0.75rem;
-            color: #8899bb;
-            margin-top: 8px;
-        }
-        
         .deposit-history {
             margin-top: 20px;
+            max-height: 350px;
+            overflow-y: auto;
         }
+        .deposit-history::-webkit-scrollbar { width: 4px; }
+        .deposit-history::-webkit-scrollbar-track { background: rgba(46,204,113,0.05); border-radius: 10px; }
+        .deposit-history::-webkit-scrollbar-thumb { background: rgba(46,204,113,0.3); border-radius: 10px; }
+        
         .deposit-item {
             background: rgba(8,14,26,0.4);
             border-radius: 12px;
@@ -343,14 +331,6 @@
         .btn-outline-custom:hover {
             border-color: #2ecc71;
             color: #2ecc71;
-        }
-        
-        .loading-spinner {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 60vh;
         }
         
         .toast-container {
@@ -387,8 +367,8 @@
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
-            .qr-container img { max-width: 140px; }
             .wallet-address-box code { font-size: 0.7rem; }
+            .wallet-address-box { padding: 10px 14px; }
         }
         
         @media (max-width: 480px) {
@@ -462,7 +442,7 @@
 
 <!-- ====== DEPOSIT CONTENT ====== -->
 <div class="dashboard-container" id="depositContent">
-    <div class="loading-spinner">
+    <div class="text-center py-5">
         <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
         <p class="text-muted mt-3">Loading deposit page...</p>
     </div>
@@ -480,9 +460,8 @@
 </script>
 <script type="module">
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, push, set, query, orderByChild, equalTo } from "firebase/database";
+import { getDatabase, ref, get, push, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
 // 🔥 FIREBASE CONFIG
@@ -499,22 +478,14 @@ const firebaseConfig = {
 };
 
 // ============================================================
-// 🔥 DOMAIN & WALLET CONFIG
+// 🔥 WALLET ADDRESS
 // ============================================================
-const DOMAIN = "https://staking.randigital.in";
-const REGISTER_URL = `${DOMAIN}/register.html`;
-
-// YOUR WALLET ADDRESS
 const WALLET_ADDRESS = "0xe757c330D267784F190e79e0Ec0dC5d30ad6eFA4";
-
-// QR CODE IMAGE (USDT BEP20 QR)
-const QR_IMAGE_URL = "https://raw.githubusercontent.com/randigital236-cyber/Staking/main/usdtbep2.jpeg";
 
 // ============================================================
 // 🔥 INIT FIREBASE
 // ============================================================
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
@@ -619,7 +590,7 @@ onAuthStateChanged(auth, async (user) => {
             userDeposits.sort((a, b) => b.timestamp - a.timestamp);
         }
 
-        // Load content
+        // Load content - Simple Design
         document.getElementById('depositContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -628,27 +599,16 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
 
                 <!-- Deposit Form -->
-                <div class="col-lg-6">
+                <div class="col-lg-7 mx-auto">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-wallet2 text-success me-2"></i>Send USDT BEP20</div>
                         
                         <!-- Wallet Address -->
-                        <div class="mb-3">
+                        <div class="mb-4">
                             <label class="form-label">Wallet Address <span class="required">*</span></label>
                             <div class="wallet-address-box">
                                 <code>${WALLET_ADDRESS}</code>
                                 <button class="copy-btn" id="copyWalletBtn"><i class="bi bi-clipboard me-1"></i>Copy</button>
-                            </div>
-                        </div>
-
-                        <!-- QR Code -->
-                        <div class="mb-3">
-                            <label class="form-label">Scan QR Code</label>
-                            <div class="qr-container">
-                                <img src="${QR_IMAGE_URL}" alt="USDT BEP20 QR Code" id="qrImage" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'200\\' height=\\'200\\'%3E%3Crect width=\\'200\\' height=\\'200\\' fill=\\'%23132237\\'/%3E%3Ctext x=\\'100\\' y=\\'100\\' text-anchor=\\'middle\\' dominant-baseline=\\'central\\' fill=\\'%232ecc71\\' font-size=\\'16\\' font-family=\\'Inter\\'%3EUSDT BEP20%3C/text%3E%3C/svg%3E'">
-                                <div class="scan-hint">
-                                    <i class="bi bi-qr-code me-1"></i> Scan with your wallet app to copy address
-                                </div>
                             </div>
                         </div>
 
@@ -688,7 +648,7 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
 
                 <!-- Deposit History -->
-                <div class="col-lg-6">
+                <div class="col-lg-7 mx-auto">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Deposit History</div>
                         ${userDeposits.length === 0 ? `
@@ -736,7 +696,6 @@ onAuthStateChanged(auth, async (user) => {
             navigator.clipboard.writeText(WALLET_ADDRESS).then(() => {
                 showToast('✅ Wallet address copied to clipboard!', 'success');
             }).catch(() => {
-                // Fallback
                 const textArea = document.createElement('textarea');
                 textArea.value = WALLET_ADDRESS;
                 document.body.appendChild(textArea);
@@ -758,7 +717,6 @@ onAuthStateChanged(auth, async (user) => {
             const plan = document.getElementById('depPlan').value;
             const btn = document.getElementById('depositBtn');
             
-            // Validation
             if (!amount || parseFloat(amount) < 10) {
                 showToast('❌ Minimum deposit is 10 USDT!', 'error');
                 return;
@@ -773,7 +731,6 @@ onAuthStateChanged(auth, async (user) => {
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
             
             try {
-                // Save deposit to database
                 await push(ref(db, 'deposits'), {
                     uid: auth.currentUser.uid,
                     amount: parseFloat(amount),
@@ -784,12 +741,9 @@ onAuthStateChanged(auth, async (user) => {
                 });
                 
                 showToast('✅ Deposit submitted successfully! Waiting for admin approval.', 'success');
-                
-                // Reset form
                 document.getElementById('depAmount').value = '';
                 document.getElementById('depTx').value = '';
                 
-                // Reload page to show updated history
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);
