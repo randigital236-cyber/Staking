@@ -57,6 +57,11 @@
             box-shadow: 0 10px 30px rgba(46,204,113,0.3);
             color: #fff;
         }
+        .btn-primary-custom:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
         .btn-google {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -70,6 +75,10 @@
         .btn-google:hover {
             background: rgba(255,255,255,0.1);
             color: #fff;
+        }
+        .btn-google:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         .text-link { color: #2ecc71; text-decoration: none; font-weight: 600; }
         .text-link:hover { text-decoration: underline; }
@@ -97,14 +106,53 @@
             border-radius: 20px;
             font-weight: 500;
         }
+        .username-hint {
+            font-size: 0.75rem;
+            color: #556688;
+            margin-top: 4px;
+        }
+        .username-hint .valid { color: #2ecc71; }
+        .username-hint .invalid { color: #ef4444; }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         
         @media (max-width: 576px) {
             .card-glass { padding: 1.5rem; }
             .logo-text { font-size: 1.5rem; }
+            .toast-container { right: 10px; left: 10px; max-width: none; }
         }
     </style>
 </head>
 <body>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
 
 <div class="register-container">
     <div class="card-glass">
@@ -113,22 +161,34 @@
             <p class="text-muted small">Create your account</p>
         </div>
 
-        <form id="registerForm">
+        <form id="registerForm" novalidate>
+            <!-- Username / User ID -->
+            <div class="mb-3">
+                <label class="form-label">Username <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="regUsername" class="form-control form-control-custom" placeholder="Choose a username (e.g. john_123)" required>
+                <div class="username-hint" id="usernameHint">
+                    <i class="bi bi-info-circle"></i> 
+                    <span id="usernameStatus">Username must be 3-20 characters (letters, numbers, underscore)</span>
+                </div>
+            </div>
             <div class="mb-3">
                 <label class="form-label">Full Name</label>
                 <input type="text" id="regName" class="form-control form-control-custom" placeholder="John Doe" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">Email Address</label>
+                <label class="form-label">Email Address <span style="color:#ef4444;">*</span></label>
                 <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">Password</label>
+                <label class="form-label">Password <span style="color:#ef4444;">*</span></label>
                 <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
             </div>
             <div class="mb-3">
                 <label class="form-label">Referral Code <span class="optional-badge">Optional</span></label>
-                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code (optional)">
+                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code (optional)" readonly style="background:#0a1425 !important; cursor:default;">
+                <small class="text-muted" style="font-size:0.7rem;">
+                    <i class="bi bi-link-45deg"></i> Referral code will be auto-filled from your referral link
+                </small>
             </div>
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
@@ -158,12 +218,12 @@
 </script>
 <script type="module">
 // ============================================================
-// 🔥 FIREBASE IMPORTS - CORRECT WAY
+// 🔥 FIREBASE IMPORTS
 // ============================================================
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, set, get } from "firebase/database";
+import { getDatabase, ref, set, get, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
 // 🔥 FIREBASE CONFIG
@@ -178,6 +238,11 @@ const firebaseConfig = {
     appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
     measurementId: "G-ELVJD5NQKB"
 };
+
+// ============================================================
+// 🔥 DOMAIN CONFIG
+// ============================================================
+const DOMAIN = "https://staking.randigital.in";
 
 // ============================================================
 // 🔥 INIT FIREBASE
@@ -201,42 +266,135 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================
+// 🔥 TOAST SYSTEM
+// ============================================================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-custom ${type}`;
+    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
+    toast.innerHTML = `
+        <i class="bi ${icon}"></i>
+        <span class="toast-msg">${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// ============================================================
+// 🔥 USERNAME VALIDATION
+// ============================================================
+function isValidUsername(username) {
+    return /^[a-zA-Z0-9_]{3,20}$/.test(username);
+}
+
+document.getElementById('regUsername').addEventListener('input', function() {
+    const username = this.value.trim();
+    const statusSpan = document.getElementById('usernameStatus');
+    const hintDiv = document.getElementById('usernameHint');
+    
+    if (!username) {
+        statusSpan.textContent = 'Username must be 3-20 characters (letters, numbers, underscore)';
+        statusSpan.className = '';
+        return;
+    }
+    
+    if (isValidUsername(username)) {
+        statusSpan.textContent = '✅ Username is valid!';
+        statusSpan.className = 'valid';
+    } else {
+        if (username.length < 3) {
+            statusSpan.textContent = '❌ Username must be at least 3 characters';
+        } else if (username.length > 20) {
+            statusSpan.textContent = '❌ Username must be less than 20 characters';
+        } else {
+            statusSpan.textContent = '❌ Use only letters, numbers, and underscore (_)';
+        }
+        statusSpan.className = 'invalid';
+    }
+});
+
+// ============================================================
+// 🔥 CHECK IF USERNAME EXISTS
+// ============================================================
+async function usernameExists(username) {
+    const usersRef = ref(db, 'users');
+    const snapshot = await get(usersRef);
+    if (!snapshot.exists()) return false;
+    const users = snapshot.val();
+    for (let uid in users) {
+        if (users[uid].username && users[uid].username.toLowerCase() === username.toLowerCase()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================
 // 🔥 AUTO-FILL REFERRAL FROM URL
 // ============================================================
 const urlParams = new URLSearchParams(window.location.search);
 const refCode = urlParams.get('ref');
-if (refCode) document.getElementById('regRef').value = refCode;
+if (refCode) {
+    document.getElementById('regRef').value = refCode;
+    console.log('🔗 Referral code auto-filled:', refCode);
+}
 
 // ============================================================
 // 🔥 EMAIL REGISTRATION
 // ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    const username = document.getElementById('regUsername').value.trim();
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
     const ref = document.getElementById('regRef').value.trim();
     const registerBtn = document.getElementById('registerBtn');
     
+    // Validate username
+    if (!username || !isValidUsername(username)) {
+        showToast('❌ Please enter a valid username (3-20 characters, letters, numbers, underscore)', 'error');
+        return;
+    }
+    
+    // Validate name
+    if (!name || name.length < 2) {
+        showToast('❌ Please enter your full name', 'error');
+        return;
+    }
+    
+    // Validate password
+    if (pass.length < 6) {
+        showToast('❌ Password must be at least 6 characters long!', 'error');
+        return;
+    }
+    
+    // Check if username already exists
     registerBtn.disabled = true;
+    registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking username...';
+    
+    try {
+        const exists = await usernameExists(username);
+        if (exists) {
+            showToast('❌ Username "' + username + '" is already taken! Please choose another.', 'error');
+            registerBtn.disabled = false;
+            registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
+            return;
+        }
+    } catch (err) {
+        console.error('Username check error:', err);
+    }
+    
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
-    // Validation
-    if (!name || name.length < 2) {
-        alert('❌ Please enter your full name.');
-        registerBtn.disabled = false;
-        registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
-        return;
-    }
-    if (pass.length < 6) {
-        alert('❌ Password must be at least 6 characters long!');
-        registerBtn.disabled = false;
-        registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
-        return;
-    }
-
     try {
-        console.log('📝 Creating user with email:', email);
+        console.log('📝 Creating user with username:', username);
         
         // Step 1: Create user in Firebase Auth
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
@@ -249,6 +407,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         
         // Step 3: Save user data in Realtime Database
         const userData = {
+            username: username.toLowerCase(),
             name: name,
             email: email,
             uid: uid,
@@ -269,17 +428,12 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const userRef = ref(db, 'users/' + uid);
         await set(userRef, userData);
         console.log('✅ User data saved to database!');
+        
+        // Also save username mapping for quick login lookup
+        await set(ref(db, 'usernames/' + username.toLowerCase()), uid);
+        console.log('✅ Username mapping saved!');
 
-        // Step 4: Verify data was saved
-        const checkSnapshot = await get(ref(db, 'users/' + uid));
-        if (checkSnapshot.exists()) {
-            console.log('✅ Verification: User data exists in database!');
-            console.log('📊 User Data:', checkSnapshot.val());
-        } else {
-            throw new Error('Data was not saved properly!');
-        }
-
-        // Step 5: Update referrer's referral count
+        // Step 4: Update referrer's referral count
         if (ref) {
             console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
@@ -296,21 +450,27 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             }
         }
         
-        // ✅ Success - Redirect to dashboard
-        alert('✅ Account created successfully!');
+        // ✅ Success - Redirect to dashboard with toast
+        showToast('✅ Account created successfully! Welcome ' + username + '! 🎉', 'success');
         console.log('🚀 Redirecting to dashboard...');
-        window.location.href = 'dashboard.html';
+        
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
         
     } catch (err) {
         console.error('❌ Registration Error:', err);
-        let msg = '❌ Registration failed. Please try again.';
-        if (err.code === 'auth/email-already-in-use') msg = '❌ This email is already registered. Please login instead.';
-        else if (err.code === 'auth/weak-password') msg = '❌ Password is too weak. Please use at least 6 characters.';
-        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
-        else if (err.message && err.message.includes('permission_denied')) {
-            msg = '❌ Database permission denied! Please set Firebase Rules to test mode.';
+        let msg = 'Registration failed. Please try again.';
+        if (err.code === 'auth/email-already-in-use') {
+            msg = '❌ This email is already registered. Please login instead.';
+        } else if (err.code === 'auth/weak-password') {
+            msg = '❌ Password is too weak. Please use at least 6 characters.';
+        } else if (err.code === 'auth/invalid-email') {
+            msg = '❌ Please enter a valid email address.';
+        } else if (err.message && err.message.includes('permission_denied')) {
+            msg = '❌ Database permission denied! Please check Firebase Rules.';
         }
-        alert(msg);
+        showToast(msg, 'error');
     }
     
     registerBtn.disabled = false;
@@ -330,16 +490,27 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         const uid = user.uid;
+        const email = user.email;
         console.log('✅ Google sign-in successful. UID:', uid);
         
         // Check if user already exists in database
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
             console.log('💾 Creating new user from Google data...');
+            // Generate username from email
+            const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
+            let username = baseUsername;
+            let counter = 1;
+            while (await usernameExists(username)) {
+                username = baseUsername + '_' + counter;
+                counter++;
+            }
+            
             const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
-            await set(ref(db, 'users/' + uid), {
-                name: user.displayName || 'Google User',
-                email: user.email,
+            const userData = {
+                username: username.toLowerCase(),
+                name: user.displayName || email.split('@')[0],
+                email: email,
                 uid: uid,
                 referralCode: refCodeGen,
                 referredBy: '',
@@ -352,24 +523,26 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 teamBusiness: 0,
                 banned: false,
                 role: 'user'
-            });
-            console.log('✅ Google user data saved to database!');
+            };
+            
+            await set(ref(db, 'users/' + uid), userData);
+            await set(ref(db, 'usernames/' + username.toLowerCase()), uid);
+            console.log('✅ Google user data saved! Username:', username);
         } else {
             console.log('ℹ️ User already exists in database.');
         }
         
-        // ✅ Success - Redirect to dashboard
-        alert('✅ Account created with Google!');
+        showToast('✅ Account created with Google! Welcome! 🎉', 'success');
         console.log('🚀 Redirecting to dashboard...');
-        window.location.href = 'dashboard.html';
+        
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
         
     } catch (err) {
         console.error('❌ Google Registration Error:', err);
-        let msg = '❌ ' + err.message;
-        if (err.message && err.message.includes('permission_denied')) {
-            msg = '❌ Database permission denied! Please set Firebase Rules to test mode.';
-        }
-        alert(msg);
+        let msg = err.message || 'Google sign in failed';
+        showToast('❌ ' + msg, 'error');
     }
     
     btn.disabled = false;
