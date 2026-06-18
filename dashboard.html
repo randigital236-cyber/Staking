@@ -11,7 +11,6 @@
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
-        /* ====== Navbar ====== */
         .navbar-custom {
             background: rgba(8,14,26,0.95);
             backdrop-filter: blur(20px);
@@ -30,7 +29,6 @@
             color: #2ecc71;
         }
         
-        /* ====== Sidebar (Right Side Horizontal Menu) ====== */
         .sidebar-toggle {
             background: rgba(46,204,113,0.12);
             border: 1px solid rgba(46,204,113,0.2);
@@ -45,7 +43,6 @@
             background: rgba(46,204,113,0.2);
         }
         
-        /* Sidebar Overlay */
         .sidebar-overlay {
             position: fixed;
             top: 0;
@@ -64,7 +61,6 @@
             opacity: 1;
         }
         
-        /* Sidebar Panel - Right Side */
         .sidebar-panel {
             position: fixed;
             top: 0;
@@ -165,7 +161,6 @@
             color: #f87171;
         }
         
-        /* ====== Cards ====== */
         .card-glass {
             background: rgba(19,34,55,0.8);
             backdrop-filter: blur(10px);
@@ -266,7 +261,6 @@
             color: #2ecc71;
         }
         
-        /* ====== Loading ====== */
         .loading-spinner {
             display: flex;
             flex-direction: column;
@@ -275,7 +269,17 @@
             min-height: 60vh;
         }
         
-        /* ====== Mobile Responsive ====== */
+        /* ====== DOMAIN BADGE ====== */
+        .domain-badge {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.15);
+            border-radius: 30px;
+            padding: 4px 14px;
+            font-size: 0.7rem;
+            color: #2ecc71;
+            display: inline-block;
+        }
+        
         @media (max-width: 768px) {
             .navbar-custom .navbar-brand {
                 font-size: 1rem;
@@ -327,6 +331,7 @@
     <div class="container">
         <a class="navbar-brand fw-bold" href="dashboard.html">
             <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+            <span class="domain-badge ms-2">staking.randigital.in</span>
         </a>
         <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
             <i class="bi bi-list"></i>
@@ -414,6 +419,12 @@ const firebaseConfig = {
 };
 
 // ============================================================
+// 🔥 DOMAIN CONFIGURATION
+// ============================================================
+const DOMAIN = "https://staking.randigital.in";
+const REGISTER_URL = `${DOMAIN}/register.html`;
+
+// ============================================================
 // 🔥 INIT FIREBASE
 // ============================================================
 const app = initializeApp(firebaseConfig);
@@ -422,6 +433,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 console.log('🔥 Firebase initialized successfully!');
+console.log('📍 Domain:', DOMAIN);
 
 // ============================================================
 // 🔥 SIDEBAR CONTROLS
@@ -447,13 +459,12 @@ sidebarToggle.addEventListener('click', openSidebar);
 sidebarClose.addEventListener('click', closeSidebar);
 sidebarOverlay.addEventListener('click', closeSidebar);
 
-// Close sidebar on escape key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSidebar();
 });
 
 // ============================================================
-// 🔥 LOGOUT (Both buttons)
+// 🔥 LOGOUT
 // ============================================================
 document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -537,6 +548,9 @@ function loadDashboard(u) {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = u.totalReferrals || 0;
     
+    // Generate referral link with correct domain
+    const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
+    
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
             <!-- Stats -->
@@ -599,9 +613,9 @@ function loadDashboard(u) {
                             <p class="text-muted small">${u.email} · <span class="text-success">${u.uid}</span></p>
                             <div class="d-flex flex-wrap gap-3 align-items-center">
                                 <span><span class="text-muted">Referral Code:</span> <strong class="text-success">${u.referralCode}</strong></span>
-                                <div class="referral-box d-flex align-items-center gap-2 flex-wrap">
-                                    <code class="text-light small" style="word-break:break-all;">https://randigital.in/register.html?ref=${u.referralCode}</code>
-                                    <button class="copy-btn" data-copy="https://randigital.in/register.html?ref=${u.referralCode}"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                                <div class="referral-box d-flex align-items-center gap-2 flex-wrap" style="width:100%;">
+                                    <code class="text-light small" style="word-break:break-all; flex:1;">${referralLink}</code>
+                                    <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                                 </div>
                             </div>
                             <div class="mt-2">
@@ -654,6 +668,16 @@ function loadDashboard(u) {
                         <a href="referrals.html" class="btn-outline-custom"><i class="bi bi-people me-1"></i>Referrals</a>
                         <a href="profile.html" class="btn-outline-custom"><i class="bi bi-person me-1"></i>Profile</a>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Domain Info -->
+            <div class="col-12">
+                <div class="text-center text-muted small">
+                    <i class="bi bi-globe2 me-1"></i> 
+                    Your referral domain: <strong class="text-success">${DOMAIN}</strong>
+                    <span class="mx-2">|</span>
+                    <i class="bi bi-shield-check me-1"></i> Secure connection
                 </div>
             </div>
         </div>
