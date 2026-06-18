@@ -40,7 +40,25 @@
             background: rgba(8,14,26,0.9) !important;
         }
         .form-control-custom::placeholder { color: #556688 !important; }
-        .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
+        .form-control-custom:disabled { opacity: 0.5; cursor: not-allowed; }
+        .form-label { 
+            font-weight: 600; 
+            color: #a0b8d0; 
+            font-size: 0.9rem; 
+            margin-bottom: 6px; 
+        }
+        .form-label .required {
+            color: #ef4444;
+        }
+        .form-label .optional-badge {
+            font-size: 0.65rem;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+            margin-left: 6px;
+        }
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -98,21 +116,37 @@
         }
         .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .logo-text span { color: #2ecc71; }
-        .optional-badge {
-            font-size: 0.7rem;
-            background: rgba(46,204,113,0.15);
-            color: #2ecc71;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-weight: 500;
-        }
-        .username-hint {
+        
+        /* Username Status */
+        .username-status {
             font-size: 0.75rem;
-            color: #556688;
             margin-top: 4px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
         }
-        .username-hint .valid { color: #2ecc71; }
-        .username-hint .invalid { color: #ef4444; }
+        .username-status.available {
+            color: #2ecc71;
+            background: rgba(46,204,113,0.08);
+        }
+        .username-status.unavailable {
+            color: #ef4444;
+            background: rgba(239,68,68,0.08);
+        }
+        .username-status.checking {
+            color: #fbbf24;
+            background: rgba(251,191,36,0.08);
+        }
+        .username-status.idle {
+            color: #556688;
+            background: transparent;
+        }
+        .username-status i { font-size: 0.9rem; }
+        
+        /* Toast */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -132,6 +166,7 @@
             align-items: center;
             gap: 12px;
             animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
         }
         .toast-custom.success { border-left: 4px solid #2ecc71; }
         .toast-custom.error { border-left: 4px solid #ef4444; }
@@ -162,34 +197,53 @@
         </div>
 
         <form id="registerForm" novalidate>
-            <!-- Username / User ID -->
+            <!-- Username - MANDATORY -->
             <div class="mb-3">
-                <label class="form-label">Username <span style="color:#ef4444;">*</span></label>
-                <input type="text" id="regUsername" class="form-control form-control-custom" placeholder="Choose a username (e.g. john_123)" required>
-                <div class="username-hint" id="usernameHint">
+                <label class="form-label">
+                    Username <span class="required">*</span>
+                    <span class="optional-badge">3-6 characters</span>
+                </label>
+                <input type="text" id="regUsername" class="form-control form-control-custom" 
+                       placeholder="Choose a unique username (3-6 characters)" 
+                       required autocomplete="off" spellcheck="false" maxlength="6">
+                <div class="username-status idle" id="usernameStatus">
                     <i class="bi bi-info-circle"></i> 
-                    <span id="usernameStatus">Username must be 3-20 characters (letters, numbers, underscore)</span>
+                    <span id="usernameStatusText">3-6 characters • letters, numbers, underscore only</span>
                 </div>
             </div>
+            
+            <!-- Full Name - MANDATORY -->
             <div class="mb-3">
-                <label class="form-label">Full Name</label>
+                <label class="form-label">Full Name <span class="required">*</span></label>
                 <input type="text" id="regName" class="form-control form-control-custom" placeholder="John Doe" required>
             </div>
+            
+            <!-- Email - MANDATORY -->
             <div class="mb-3">
-                <label class="form-label">Email Address <span style="color:#ef4444;">*</span></label>
+                <label class="form-label">Email Address <span class="required">*</span></label>
                 <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
             </div>
+            
+            <!-- Password - MANDATORY -->
             <div class="mb-3">
-                <label class="form-label">Password <span style="color:#ef4444;">*</span></label>
+                <label class="form-label">Password <span class="required">*</span></label>
                 <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
             </div>
+            
+            <!-- Referral Code - OPTIONAL (Auto-filled from URL) -->
             <div class="mb-3">
-                <label class="form-label">Referral Code <span class="optional-badge">Optional</span></label>
-                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code (optional)" readonly style="background:#0a1425 !important; cursor:default;">
+                <label class="form-label">
+                    Referral Code 
+                    <span class="optional-badge">Optional</span>
+                </label>
+                <input type="text" id="regRef" class="form-control form-control-custom" 
+                       placeholder="Auto-filled from referral link" readonly 
+                       style="background:#0a1425 !important; cursor:default;">
                 <small class="text-muted" style="font-size:0.7rem;">
-                    <i class="bi bi-link-45deg"></i> Referral code will be auto-filled from your referral link
+                    <i class="bi bi-link-45deg"></i> If you came from a referral link, code will auto-fill
                 </small>
             </div>
+            
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
 
@@ -223,7 +277,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, set, get, query, orderByChild, equalTo } from "firebase/database";
+import { getDatabase, ref, set, get } from "firebase/database";
 
 // ============================================================
 // 🔥 FIREBASE CONFIG
@@ -243,6 +297,7 @@ const firebaseConfig = {
 // 🔥 DOMAIN CONFIG
 // ============================================================
 const DOMAIN = "https://staking.randigital.in";
+const REGISTER_URL = `${DOMAIN}/register.html`;
 
 // ============================================================
 // 🔥 INIT FIREBASE
@@ -282,57 +337,107 @@ function showToast(message, type = 'success') {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
-    }, 5000);
+    }, 6000);
 }
 
 // ============================================================
-// 🔥 USERNAME VALIDATION
+// 🔥 USERNAME VALIDATION (3-6 characters only)
 // ============================================================
+const usernameInput = document.getElementById('regUsername');
+const usernameStatus = document.getElementById('usernameStatus');
+const usernameStatusText = document.getElementById('usernameStatusText');
+let usernameCheckTimeout = null;
+let currentUsername = '';
+
 function isValidUsername(username) {
-    return /^[a-zA-Z0-9_]{3,20}$/.test(username);
+    return /^[a-zA-Z0-9_]{3,6}$/.test(username);
 }
 
-document.getElementById('regUsername').addEventListener('input', function() {
+function getUsernameStatus(username) {
+    if (!username) return { valid: false, msg: '3-6 characters • letters, numbers, underscore only' };
+    if (username.length < 3) return { valid: false, msg: '❌ Too short - minimum 3 characters' };
+    if (username.length > 6) return { valid: false, msg: '❌ Too long - maximum 6 characters' };
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return { valid: false, msg: '❌ Only letters, numbers, and underscore (_) allowed' };
+    return { valid: true, msg: '✅ Valid username' };
+}
+
+// ============================================================
+// 🔥 CHECK USERNAME AVAILABILITY IN FIREBASE
+// ============================================================
+async function checkUsernameAvailability(username) {
+    if (!username || !isValidUsername(username)) return false;
+    
+    try {
+        // Check in usernames node
+        const usernameRef = ref(db, 'usernames/' + username.toUpperCase());
+        const snapshot = await get(usernameRef);
+        if (snapshot.exists()) return false;
+        
+        // Also check in users (for backward compatibility)
+        const usersRef = ref(db, 'users');
+        const usersSnap = await get(usersRef);
+        if (usersSnap.exists()) {
+            const users = usersSnap.val();
+            for (let uid in users) {
+                if (users[uid].username && users[uid].username.toUpperCase() === username.toUpperCase()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error('Username check error:', error);
+        return false;
+    }
+}
+
+// ============================================================
+// 🔥 REAL-TIME USERNAME CHECK
+// ============================================================
+usernameInput.addEventListener('input', function() {
     const username = this.value.trim();
-    const statusSpan = document.getElementById('usernameStatus');
-    const hintDiv = document.getElementById('usernameHint');
+    currentUsername = username;
+    
+    // Clear previous timeout
+    if (usernameCheckTimeout) {
+        clearTimeout(usernameCheckTimeout);
+        usernameCheckTimeout = null;
+    }
+    
+    // Validate format first
+    const formatCheck = getUsernameStatus(username);
     
     if (!username) {
-        statusSpan.textContent = 'Username must be 3-20 characters (letters, numbers, underscore)';
-        statusSpan.className = '';
+        usernameStatus.className = 'username-status idle';
+        usernameStatusText.textContent = '3-6 characters • letters, numbers, underscore only';
         return;
     }
     
-    if (isValidUsername(username)) {
-        statusSpan.textContent = '✅ Username is valid!';
-        statusSpan.className = 'valid';
-    } else {
-        if (username.length < 3) {
-            statusSpan.textContent = '❌ Username must be at least 3 characters';
-        } else if (username.length > 20) {
-            statusSpan.textContent = '❌ Username must be less than 20 characters';
+    if (!formatCheck.valid) {
+        usernameStatus.className = 'username-status unavailable';
+        usernameStatusText.textContent = formatCheck.msg;
+        return;
+    }
+    
+    // Show checking status
+    usernameStatus.className = 'username-status checking';
+    usernameStatusText.textContent = '⏳ Checking availability...';
+    
+    // Debounce - wait 500ms before checking
+    usernameCheckTimeout = setTimeout(async () => {
+        if (currentUsername !== username) return;
+        
+        const available = await checkUsernameAvailability(username);
+        
+        if (available) {
+            usernameStatus.className = 'username-status available';
+            usernameStatusText.textContent = '✅ Username is available!';
         } else {
-            statusSpan.textContent = '❌ Use only letters, numbers, and underscore (_)';
+            usernameStatus.className = 'username-status unavailable';
+            usernameStatusText.textContent = '❌ "' + username + '" is already taken! Please choose another.';
         }
-        statusSpan.className = 'invalid';
-    }
+    }, 500);
 });
-
-// ============================================================
-// 🔥 CHECK IF USERNAME EXISTS
-// ============================================================
-async function usernameExists(username) {
-    const usersRef = ref(db, 'users');
-    const snapshot = await get(usersRef);
-    if (!snapshot.exists()) return false;
-    const users = snapshot.val();
-    for (let uid in users) {
-        if (users[uid].username && users[uid].username.toLowerCase() === username.toLowerCase()) {
-            return true;
-        }
-    }
-    return false;
-}
 
 // ============================================================
 // 🔥 AUTO-FILL REFERRAL FROM URL
@@ -340,7 +445,7 @@ async function usernameExists(username) {
 const urlParams = new URLSearchParams(window.location.search);
 const refCode = urlParams.get('ref');
 if (refCode) {
-    document.getElementById('regRef').value = refCode;
+    document.getElementById('regRef').value = refCode.toUpperCase();
     console.log('🔗 Referral code auto-filled:', refCode);
 }
 
@@ -350,16 +455,31 @@ if (refCode) {
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const username = document.getElementById('regUsername').value.trim();
+    const username = document.getElementById('regUsername').value.trim().toUpperCase();
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
-    const ref = document.getElementById('regRef').value.trim();
+    const ref = document.getElementById('regRef').value.trim().toUpperCase();
     const registerBtn = document.getElementById('registerBtn');
     
+    // ====== VALIDATION ======
+    
     // Validate username
-    if (!username || !isValidUsername(username)) {
-        showToast('❌ Please enter a valid username (3-20 characters, letters, numbers, underscore)', 'error');
+    if (!username) {
+        showToast('❌ Please enter a username', 'error');
+        return;
+    }
+    
+    const formatCheck = getUsernameStatus(username);
+    if (!formatCheck.valid) {
+        showToast('❌ ' + formatCheck.msg, 'error');
+        return;
+    }
+    
+    // Check if username is available (final check)
+    const isAvailable = await checkUsernameAvailability(username);
+    if (!isAvailable) {
+        showToast('❌ Username "' + username + '" is already taken! Please choose another.', 'error');
         return;
     }
     
@@ -369,28 +489,20 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
     }
     
+    // Validate email
+    if (!email || !email.includes('@')) {
+        showToast('❌ Please enter a valid email address', 'error');
+        return;
+    }
+    
     // Validate password
     if (pass.length < 6) {
         showToast('❌ Password must be at least 6 characters long!', 'error');
         return;
     }
     
-    // Check if username already exists
+    // ====== REGISTRATION ======
     registerBtn.disabled = true;
-    registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking username...';
-    
-    try {
-        const exists = await usernameExists(username);
-        if (exists) {
-            showToast('❌ Username "' + username + '" is already taken! Please choose another.', 'error');
-            registerBtn.disabled = false;
-            registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
-            return;
-        }
-    } catch (err) {
-        console.error('Username check error:', err);
-    }
-    
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
@@ -401,13 +513,13 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const uid = cred.user.uid;
         console.log('✅ User created in Auth. UID:', uid);
         
-        // Step 2: Generate referral code
-        const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
+        // Step 2: REFERRAL CODE = USERNAME (in uppercase)
+        const refCodeGen = username.toUpperCase();
         console.log('🔑 Referral Code:', refCodeGen);
         
         // Step 3: Save user data in Realtime Database
         const userData = {
-            username: username.toLowerCase(),
+            username: username.toUpperCase(),
             name: name,
             email: email,
             uid: uid,
@@ -429,11 +541,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         await set(userRef, userData);
         console.log('✅ User data saved to database!');
         
-        // Also save username mapping for quick login lookup
-        await set(ref(db, 'usernames/' + username.toLowerCase()), uid);
+        // Step 4: Save username mapping for quick login lookup
+        await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
         console.log('✅ Username mapping saved!');
 
-        // Step 4: Update referrer's referral count
+        // Step 5: Update referrer's referral count
         if (ref) {
             console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
@@ -450,13 +562,14 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             }
         }
         
-        // ✅ Success - Redirect to dashboard with toast
-        showToast('✅ Account created successfully! Welcome ' + username + '! 🎉', 'success');
+        // ✅ Success
+        const referralLink = `${REGISTER_URL}?ref=${refCodeGen}`;
+        showToast('✅ Account created successfully!<br>Your Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
         console.log('🚀 Redirecting to dashboard...');
         
         setTimeout(() => {
             window.location.href = 'dashboard.html';
-        }, 1500);
+        }, 2000);
         
     } catch (err) {
         console.error('❌ Registration Error:', err);
@@ -497,18 +610,32 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
             console.log('💾 Creating new user from Google data...');
-            // Generate username from email
-            const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
-            let username = baseUsername;
+            
+            // Generate unique username (3-6 characters)
+            const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+            let username = baseUsername.slice(0, 6);
             let counter = 1;
-            while (await usernameExists(username)) {
-                username = baseUsername + '_' + counter;
-                counter++;
+            
+            // Ensure minimum 3 characters
+            if (username.length < 3) {
+                username = username + 'X'.repeat(3 - username.length);
             }
             
-            const refCodeGen = 'RND' + uid.slice(-5).toUpperCase();
+            // Check if username exists
+            let isAvailable = await checkUsernameAvailability(username);
+            while (!isAvailable) {
+                const suffix = String(counter);
+                const base = baseUsername.slice(0, 6 - suffix.length);
+                username = (base + suffix).toUpperCase();
+                if (username.length < 3) username = username + 'X'.repeat(3 - username.length);
+                isAvailable = await checkUsernameAvailability(username);
+                counter++;
+                if (counter > 100) break;
+            }
+            
+            const refCodeGen = username.toUpperCase();
             const userData = {
-                username: username.toLowerCase(),
+                username: username.toUpperCase(),
                 name: user.displayName || email.split('@')[0],
                 email: email,
                 uid: uid,
@@ -526,7 +653,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             };
             
             await set(ref(db, 'users/' + uid), userData);
-            await set(ref(db, 'usernames/' + username.toLowerCase()), uid);
+            await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
             console.log('✅ Google user data saved! Username:', username);
         } else {
             console.log('ℹ️ User already exists in database.');
