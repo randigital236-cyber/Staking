@@ -184,14 +184,14 @@
             <div class="mb-3">
                 <label class="form-label">
                     Username <span class="required">*</span>
-                    <span class="optional-badge">3-6 characters</span>
+                    <span class="optional-badge">3-9 characters</span>
                 </label>
                 <input type="text" id="regUsername" class="form-control form-control-custom" 
-                       placeholder="Choose a unique username (3-6 characters)" 
-                       required autocomplete="off" spellcheck="false" maxlength="6">
+                       placeholder="Choose a unique username (3-9 characters)" 
+                       required autocomplete="off" spellcheck="false" maxlength="9">
                 <div class="username-status idle" id="usernameStatus">
                     <i class="bi bi-info-circle"></i> 
-                    <span id="usernameStatusText">3-6 characters • letters, numbers, underscore only</span>
+                    <span id="usernameStatusText">3-9 characters • letters, numbers, underscore only</span>
                 </div>
             </div>
             
@@ -306,7 +306,7 @@ function showToast(message, type = 'success') {
 }
 
 // ============================================================
-// 🔥 USERNAME VALIDATION
+// 🔥 USERNAME VALIDATION (3-9 characters)
 // ============================================================
 const usernameInput = document.getElementById('regUsername');
 const usernameStatus = document.getElementById('usernameStatus');
@@ -315,13 +315,13 @@ let usernameCheckTimeout = null;
 let currentUsername = '';
 
 function isValidUsername(username) {
-    return /^[a-zA-Z0-9_]{3,6}$/.test(username);
+    return /^[a-zA-Z0-9_]{3,9}$/.test(username);
 }
 
 function getUsernameStatus(username) {
-    if (!username) return { valid: false, msg: '3-6 characters • letters, numbers, underscore only' };
+    if (!username) return { valid: false, msg: '3-9 characters • letters, numbers, underscore only' };
     if (username.length < 3) return { valid: false, msg: '❌ Too short - minimum 3 characters' };
-    if (username.length > 6) return { valid: false, msg: '❌ Too long - maximum 6 characters' };
+    if (username.length > 9) return { valid: false, msg: '❌ Too long - maximum 9 characters' };
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return { valid: false, msg: '❌ Only letters, numbers, and underscore (_) allowed' };
     return { valid: true, msg: '✅ Valid username' };
 }
@@ -363,7 +363,7 @@ usernameInput.addEventListener('input', function() {
     
     if (!username) {
         usernameStatus.className = 'username-status idle';
-        usernameStatusText.textContent = '3-6 characters • letters, numbers, underscore only';
+        usernameStatusText.textContent = '3-9 characters • letters, numbers, underscore only';
         return;
     }
     
@@ -466,13 +466,13 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         });
         console.log('✅ Auth profile updated with name:', name);
         
-        // Step 3: REFERRAL CODE = USERNAME (NOT random code)
+        // Step 3: REFERRAL CODE = USERNAME (from form)
         const refCodeGen = username.toUpperCase();
         console.log('🔑 Referral Code:', refCodeGen);
         
-        // Step 4: Save user data - username = referral code
+        // Step 4: Save user data - username = form username
         const userData = {
-            username: username.toUpperCase(),  // <--- This is the referral code too
+            username: username.toUpperCase(),  // <--- From form input
             name: name,
             email: email,
             uid: uid,
@@ -564,9 +564,9 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
-            // Generate username from email (3-6 chars)
+            // Generate username from email (3-9 chars)
             const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-            let username = baseUsername.slice(0, 6);
+            let username = baseUsername.slice(0, 9);
             let counter = 1;
             
             if (username.length < 3) {
@@ -576,7 +576,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             let isAvailable = await checkUsernameAvailability(username);
             while (!isAvailable) {
                 const suffix = String(counter);
-                const base = baseUsername.slice(0, 6 - suffix.length);
+                const base = baseUsername.slice(0, 9 - suffix.length);
                 username = (base + suffix).toUpperCase();
                 if (username.length < 3) username = username + 'X'.repeat(3 - username.length);
                 isAvailable = await checkUsernameAvailability(username);
@@ -591,7 +591,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 name: displayName,
                 email: email,
                 uid: uid,
-                referralCode: refCodeGen,  // <--- Same as username
+                referralCode: refCodeGen,
                 referredBy: '',
                 createdAt: Date.now(),
                 totalStake: 0,
