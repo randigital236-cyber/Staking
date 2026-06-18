@@ -122,7 +122,7 @@
             margin: 2px 12px;
             border-radius: 12px;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
         }
         .sidebar-panel .nav-item:hover {
             background: rgba(46,204,113,0.08);
@@ -133,18 +133,9 @@
             color: #2ecc71;
         }
         .sidebar-panel .nav-item i {
-            font-size: 1.1rem;
-            width: 24px;
+            font-size: 1.2rem;
+            width: 28px;
             text-align: center;
-        }
-        .sidebar-panel .nav-item .badge {
-            margin-left: auto;
-            background: rgba(46,204,113,0.15);
-            color: #2ecc71;
-            font-weight: 600;
-            font-size: 0.7rem;
-            padding: 2px 10px;
-            border-radius: 20px;
         }
         
         .sidebar-panel .sidebar-footer {
@@ -448,41 +439,22 @@
         </div>
     </div>
     
-    <a href="#" class="nav-item active">
+    <!-- ====== SIMPLIFIED SIDEBAR MENU (Only 5 Items) ====== -->
+    <a href="dashboard.html" class="nav-item active">
         <i class="bi bi-speedometer2"></i> Dashboard
     </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-coin"></i> Wealth25
+    <a href="deposit.html" class="nav-item">
+        <i class="bi bi-arrow-down-circle"></i> Deposit
     </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-coin"></i> Wealth36
+    <a href="withdrawal.html" class="nav-item">
+        <i class="bi bi-arrow-up-circle"></i> Withdraw
     </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-pie-chart"></i> Stake25
+    <a href="referrals.html" class="nav-item">
+        <i class="bi bi-people"></i> Referrals
+        <span class="badge" id="referralBadge" style="margin-left:auto; background:rgba(46,204,113,0.15); color:#2ecc71; font-weight:600; font-size:0.7rem; padding:2px 10px; border-radius:20px;">0</span>
     </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-graph-up-arrow"></i> Trading
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-file-earmark-text"></i> Subscription
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-files"></i> Settlements
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-clock-history"></i> Payment History
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-trophy"></i> Leadership Bonus Progress
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-receipt"></i> My Invoices
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-bank"></i> eBank
-    </a>
-    <a href="#" class="nav-item">
-        <i class="bi bi-wallet2"></i> My Earnings
+    <a href="profile.html" class="nav-item">
+        <i class="bi bi-person"></i> Profile
     </a>
     
     <div class="sidebar-footer">
@@ -662,7 +634,6 @@ function loadDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
     const name = u.name || 'User';
     
-    // Rank display - agar rank hai toh show karo, nahi toh Member
     const rank = u.rank || 'Member';
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
@@ -676,10 +647,13 @@ function loadDashboard(u) {
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
     document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
     
+    // Update referral badge
+    const badge = document.getElementById('referralBadge');
+    if (badge) badge.textContent = directReferrals;
+    
     // Generate referral link
     const referralLink = `${REGISTER_URL}?ref=${username}`;
     
-    // Rank badge class
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
     
     document.getElementById('dashboardContent').innerHTML = `
