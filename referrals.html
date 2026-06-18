@@ -2,49 +2,193 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>Referrals - RND Staking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #080e1a; color: #f0f4ff; }
+        body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
         .navbar-custom {
             background: rgba(8,14,26,0.95);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(46,204,113,0.15);
-            padding: 12px 0;
+            padding: 10px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
         }
-        .nav-link-custom {
-            color: #a0b8d0 !important;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            padding: 8px 20px !important;
+        .navbar-custom .navbar-brand {
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #fff !important;
+        }
+        .navbar-custom .navbar-brand i { color: #2ecc71; }
+        .domain-badge {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.15);
+            border-radius: 30px;
+            padding: 4px 14px;
+            font-size: 0.65rem;
+            color: #2ecc71;
+        }
+        
+        .sidebar-toggle {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.2);
+            color: #2ecc71;
+            padding: 8px 14px;
             border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
         }
-        .nav-link-custom:hover, .nav-link-custom.active {
-            color: #2ecc71 !important;
-            background: rgba(46,204,113,0.1);
+        .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
+        
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            z-index: 1060;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        .btn-primary-custom {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        .sidebar-overlay.active { display: block; opacity: 1; }
+        
+        .sidebar-panel {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100%;
+            background: rgba(12,20,35,0.98);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(46,204,113,0.15);
+            z-index: 1070;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-panel.open { right: 0; }
+        
+        .sidebar-panel .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.1);
+            margin-bottom: 15px;
+        }
+        .sidebar-panel .sidebar-header h5 {
+            color: #fff;
+            font-weight: 700;
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .sidebar-panel .sidebar-header h5 i { color: #2ecc71; }
+        .sidebar-close {
+            background: rgba(255,255,255,0.08);
             border: none;
+            color: #8899bb;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+        .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        
+        .sidebar-panel .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            color: #8899bb;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin: 2px 12px;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+        .sidebar-panel .nav-item:hover {
+            background: rgba(46,204,113,0.08);
+            color: #fff;
+        }
+        .sidebar-panel .nav-item.active {
+            background: rgba(46,204,113,0.12);
+            color: #2ecc71;
+        }
+        .sidebar-panel .nav-item i {
+            font-size: 1.2rem;
+            width: 28px;
+            text-align: center;
+        }
+        .sidebar-panel .nav-item .badge {
+            margin-left: auto;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+        
+        .sidebar-panel .sidebar-footer {
+            margin-top: auto;
+            padding: 20px;
+            border-top: 1px solid rgba(46,204,113,0.08);
+        }
+        .sidebar-panel .sidebar-footer .nav-item {
+            color: #f87171;
+        }
+        .sidebar-panel .sidebar-footer .nav-item:hover {
+            background: rgba(239,68,68,0.08);
+            color: #f87171;
+        }
+        
+        .user-profile-sidebar {
+            padding: 10px 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.08);
+            margin-bottom: 10px;
+        }
+        .user-profile-sidebar .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2ecc71, #1a7a3a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+        .user-profile-sidebar .user-name {
             color: #fff;
             font-weight: 600;
-            padding: 8px 18px;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
         }
-        .btn-primary-custom:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
-            color: #fff;
+        .user-profile-sidebar .user-id {
+            color: #8899bb;
+            font-size: 0.75rem;
         }
+        
+        .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        
         .card-glass {
             background: rgba(19,34,55,0.8);
             backdrop-filter: blur(10px);
@@ -54,13 +198,33 @@
             transition: all 0.3s ease;
         }
         .card-glass:hover {
-            border-color: rgba(46,204,113,0.2);
+            border-color: rgba(46,204,113,0.3);
+            transform: translateY(-3px);
         }
+        .card-glass .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
+        
         .referral-box {
             background: rgba(8,14,26,0.6);
             border-radius: 12px;
             padding: 0.8rem 1rem;
             border: 1px dashed rgba(46,204,113,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .referral-box code {
+            color: #a0b8d0;
+            font-size: 0.8rem;
+            word-break: break-all;
+            flex: 1;
         }
         .copy-btn {
             cursor: pointer;
@@ -70,12 +234,24 @@
             background: transparent;
             color: #a0b8d0;
             transition: all 0.3s ease;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
         }
         .copy-btn:hover {
             background: rgba(46,204,113,0.1);
             color: #2ecc71;
         }
+        
+        .commission-box {
+            background: rgba(8,14,26,0.5);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(46,204,113,0.08);
+            transition: all 0.3s ease;
+        }
+        .commission-box:hover {
+            border-color: rgba(46,204,113,0.2);
+        }
+        
         .table-custom {
             color: #f0f4ff;
             border-color: rgba(46,204,113,0.1);
@@ -87,47 +263,133 @@
         }
         .table-custom td {
             border-color: rgba(46,204,113,0.08);
+            padding: 12px 15px;
         }
-        .commission-box {
-            background: rgba(8,14,26,0.5);
+        .table-custom tr:hover {
+            background: rgba(46,204,113,0.05);
+        }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 24px;
             border-radius: 12px;
-            padding: 0.8rem 1rem;
-            border: 1px solid rgba(46,204,113,0.08);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .btn-outline-custom {
+            border: 2px solid rgba(46,204,113,0.3);
+            color: #a0b8d0;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            background: transparent;
+            font-size: 0.9rem;
+        }
+        .btn-outline-custom:hover {
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+        
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
         }
         
         @media (max-width: 768px) {
-            .card-glass { padding: 1rem; }
+            .dashboard-container { padding: 15px; }
+            .sidebar-panel { width: 280px; right: -300px; }
+            .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+            .referral-box { flex-direction: column; align-items: stretch; }
+            .commission-box { padding: 0.6rem 0.8rem; }
+            .table-custom td, .table-custom th { padding: 8px 10px; font-size: 0.85rem; }
+        }
+        
+        @media (max-width: 480px) {
+            .sidebar-panel { width: 100%; right: -100%; }
+            .sidebar-panel.open { right: 0; }
         }
     </style>
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-custom">
-    <div class="container">
-        <a class="navbar-brand fw-bold text-white" href="dashboard.html">
-            <i class="bi bi-currency-bitcoin text-success me-2"></i>RND Staking
+<!-- ====== NAVBAR ====== -->
+<nav class="navbar navbar-custom">
+    <div class="container-fluid px-3">
+        <a class="navbar-brand fw-bold" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+            <span class="domain-badge ms-2">staking.randigital.in</span>
         </a>
-        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-            <span class="navbar-toggler-icon"></span>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
+            <i class="bi bi-list"></i>
         </button>
-        <div class="collapse navbar-collapse" id="mainNav">
-            <ul class="navbar-nav ms-auto align-items-center">
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="dashboard.html"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="deposit.html"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="withdrawal.html"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom active" href="referrals.html"><i class="bi bi-people me-1"></i>Referrals</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
-            </ul>
-        </div>
     </div>
 </nav>
 
-<!-- Referrals Content -->
-<div class="container py-4" id="referralContent">
-    <div class="text-center text-muted py-5">
-        <div class="spinner-border text-success" role="status"></div>
-        <p class="mt-2">Loading referral data...</p>
+<!-- ====== SIDEBAR OVERLAY ====== -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ====== SIDEBAR PANEL ====== -->
+<div class="sidebar-panel" id="sidebarPanel">
+    <div class="sidebar-header">
+        <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
+        <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    
+    <div class="user-profile-sidebar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="avatar" id="sidebarAvatar">U</div>
+            <div>
+                <div class="user-name" id="sidebarName">User</div>
+                <div class="user-id" id="sidebarUserId">ID: ---</div>
+            </div>
+        </div>
+    </div>
+    
+    <a href="dashboard.html" class="nav-item">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+    <a href="deposit.html" class="nav-item">
+        <i class="bi bi-arrow-down-circle"></i> Deposit
+    </a>
+    <a href="withdrawal.html" class="nav-item">
+        <i class="bi bi-arrow-up-circle"></i> Withdraw
+    </a>
+    <a href="referrals.html" class="nav-item active">
+        <i class="bi bi-people"></i> Referrals
+        <span class="badge" id="referralBadge">0</span>
+    </a>
+    <a href="profile.html" class="nav-item">
+        <i class="bi bi-person"></i> Profile
+    </a>
+    
+    <div class="sidebar-footer">
+        <a href="#" class="nav-item" id="logoutBtnSidebar">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </div>
+</div>
+
+<!-- ====== REFERRALS CONTENT ====== -->
+<div class="dashboard-container" id="referralContent">
+    <div class="loading-spinner">
+        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="text-muted mt-3">Loading referral data...</p>
     </div>
 </div>
 
@@ -148,6 +410,9 @@ import { getAnalytics } from "firebase/analytics";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -159,153 +424,239 @@ const firebaseConfig = {
     measurementId: "G-ELVJD5NQKB"
 };
 
+// ============================================================
+// 🔥 DOMAIN CONFIG
+// ============================================================
+const DOMAIN = "https://staking.randigital.in";
+const REGISTER_URL = `${DOMAIN}/register.html`;
+
+// ============================================================
+// 🔥 INIT FIREBASE
+// ============================================================
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+console.log('🔥 Firebase initialized successfully!');
+
+// ============================================================
+// 🔥 SIDEBAR CONTROLS
+// ============================================================
+const sidebarPanel = document.getElementById('sidebarPanel');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebarClose = document.getElementById('sidebarClose');
+
+function openSidebar() {
+    sidebarPanel.classList.add('open');
+    sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    sidebarPanel.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+sidebarToggle.addEventListener('click', openSidebar);
+sidebarClose.addEventListener('click', closeSidebar);
+sidebarOverlay.addEventListener('click', closeSidebar);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+});
+
+// ============================================================
+// 🔥 LOGOUT
+// ============================================================
+document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
+    e.preventDefault();
     await signOut(auth);
     window.location.href = 'login.html';
 });
 
+// ============================================================
+// 🔥 CHECK AUTH & LOAD REFERRALS
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
+        console.log('❌ No user logged in. Redirecting to login...');
         window.location.href = 'login.html';
         return;
     }
 
-    const userSnapshot = await get(ref(db, 'users/' + user.uid));
-    if (!userSnapshot.exists()) return;
-    const userData = userSnapshot.val();
+    console.log('✅ User logged in. UID:', user.uid);
 
-    // Get all referrals
-    const allUsersSnapshot = await get(ref(db, 'users'));
-    let referrals = [];
-    if (allUsersSnapshot.exists()) {
-        const allUsers = allUsersSnapshot.val();
-        for (let key in allUsers) {
-            if (allUsers[key].referredBy === userData.referralCode) {
-                referrals.push(allUsers[key]);
+    try {
+        const userSnapshot = await get(ref(db, 'users/' + user.uid));
+        if (!userSnapshot.exists()) {
+            console.log('⚠️ User data not found.');
+            window.location.href = 'dashboard.html';
+            return;
+        }
+        
+        const userData = userSnapshot.val();
+        console.log('✅ User data loaded:', userData);
+
+        // Update sidebar
+        const username = userData.username || userData.referralCode || 'USER';
+        const name = userData.name || 'User';
+        document.getElementById('sidebarName').textContent = name;
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
+        document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
+
+        // Get all referrals (users who have referredBy = this user's referralCode)
+        const allUsersSnapshot = await get(ref(db, 'users'));
+        let referrals = [];
+        if (allUsersSnapshot.exists()) {
+            const allUsers = allUsersSnapshot.val();
+            for (let key in allUsers) {
+                if (allUsers[key].referredBy === userData.referralCode) {
+                    referrals.push(allUsers[key]);
+                }
             }
         }
-    }
 
-    document.getElementById('referralContent').innerHTML = `
-        <div class="row g-4">
-            <div class="col-12">
-                <h4 class="fw-bold"><i class="bi bi-people text-success me-2"></i>Referral Program</h4>
-                <hr class="border-secondary">
-            </div>
+        // Update referral badge
+        const badge = document.getElementById('referralBadge');
+        if (badge) badge.textContent = referrals.length;
 
-            <!-- Referral Link -->
-            <div class="col-md-6">
-                <div class="card-glass h-100">
-                    <h5><i class="bi bi-link-45deg text-success me-2"></i>Your Referral Link</h5>
-                    <div class="referral-box d-flex flex-wrap align-items-center gap-2 mt-2">
-                        <code class="text-light small flex-grow-1">https://randigital236-cyber.github.io/Staking/register.html?ref=${userData.referralCode}</code>
-                        <button class="copy-btn" data-copy="https://randigital.in/register.html?ref=${userData.referralCode}"><i class="bi bi-clipboard me-1"></i>Copy</button>
-                    </div>
-                    <div class="mt-3">
-                        <span class="text-muted">Total Referrals:</span> <strong class="text-success">${referrals.length}</strong>
-                    </div>
+        // Generate referral link
+        const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
+
+        // Load content
+        document.getElementById('referralContent').innerHTML = `
+            <div class="row g-4">
+                <div class="col-12">
+                    <h4 class="fw-bold"><i class="bi bi-people text-success me-2"></i>Referral Program</h4>
+                    <hr class="border-secondary">
                 </div>
-            </div>
 
-            <!-- Commission Structure -->
-            <div class="col-md-6">
-                <div class="card-glass h-100">
-                    <h5><i class="bi bi-percent text-success me-2"></i>Commission Structure</h5>
-                    <div class="row g-2 mt-2">
-                        <div class="col-6">
-                            <div class="commission-box text-center">
-                                <small class="text-muted">Level 1</small>
-                                <h6 class="text-success mb-0">8%</h6>
-                            </div>
+                <!-- Referral Link -->
+                <div class="col-md-6">
+                    <div class="card-glass h-100">
+                        <div class="card-title"><i class="bi bi-link-45deg text-success me-2"></i>Your Referral Link</div>
+                        <div class="referral-box">
+                            <code>${referralLink}</code>
+                            <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                         </div>
-                        <div class="col-6">
-                            <div class="commission-box text-center">
-                                <small class="text-muted">Level 2</small>
-                                <h6 class="text-success mb-0">4%</h6>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="commission-box text-center">
-                                <small class="text-muted">Level 3</small>
-                                <h6 class="text-success mb-0">2%</h6>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="commission-box text-center">
-                                <small class="text-muted">Level 4</small>
-                                <h6 class="text-success mb-0">1%</h6>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="commission-box text-center" style="border-color: rgba(46,204,113,0.2);">
-                                <small class="text-muted">Level 5</small>
-                                <h6 class="text-success mb-0">1%</h6>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="commission-box text-center bg-success bg-opacity-10" style="border-color: #2ecc71;">
-                                <small class="text-muted">Total Commission</small>
-                                <h5 class="text-success mb-0 fw-bold">16%</h5>
-                            </div>
+                        <div class="mt-3 d-flex flex-wrap gap-3">
+                            <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${referrals.length}</strong></span>
+                            <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;">${userData.referralCode}</strong></span>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Referrals List -->
-            <div class="col-12">
-                <div class="card-glass">
-                    <h5><i class="bi bi-list-ul text-success me-2"></i>Your Referrals</h5>
-                    ${referrals.length === 0 ? `
-                        <div class="text-center text-muted py-4">
-                            <i class="bi bi-people fs-1 d-block mb-2"></i>
-                            <p>No referrals yet. Share your link to start earning!</p>
+                <!-- Commission Structure -->
+                <div class="col-md-6">
+                    <div class="card-glass h-100">
+                        <div class="card-title"><i class="bi bi-percent text-success me-2"></i>Commission Structure</div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-4">
+                                <div class="commission-box text-center">
+                                    <small class="text-muted">Level 1</small>
+                                    <h6 class="text-success mb-0">8%</h6>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="commission-box text-center">
+                                    <small class="text-muted">Level 2</small>
+                                    <h6 class="text-success mb-0">4%</h6>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="commission-box text-center">
+                                    <small class="text-muted">Level 3</small>
+                                    <h6 class="text-success mb-0">2%</h6>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="commission-box text-center">
+                                    <small class="text-muted">Level 4</small>
+                                    <h6 class="text-success mb-0">1%</h6>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="commission-box text-center">
+                                    <small class="text-muted">Level 5</small>
+                                    <h6 class="text-success mb-0">1%</h6>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="commission-box text-center bg-success bg-opacity-10" style="border-color: #2ecc71;">
+                                    <small class="text-muted">Total</small>
+                                    <h5 class="text-success mb-0 fw-bold">16%</h5>
+                                </div>
+                            </div>
                         </div>
-                    ` : `
-                        <div class="table-responsive mt-3">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Joined</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${referrals.map((r, i) => `
+                    </div>
+                </div>
+
+                <!-- Referrals List -->
+                <div class="col-12">
+                    <div class="card-glass">
+                        <div class="card-title"><i class="bi bi-list-ul text-success me-2"></i>Your Referrals</div>
+                        ${referrals.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p>No referrals yet. Share your link to start earning!</p>
+                            </div>
+                        ` : `
+                            <div class="table-responsive mt-2">
+                                <table class="table table-custom">
+                                    <thead>
                                         <tr>
-                                            <td>${i + 1}</td>
-                                            <td>${r.name || 'N/A'}</td>
-                                            <td>${r.email || 'N/A'}</td>
-                                            <td>${new Date(r.createdAt).toLocaleDateString()}</td>
+                                            <th>#</th>
+                                            <th>Username</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Joined</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `}
+                                    </thead>
+                                    <tbody>
+                                        ${referrals.map((r, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td><strong style="color:#2ecc71;">${r.username || r.referralCode || 'N/A'}</strong></td>
+                                                <td>${r.name || 'N/A'}</td>
+                                                <td>${r.email || 'N/A'}</td>
+                                                <td>${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `}
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
 
-    // Copy referral link
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            navigator.clipboard.writeText(btn.dataset.copy).then(() => {
-                btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
-                setTimeout(() => {
-                    btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy';
-                }, 2000);
+        // Copy referral link
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+                    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy';
+                    }, 2000);
+                });
             });
         });
-    });
+
+    } catch (error) {
+        console.error('❌ Error loading referrals:', error);
+        document.getElementById('referralContent').innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                <h4>Error Loading Data</h4>
+                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
+                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+            </div>
+        `;
+    }
 });
 </script>
 </body>
