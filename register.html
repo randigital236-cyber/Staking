@@ -198,7 +198,7 @@
             <!-- Full Name - MANDATORY -->
             <div class="mb-3">
                 <label class="form-label">Full Name <span class="required">*</span></label>
-                <input type="text" id="regName" class="form-control form-control-custom" placeholder="John Doe" required>
+                <input type="text" id="regName" class="form-control form-control-custom" placeholder="Enter your full name" required>
             </div>
             
             <!-- Email - MANDATORY -->
@@ -256,7 +256,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, set, get } from "firebase/database";
 
 const firebaseConfig = {
@@ -400,14 +400,14 @@ if (refCode) {
 }
 
 // ============================================================
-// 🔥 EMAIL REGISTRATION - FIXED: username properly saved
+// 🔥 EMAIL REGISTRATION - FIXED: name properly saved
 // ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     // GET ALL VALUES
     const username = document.getElementById('regUsername').value.trim().toUpperCase();
-    const name = document.getElementById('regName').value.trim();
+    const name = document.getElementById('regName').value.trim();  // <--- IMPORTANT: name field
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
     const ref = document.getElementById('regRef').value.trim().toUpperCase();
@@ -433,6 +433,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
     }
     
+    // IMPORTANT: Name validation
     if (!name || name.length < 2) {
         showToast('❌ Please enter your full name', 'error');
         return;
@@ -453,21 +454,27 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
-        console.log('📝 Creating user with username:', username);
+        console.log('📝 Creating user with username:', username, 'name:', name);
         
         // Step 1: Create user in Firebase Auth
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         console.log('✅ User created in Auth. UID:', uid);
         
-        // Step 2: REFERRAL CODE = USERNAME
+        // Step 2: Update Auth Profile with name
+        await updateProfile(auth.currentUser, {
+            displayName: name
+        });
+        console.log('✅ Auth profile updated with name:', name);
+        
+        // Step 3: REFERRAL CODE = USERNAME
         const refCodeGen = username.toUpperCase();
         console.log('🔑 Referral Code:', refCodeGen);
         
-        // Step 3: Save user data - CRITICAL: username MUST be saved
+        // Step 4: Save user data - CRITICAL: name MUST be saved
         const userData = {
             username: username.toUpperCase(),
-            name: name,
+            name: name,  // <--- CRITICAL: name from input
             email: email,
             uid: uid,
             referralCode: refCodeGen,
@@ -483,8 +490,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             subscriptions: 0,
             banned: false,
             role: 'user',
-            rank: 'Executive',
-            residualLevels: 7
+            rank: 'Member'
         };
         
         console.log('💾 Saving user data:', userData);
@@ -492,11 +498,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         await set(userRef, userData);
         console.log('✅ User data saved to database!');
         
-        // Step 4: Save username mapping
+        // Step 5: Save username mapping
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
         console.log('✅ Username mapping saved!');
 
-        // Step 5: Update referrer
+        // Step 6: Update referrer
         if (ref) {
             console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
@@ -515,7 +521,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         
         // ✅ Success
         const referralLink = `${REGISTER_URL}?ref=${refCodeGen}`;
-        showToast('✅ Account created successfully!<br>Username: <strong>' + username + '</strong><br>Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
+        showToast('✅ Account created successfully!<br>Welcome <strong>' + name + '</strong>!<br>Username: <strong>' + username + '</strong>', 'success');
         console.log('🚀 Redirecting to dashboard...');
         
         setTimeout(() => {
@@ -554,6 +560,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const user = result.user;
         const uid = user.uid;
         const email = user.email;
+        const displayName = user.displayName || email.split('@')[0];
         console.log('✅ Google sign-in successful. UID:', uid);
         
         const snapshot = await get(ref(db, 'users/' + uid));
@@ -580,7 +587,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             const refCodeGen = username.toUpperCase();
             const userData = {
                 username: username.toUpperCase(),
-                name: user.displayName || email.split('@')[0],
+                name: displayName,  // <--- Google display name
                 email: email,
                 uid: uid,
                 referralCode: refCodeGen,
@@ -596,16 +603,15 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 subscriptions: 0,
                 banned: false,
                 role: 'user',
-                rank: 'Executive',
-                residualLevels: 7
+                rank: 'Member'
             };
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
-            console.log('✅ Google user data saved! Username:', username);
+            console.log('✅ Google user data saved! Username:', username, 'Name:', displayName);
         }
         
-        showToast('✅ Account created with Google! Welcome! 🎉', 'success');
+        showToast('✅ Account created with Google! Welcome ' + displayName + '! 🎉', 'success');
         setTimeout(() => {
             window.location.href = 'dashboard.html';
         }, 1500);
