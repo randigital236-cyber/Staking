@@ -47,9 +47,7 @@
             font-size: 0.9rem; 
             margin-bottom: 6px; 
         }
-        .form-label .required {
-            color: #ef4444;
-        }
+        .form-label .required { color: #ef4444; }
         .form-label .optional-badge {
             font-size: 0.65rem;
             background: rgba(46,204,113,0.15);
@@ -117,7 +115,6 @@
         .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .logo-text span { color: #2ecc71; }
         
-        /* Username Status */
         .username-status {
             font-size: 0.75rem;
             margin-top: 4px;
@@ -128,25 +125,12 @@
             gap: 6px;
             transition: all 0.3s ease;
         }
-        .username-status.available {
-            color: #2ecc71;
-            background: rgba(46,204,113,0.08);
-        }
-        .username-status.unavailable {
-            color: #ef4444;
-            background: rgba(239,68,68,0.08);
-        }
-        .username-status.checking {
-            color: #fbbf24;
-            background: rgba(251,191,36,0.08);
-        }
-        .username-status.idle {
-            color: #556688;
-            background: transparent;
-        }
+        .username-status.available { color: #2ecc71; background: rgba(46,204,113,0.08); }
+        .username-status.unavailable { color: #ef4444; background: rgba(239,68,68,0.08); }
+        .username-status.checking { color: #fbbf24; background: rgba(251,191,36,0.08); }
+        .username-status.idle { color: #556688; background: transparent; }
         .username-status i { font-size: 0.9rem; }
         
-        /* Toast */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -186,7 +170,6 @@
 </head>
 <body>
 
-<!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 
 <div class="register-container">
@@ -230,7 +213,7 @@
                 <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
             </div>
             
-            <!-- Referral Code - OPTIONAL (Auto-filled from URL) -->
+            <!-- Referral Code - OPTIONAL -->
             <div class="mb-3">
                 <label class="form-label">
                     Referral Code 
@@ -271,17 +254,11 @@
 }
 </script>
 <script type="module">
-// ============================================================
-// 🔥 FIREBASE IMPORTS
-// ============================================================
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, set, get } from "firebase/database";
 
-// ============================================================
-// 🔥 FIREBASE CONFIG
-// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -293,15 +270,9 @@ const firebaseConfig = {
     measurementId: "G-ELVJD5NQKB"
 };
 
-// ============================================================
-// 🔥 DOMAIN CONFIG
-// ============================================================
 const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
-// ============================================================
-// 🔥 INIT FIREBASE
-// ============================================================
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
@@ -310,9 +281,6 @@ const provider = new GoogleAuthProvider();
 
 console.log('🔥 Firebase initialized successfully!');
 
-// ============================================================
-// 🔥 CHECK IF ALREADY LOGGED IN
-// ============================================================
 onAuthStateChanged(auth, (user) => {
     if (user) {
         console.log('User already logged in:', user.uid);
@@ -320,9 +288,6 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// ============================================================
-// 🔥 TOAST SYSTEM
-// ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -341,7 +306,7 @@ function showToast(message, type = 'success') {
 }
 
 // ============================================================
-// 🔥 USERNAME VALIDATION (3-6 characters only)
+// 🔥 USERNAME VALIDATION
 // ============================================================
 const usernameInput = document.getElementById('regUsername');
 const usernameStatus = document.getElementById('usernameStatus');
@@ -361,19 +326,13 @@ function getUsernameStatus(username) {
     return { valid: true, msg: '✅ Valid username' };
 }
 
-// ============================================================
-// 🔥 CHECK USERNAME AVAILABILITY IN FIREBASE
-// ============================================================
 async function checkUsernameAvailability(username) {
     if (!username || !isValidUsername(username)) return false;
-    
     try {
-        // Check in usernames node
         const usernameRef = ref(db, 'usernames/' + username.toUpperCase());
         const snapshot = await get(usernameRef);
         if (snapshot.exists()) return false;
         
-        // Also check in users (for backward compatibility)
         const usersRef = ref(db, 'users');
         const usersSnap = await get(usersRef);
         if (usersSnap.exists()) {
@@ -391,20 +350,15 @@ async function checkUsernameAvailability(username) {
     }
 }
 
-// ============================================================
-// 🔥 REAL-TIME USERNAME CHECK
-// ============================================================
 usernameInput.addEventListener('input', function() {
-    const username = this.value.trim();
+    const username = this.value.trim().toUpperCase();
     currentUsername = username;
     
-    // Clear previous timeout
     if (usernameCheckTimeout) {
         clearTimeout(usernameCheckTimeout);
         usernameCheckTimeout = null;
     }
     
-    // Validate format first
     const formatCheck = getUsernameStatus(username);
     
     if (!username) {
@@ -419,22 +373,18 @@ usernameInput.addEventListener('input', function() {
         return;
     }
     
-    // Show checking status
     usernameStatus.className = 'username-status checking';
     usernameStatusText.textContent = '⏳ Checking availability...';
     
-    // Debounce - wait 500ms before checking
     usernameCheckTimeout = setTimeout(async () => {
         if (currentUsername !== username) return;
-        
         const available = await checkUsernameAvailability(username);
-        
         if (available) {
             usernameStatus.className = 'username-status available';
             usernameStatusText.textContent = '✅ Username is available!';
         } else {
             usernameStatus.className = 'username-status unavailable';
-            usernameStatusText.textContent = '❌ "' + username + '" is already taken! Please choose another.';
+            usernameStatusText.textContent = '❌ "' + username + '" is already taken!';
         }
     }, 500);
 });
@@ -450,11 +400,12 @@ if (refCode) {
 }
 
 // ============================================================
-// 🔥 EMAIL REGISTRATION
+// 🔥 EMAIL REGISTRATION - FIXED: username properly saved
 // ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    // GET ALL VALUES
     const username = document.getElementById('regUsername').value.trim().toUpperCase();
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
@@ -462,9 +413,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const ref = document.getElementById('regRef').value.trim().toUpperCase();
     const registerBtn = document.getElementById('registerBtn');
     
-    // ====== VALIDATION ======
+    console.log('📝 Form Data:', { username, name, email, ref });
     
-    // Validate username
+    // ====== VALIDATION ======
     if (!username) {
         showToast('❌ Please enter a username', 'error');
         return;
@@ -476,26 +427,22 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
     }
     
-    // Check if username is available (final check)
     const isAvailable = await checkUsernameAvailability(username);
     if (!isAvailable) {
-        showToast('❌ Username "' + username + '" is already taken! Please choose another.', 'error');
+        showToast('❌ Username "' + username + '" is already taken!', 'error');
         return;
     }
     
-    // Validate name
     if (!name || name.length < 2) {
         showToast('❌ Please enter your full name', 'error');
         return;
     }
     
-    // Validate email
     if (!email || !email.includes('@')) {
         showToast('❌ Please enter a valid email address', 'error');
         return;
     }
     
-    // Validate password
     if (pass.length < 6) {
         showToast('❌ Password must be at least 6 characters long!', 'error');
         return;
@@ -513,11 +460,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const uid = cred.user.uid;
         console.log('✅ User created in Auth. UID:', uid);
         
-        // Step 2: REFERRAL CODE = USERNAME (in uppercase)
+        // Step 2: REFERRAL CODE = USERNAME
         const refCodeGen = username.toUpperCase();
         console.log('🔑 Referral Code:', refCodeGen);
         
-        // Step 3: Save user data in Realtime Database
+        // Step 3: Save user data - CRITICAL: username MUST be saved
         const userData = {
             username: username.toUpperCase(),
             name: name,
@@ -532,20 +479,24 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             totalWithdrawn: 0,
             totalReferrals: 0,
             teamBusiness: 0,
+            downline: 0,
+            subscriptions: 0,
             banned: false,
-            role: 'user'
+            role: 'user',
+            rank: 'Executive',
+            residualLevels: 7
         };
         
-        console.log('💾 Saving user data to database...');
+        console.log('💾 Saving user data:', userData);
         const userRef = ref(db, 'users/' + uid);
         await set(userRef, userData);
         console.log('✅ User data saved to database!');
         
-        // Step 4: Save username mapping for quick login lookup
+        // Step 4: Save username mapping
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
         console.log('✅ Username mapping saved!');
 
-        // Step 5: Update referrer's referral count
+        // Step 5: Update referrer
         if (ref) {
             console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
@@ -564,7 +515,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         
         // ✅ Success
         const referralLink = `${REGISTER_URL}?ref=${refCodeGen}`;
-        showToast('✅ Account created successfully!<br>Your Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
+        showToast('✅ Account created successfully!<br>Username: <strong>' + username + '</strong><br>Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
         console.log('🚀 Redirecting to dashboard...');
         
         setTimeout(() => {
@@ -599,29 +550,22 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
     
     try {
-        console.log('📝 Signing in with Google...');
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         const uid = user.uid;
         const email = user.email;
         console.log('✅ Google sign-in successful. UID:', uid);
         
-        // Check if user already exists in database
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
-            console.log('💾 Creating new user from Google data...');
-            
-            // Generate unique username (3-6 characters)
             const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
             let username = baseUsername.slice(0, 6);
             let counter = 1;
             
-            // Ensure minimum 3 characters
             if (username.length < 3) {
                 username = username + 'X'.repeat(3 - username.length);
             }
             
-            // Check if username exists
             let isAvailable = await checkUsernameAvailability(username);
             while (!isAvailable) {
                 const suffix = String(counter);
@@ -648,28 +592,27 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 totalWithdrawn: 0,
                 totalReferrals: 0,
                 teamBusiness: 0,
+                downline: 0,
+                subscriptions: 0,
                 banned: false,
-                role: 'user'
+                role: 'user',
+                rank: 'Executive',
+                residualLevels: 7
             };
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
             console.log('✅ Google user data saved! Username:', username);
-        } else {
-            console.log('ℹ️ User already exists in database.');
         }
         
         showToast('✅ Account created with Google! Welcome! 🎉', 'success');
-        console.log('🚀 Redirecting to dashboard...');
-        
         setTimeout(() => {
             window.location.href = 'dashboard.html';
         }, 1500);
         
     } catch (err) {
         console.error('❌ Google Registration Error:', err);
-        let msg = err.message || 'Google sign in failed';
-        showToast('❌ ' + msg, 'error');
+        showToast('❌ ' + (err.message || 'Google sign in failed'), 'error');
     }
     
     btn.disabled = false;
