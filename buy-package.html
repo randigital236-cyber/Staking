@@ -443,16 +443,19 @@ const PLANS = [
 // 🔥 CALCULATE FUNCTIONS
 // ============================================================
 function calculateStaking(usdtAmount, rndPrice, plan) {
-    // RND tokens received
+    if (!usdtAmount || usdtAmount <= 0 || !rndPrice || rndPrice <= 0) {
+        return {
+            rndReceived: 0,
+            maturityRND: 0,
+            dailyRelease: 0,
+            maturityUSD: 0,
+            totalReward: plan ? plan.reward : 0
+        };
+    }
+    
     const rndReceived = usdtAmount / rndPrice;
-    
-    // Maturity amount (RND)
     const maturityRND = rndReceived + (rndReceived * plan.reward / 100);
-    
-    // Daily release (RND)
     const dailyRelease = maturityRND / plan.duration;
-    
-    // Maturity value in USD
     const maturityUSD = maturityRND * rndPrice;
     
     return {
@@ -551,7 +554,7 @@ async function updateDailyReleases(userId) {
                 if (pkg.status === 'active') {
                     totalDailyRelease += (pkg.dailyRelease || 0);
                     totalStake += (pkg.usdtAmount || 0);
-                    totalReward += (pkg.rewardAmount || 0);
+                    totalReward += (pkg.reward || 0);
                     totalRNDStaked += (pkg.rndAmount || 0);
                 }
             });
@@ -600,15 +603,30 @@ onAuthStateChanged(auth, async (user) => {
 
         await updateDailyReleases(user.uid);
 
+        // Fetch user packages with safe handling
         const packagesRef = ref(db, 'packages');
         const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(user.uid));
         const packagesSnap = await get(packagesQuery);
         let userPackages = [];
         if (packagesSnap.exists()) {
             packagesSnap.forEach((childSnap) => {
-                userPackages.push({ id: childSnap.key, ...childSnap.val() });
+                const pkgData = childSnap.val();
+                userPackages.push({ 
+                    id: childSnap.key, 
+                    ...pkgData,
+                    // Ensure all fields exist with defaults
+                    usdtAmount: pkgData.usdtAmount || 0,
+                    rndAmount: pkgData.rndAmount || 0,
+                    dailyRelease: pkgData.dailyRelease || 0,
+                    maturityRND: pkgData.maturityRND || 0,
+                    reward: pkgData.reward || 0,
+                    status: pkgData.status || 'active',
+                    timestamp: pkgData.timestamp || Date.now(),
+                    planName: pkgData.planName || pkgData.planId || 'Unknown',
+                    rndPriceAtTime: pkgData.rndPriceAtTime || 0
+                });
             });
-            userPackages.sort((a, b) => b.timestamp - a.timestamp);
+            userPackages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         }
 
         const depositWallet = userData.depositWallet || 0;
@@ -616,13 +634,42 @@ onAuthStateChanged(auth, async (user) => {
         const releaseWallet = userData.releaseWallet || 0;
         const rndWallet = userData.rndWallet || 0;
 
+        // Build HTML with safe fallbacks
+        let packagesHtml = '';
+        userPackages.forEach((p) => {
+            const statusClass = p.status === 'active' ? 'status-active' : 'status-completed';
+            const statusText = p.status === 'active' ? '🟢 Active' : '🔵 Completed';
+            const daily = p.dailyRelease || 0;
+            const maturity = p.maturityRND || 0;
+            const rndAmt = p.rndAmount || 0;
+            const usdtAmt = p.usdtAmount || 0;
+            const rate = p.rndPriceAtTime || 0;
+            
+            packagesHtml += `
+                <div class="package-item">
+                    <div>
+                        <span class="plan">${p.planName || 'Package'}</span>
+                        <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
+                        ${rate > 0 ? `<span class="rate-badge">Rate: $${rate.toFixed(4)}/RND</span>` : ''}
+                    </div>
+                    <div>
+                        <span class="amount">$${usdtAmt.toFixed(2)}</span>
+                        <span class="rnd-amount">→ ${rndAmt.toFixed(2)} RND</span>
+                        <span class="${statusClass} ms-2">${statusText}</span>
+                        ${daily > 0 ? `<div class="daily">📈 Daily: ${daily.toFixed(4)} RND</div>` : ''}
+                        ${maturity > 0 ? `<div class="total-reward">💰 Maturity: ${maturity.toFixed(2)} RND</div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
         document.getElementById('packageContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
                     <div class="d-flex flex-wrap justify-content-between align-items-center">
                         <h4 class="fw-bold"><i class="bi bi-box-seam text-success me-2"></i>Buy Package</h4>
                         <span class="rnd-price-badge">
-                            <i class="bi bi-currency-dollar"></i> 1 RND = $${rndPrice.toFixed(4)}
+                            <i class="bi bi-currency-dollar"></i> 1 RND = $${(rndPrice || 1).toFixed(4)}
                         </span>
                     </div>
                     <hr class="border-secondary">
@@ -634,25 +681,25 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
                                     <small class="text-muted">Deposit Wallet (USDT)</small>
-                                    <h3 class="text-success">$${depositWallet.toFixed(2)}</h3>
+                                    <h3 class="text-success">$${(depositWallet || 0).toFixed(2)}</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
                                     <small class="text-muted">Withdrawal Wallet (RND)</small>
-                                    <h3 style="color:#fbbf24;">${withdrawalWallet.toFixed(2)} RND</h3>
+                                    <h3 style="color:#fbbf24;">${(withdrawalWallet || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);">
                                     <small class="text-muted">RND Staked</small>
-                                    <h3 style="color:#60a5fa;">${rndWallet.toFixed(2)} RND</h3>
+                                    <h3 style="color:#60a5fa;">${(rndWallet || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(52,211,153,0.05);border-radius:12px;border:1px solid rgba(52,211,153,0.1);">
                                     <small class="text-muted">Daily Release (RND)</small>
-                                    <h3 style="color:#34d399;">${releaseWallet.toFixed(2)} RND</h3>
+                                    <h3 style="color:#34d399;">${(releaseWallet || 0).toFixed(4)} RND</h3>
                                 </div>
                             </div>
                         </div>
@@ -662,21 +709,20 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="col-12">
                     <div class="row g-3">
                         ${PLANS.map((plan) => {
-                            // Show calculation for $100 example
-                            const example = calculateStaking(100, rndPrice, plan);
+                            const example = calculateStaking(100, rndPrice || 1, plan);
                             return `
                             <div class="col-md-4">
                                 <div class="package-card" data-plan="${plan.id}" onclick="selectPlan('${plan.id}')">
                                     <h5 style="color:${plan.color};">${plan.name}</h5>
                                     <div style="font-size:2rem;font-weight:800;color:#2ecc71;">${plan.reward}%</div>
                                     <div class="duration">${plan.duration} Days</div>
-                                    <div class="rnd-amount">📊 $100 = ${example.rndReceived.toFixed(2)} RND</div>
-                                    <div class="daily-release">📈 Daily: ${example.dailyRelease.toFixed(4)} RND</div>
+                                    <div class="rnd-amount">📊 $100 = ${(example.rndReceived || 0).toFixed(2)} RND</div>
+                                    <div class="daily-release">📈 Daily: ${(example.dailyRelease || 0).toFixed(4)} RND</div>
                                     <div class="features">
                                         <li><i class="bi bi-check-circle"></i> ${plan.reward}% Return</li>
                                         <li><i class="bi bi-check-circle"></i> ${plan.duration} Days Lock</li>
                                         <li><i class="bi bi-check-circle"></i> Daily Release</li>
-                                        <li><i class="bi bi-check-circle" style="color:#60a5fa;"></i> Maturity: ${example.maturityRND.toFixed(2)} RND</li>
+                                        <li><i class="bi bi-check-circle" style="color:#60a5fa;"></i> Maturity: ${(example.maturityRND || 0).toFixed(2)} RND</li>
                                     </div>
                                 </div>
                             </div>
@@ -740,27 +786,7 @@ onAuthStateChanged(auth, async (user) => {
                             </div>
                         ` : `
                             <div class="package-history">
-                                ${userPackages.map((p) => {
-                                    const statusClass = p.status === 'active' ? 'status-active' : 'status-completed';
-                                    const statusText = p.status === 'active' ? '🟢 Active' : '🔵 Completed';
-                                    const planInfo = PLANS.find(pl => pl.id === p.planId);
-                                    return `
-                                        <div class="package-item">
-                                            <div>
-                                                <span class="plan">${planInfo ? planInfo.name : p.planId}</span>
-                                                <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
-                                                <span class="rate-badge">Rate: $${p.rndPriceAtTime || 0}/RND</span>
-                                            </div>
-                                            <div>
-                                                <span class="amount">${p.usdtAmount} USDT</span>
-                                                <span class="rnd-amount">→ ${p.rndAmount.toFixed(2)} RND</span>
-                                                <span class="${statusClass} ms-2">${statusText}</span>
-                                                ${p.dailyRelease ? `<div class="daily">📈 Daily: ${p.dailyRelease.toFixed(4)} RND</div>` : ''}
-                                                ${p.maturityRND ? `<div class="total-reward">💰 Maturity: ${p.maturityRND.toFixed(2)} RND</div>` : ''}
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
+                                ${packagesHtml}
                             </div>
                         `}
                     </div>
@@ -778,15 +804,15 @@ onAuthStateChanged(auth, async (user) => {
             document.querySelectorAll('.package-card').forEach(card => {
                 card.classList.remove('selected');
             });
-            document.querySelector(`.package-card[data-plan="${planId}"]`).classList.add('selected');
+            const selectedCard = document.querySelector(`.package-card[data-plan="${planId}"]`);
+            if (selectedCard) selectedCard.classList.add('selected');
 
             document.getElementById('selectedPlan').value = plan.name;
             
-            // Show example calculation
-            const example = calculateStaking(100, rndPrice, plan);
+            const example = calculateStaking(100, rndPrice || 1, plan);
             document.getElementById('usdtAmount').value = '100';
-            document.getElementById('rndReceived').value = example.rndReceived.toFixed(2) + ' RND';
-            document.getElementById('dailyReleaseDisplay').value = example.dailyRelease.toFixed(4) + ' RND';
+            document.getElementById('rndReceived').value = (example.rndReceived || 0).toFixed(2) + ' RND';
+            document.getElementById('dailyReleaseDisplay').value = (example.dailyRelease || 0).toFixed(4) + ' RND';
             
             document.getElementById('payAmount').placeholder = `Enter USDT amount (min 10)`;
             
@@ -797,134 +823,133 @@ onAuthStateChanged(auth, async (user) => {
         // ============================================================
         // 🔥 PAY AMOUNT CHANGE - REAL TIME CALCULATION
         // ============================================================
-        document.getElementById('payAmount').addEventListener('input', function() {
-            const planName = document.getElementById('selectedPlan').value;
-            if (planName === 'None') {
-                return;
-            }
-            
-            const plan = PLANS.find(p => p.name === planName);
-            if (!plan) return;
-            
-            const amount = parseFloat(this.value);
-            if (!amount || amount < 10) {
-                document.getElementById('rndReceived').value = '0 RND';
-                document.getElementById('dailyReleaseDisplay').value = '0 RND';
-                document.getElementById('usdtAmount').value = '0';
-                return;
-            }
-            
-            const result = calculateStaking(amount, rndPrice, plan);
-            document.getElementById('usdtAmount').value = amount;
-            document.getElementById('rndReceived').value = result.rndReceived.toFixed(2) + ' RND';
-            document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
-        });
+        const payAmountInput = document.getElementById('payAmount');
+        if (payAmountInput) {
+            payAmountInput.addEventListener('input', function() {
+                const planName = document.getElementById('selectedPlan').value;
+                if (planName === 'None') {
+                    return;
+                }
+                
+                const plan = PLANS.find(p => p.name === planName);
+                if (!plan) return;
+                
+                const amount = parseFloat(this.value);
+                if (!amount || amount < 10) {
+                    document.getElementById('rndReceived').value = '0 RND';
+                    document.getElementById('dailyReleaseDisplay').value = '0 RND';
+                    document.getElementById('usdtAmount').value = '0';
+                    return;
+                }
+                
+                const result = calculateStaking(amount, rndPrice || 1, plan);
+                document.getElementById('usdtAmount').value = amount;
+                document.getElementById('rndReceived').value = (result.rndReceived || 0).toFixed(2) + ' RND';
+                document.getElementById('dailyReleaseDisplay').value = (result.dailyRelease || 0).toFixed(4) + ' RND';
+            });
+        }
 
         // ============================================================
         // 🔥 BUY PLAN
         // ============================================================
-        document.getElementById('buyForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const planName = document.getElementById('selectedPlan').value;
-            const payAmount = parseFloat(document.getElementById('payAmount').value);
-            const payFrom = document.getElementById('payFrom').value;
-            const buyBtn = document.getElementById('buyBtn');
-
-            if (!planName || planName === 'None') {
-                showToast('❌ Please select a plan first!', 'error');
-                return;
-            }
-
-            if (!payAmount || payAmount < 10) {
-                showToast('❌ Minimum investment is 10 USDT!', 'error');
-                return;
-            }
-
-            const plan = PLANS.find(p => p.name === planName);
-            if (!plan) {
-                showToast('❌ Invalid plan selected!', 'error');
-                return;
-            }
-
-            const userData = await getUserData(auth.currentUser.uid);
-            if (!userData) {
-                showToast('❌ User data not found!', 'error');
-                return;
-            }
-
-            const balance = userData[payFrom] || 0;
-            const currency = payFrom === 'depositWallet' ? 'USDT' : 'RND';
-
-            // If paying from withdrawal wallet, need to check RND balance
-            if (payFrom === 'withdrawalWallet') {
-                // Convert USDT to RND at current price
-                const rndNeeded = payAmount / rndPrice;
-                if (balance < rndNeeded) {
-                    showToast(`❌ Insufficient RND balance! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
-                    return;
-                }
-            } else {
-                if (balance < payAmount) {
-                    showToast(`❌ Insufficient balance in Deposit Wallet! You have $${balance.toFixed(2)}`, 'error');
-                    return;
-                }
-            }
-
-            // Calculate staking details
-            const result = calculateStaking(payAmount, rndPrice, plan);
-            
-            buyBtn.disabled = true;
-            buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-
-            try {
-                // Update user balance
-                if (payFrom === 'depositWallet') {
-                    await update(ref(db, 'users/' + auth.currentUser.uid), {
-                        [payFrom]: balance - payAmount
-                    });
-                } else {
-                    // Deduct RND from withdrawal wallet
-                    const rndToDeduct = payAmount / rndPrice;
-                    await update(ref(db, 'users/' + auth.currentUser.uid), {
-                        [payFrom]: balance - rndToDeduct
-                    });
-                }
-
-                // Add to packages
-                await push(ref(db, 'packages'), {
-                    uid: auth.currentUser.uid,
-                    planId: plan.id,
-                    planName: plan.name,
-                    usdtAmount: payAmount,
-                    rndAmount: result.rndReceived,
-                    rndPriceAtTime: rndPrice,
-                    reward: plan.reward,
-                    duration: plan.duration,
-                    dailyRelease: result.dailyRelease,
-                    maturityRND: result.maturityRND,
-                    maturityUSD: result.maturityUSD,
-                    status: 'active',
-                    timestamp: Date.now()
-                });
-
-                // Update daily release
-                await updateDailyReleases(auth.currentUser.uid);
-
-                showToast(`✅ ${plan.name} purchased! ${result.rndReceived.toFixed(2)} RND staked at $${rndPrice}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
+        const buyForm = document.getElementById('buyForm');
+        if (buyForm) {
+            buyForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                const planName = document.getElementById('selectedPlan').value;
+                const payAmount = parseFloat(document.getElementById('payAmount').value);
+                const payFrom = document.getElementById('payFrom').value;
+                const buyBtn = document.getElementById('buyBtn');
 
-            } catch (error) {
-                console.error('Purchase error:', error);
-                showToast('❌ Error purchasing plan. Please try again.', 'error');
-            }
+                if (!planName || planName === 'None') {
+                    showToast('❌ Please select a plan first!', 'error');
+                    return;
+                }
 
-            buyBtn.disabled = false;
-            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
-        });
+                if (!payAmount || payAmount < 10) {
+                    showToast('❌ Minimum investment is 10 USDT!', 'error');
+                    return;
+                }
+
+                const plan = PLANS.find(p => p.name === planName);
+                if (!plan) {
+                    showToast('❌ Invalid plan selected!', 'error');
+                    return;
+                }
+
+                const userData = await getUserData(auth.currentUser.uid);
+                if (!userData) {
+                    showToast('❌ User data not found!', 'error');
+                    return;
+                }
+
+                const balance = userData[payFrom] || 0;
+                const currency = payFrom === 'depositWallet' ? 'USDT' : 'RND';
+
+                if (payFrom === 'withdrawalWallet') {
+                    const rndNeeded = payAmount / (rndPrice || 1);
+                    if (balance < rndNeeded) {
+                        showToast(`❌ Insufficient RND balance! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
+                        return;
+                    }
+                } else {
+                    if (balance < payAmount) {
+                        showToast(`❌ Insufficient balance in Deposit Wallet! You have $${balance.toFixed(2)}`, 'error');
+                        return;
+                    }
+                }
+
+                const result = calculateStaking(payAmount, rndPrice || 1, plan);
+                
+                buyBtn.disabled = true;
+                buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+                try {
+                    if (payFrom === 'depositWallet') {
+                        await update(ref(db, 'users/' + auth.currentUser.uid), {
+                            [payFrom]: balance - payAmount
+                        });
+                    } else {
+                        const rndToDeduct = payAmount / (rndPrice || 1);
+                        await update(ref(db, 'users/' + auth.currentUser.uid), {
+                            [payFrom]: balance - rndToDeduct
+                        });
+                    }
+
+                    await push(ref(db, 'packages'), {
+                        uid: auth.currentUser.uid,
+                        planId: plan.id,
+                        planName: plan.name,
+                        usdtAmount: payAmount,
+                        rndAmount: result.rndReceived || 0,
+                        rndPriceAtTime: rndPrice || 1,
+                        reward: plan.reward,
+                        duration: plan.duration,
+                        dailyRelease: result.dailyRelease || 0,
+                        maturityRND: result.maturityRND || 0,
+                        maturityUSD: result.maturityUSD || 0,
+                        status: 'active',
+                        timestamp: Date.now()
+                    });
+
+                    await updateDailyReleases(auth.currentUser.uid);
+
+                    showToast(`✅ ${plan.name} purchased! ${(result.rndReceived || 0).toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${(result.dailyRelease || 0).toFixed(4)} RND`, 'success');
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+
+                } catch (error) {
+                    console.error('Purchase error:', error);
+                    showToast('❌ Error purchasing plan. Please try again.', 'error');
+                }
+
+                buyBtn.disabled = false;
+                buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
+            });
+        }
 
     } catch (error) {
         console.error('Error loading packages:', error);
