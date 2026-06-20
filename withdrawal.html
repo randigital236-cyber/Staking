@@ -185,7 +185,6 @@
       background: rgba(8,14,26,0.9) !important;
     }
     .form-control-custom::placeholder { color: #556688 !important; }
-    
     .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
     .form-label .required { color: #ef4444; }
     
@@ -323,11 +322,8 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, push } from "firebase/database";
+import { getDatabase, ref, get, push, update } from "firebase/database";
 
-// ============================================================
-// 🔥 FIREBASE CONFIG - SAME AS ALL OTHER FILES
-// ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
   authDomain: "rnd2-70080.firebaseapp.com",
@@ -343,11 +339,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-console.log('🔥 Firebase initialized successfully!');
-
-// ============================================================
-// 🔥 TOAST SYSTEM
-// ============================================================
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -362,9 +353,6 @@ function showToast(message, type = 'success') {
   }, 5000);
 }
 
-// ============================================================
-// 🔥 SIDEBAR CONTROLS
-// ============================================================
 const sidebarPanel = document.getElementById('sidebarPanel');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -385,18 +373,12 @@ sidebarClose.addEventListener('click', closeSidebar);
 sidebarOverlay.addEventListener('click', closeSidebar);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
-// ============================================================
-// 🔥 LOGOUT
-// ============================================================
 document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
   e.preventDefault();
   await signOut(auth);
   window.location.href = 'login.html';
 });
 
-// ============================================================
-// 🔥 LOAD WITHDRAWAL PAGE
-// ============================================================
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = 'login.html';
@@ -411,7 +393,6 @@ onAuthStateChanged(auth, async (user) => {
     }
     const userData = userSnapshot.val();
     
-    // Update sidebar
     const username = userData.username || userData.referralCode || 'USER';
     const name = userData.name || 'User';
     document.getElementById('sidebarName').textContent = name;
@@ -421,7 +402,6 @@ onAuthStateChanged(auth, async (user) => {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = userData.totalReferrals || 0;
 
-    // Get withdrawal history
     const withdrawalsRef = ref(db, 'withdrawals');
     const withdrawalsSnap = await get(withdrawalsRef);
     let userWithdrawals = [];
@@ -446,7 +426,6 @@ onAuthStateChanged(auth, async (user) => {
           <hr class="border-secondary">
         </div>
 
-        <!-- Balance Summary -->
         <div class="col-12">
           <div class="card-glass">
             <div class="row g-3">
@@ -459,20 +438,19 @@ onAuthStateChanged(auth, async (user) => {
               <div class="col-md-4">
                 <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
                   <small class="text-muted">Withdrawal Wallet (RND)</small>
-                  <h4 class="text-gold" style="color:#fbbf24;">${withdrawalWallet.toFixed(2)} RND</h4>
+                  <h4 style="color:#fbbf24;">${withdrawalWallet.toFixed(2)} RND</h4>
                 </div>
               </div>
               <div class="col-md-4">
                 <div class="text-center p-3" style="background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);">
                   <small class="text-muted">Release Wallet (RND)</small>
-                  <h4 class="text-blue" style="color:#60a5fa;">${releaseWallet.toFixed(2)} RND</h4>
+                  <h4 style="color:#60a5fa;">${releaseWallet.toFixed(2)} RND</h4>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Withdrawal Form -->
         <div class="col-lg-7 mx-auto">
           <div class="card-glass">
             <div class="card-title"><i class="bi bi-arrow-up-circle text-success me-2"></i>Request Withdrawal</div>
@@ -511,7 +489,6 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
 
-        <!-- Withdrawal History -->
         <div class="col-lg-7 mx-auto">
           <div class="card-glass">
             <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Withdrawal History</div>
@@ -546,9 +523,6 @@ onAuthStateChanged(auth, async (user) => {
       </div>
     `;
 
-    // ============================================================
-    // 🔥 WITHDRAWAL FORM SUBMIT
-    // ============================================================
     document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -557,16 +531,12 @@ onAuthStateChanged(auth, async (user) => {
       const address = document.getElementById('withAddr').value.trim();
       const btn = document.getElementById('withdrawBtn');
 
-      if (!amount || amount < 10) {
-        showToast('❌ Minimum withdrawal is 10!', 'error');
-        return;
-      }
+      if (!amount || amount < 10) { showToast('❌ Minimum withdrawal is 10!', 'error'); return; }
       if (!address || !address.startsWith('0x') || address.length < 10) {
         showToast('❌ Please enter a valid BEP20 wallet address starting with 0x', 'error');
         return;
       }
 
-      // Check balance
       const userSnap = await get(ref(db, 'users/' + user.uid));
       const userData = userSnap.val();
       const balance = userData[walletType] || 0;
@@ -581,13 +551,10 @@ onAuthStateChanged(auth, async (user) => {
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
       try {
-        // Deduct from user's wallet
-        const updatedBalance = balance - amount;
-        await ref(db, 'users/' + user.uid).update({
-          [walletType]: updatedBalance
+        await update(ref(db, 'users/' + user.uid), {
+          [walletType]: balance - amount
         });
 
-        // Create withdrawal request
         await push(ref(db, 'withdrawals'), {
           uid: user.uid,
           amount: amount,
@@ -598,16 +565,12 @@ onAuthStateChanged(auth, async (user) => {
         });
 
         showToast('✅ Withdrawal request submitted successfully! Waiting for admin approval.', 'success');
-        
         document.getElementById('withAmount').value = '';
         document.getElementById('withAddr').value = '';
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setTimeout(() => { window.location.reload(); }, 1500);
 
       } catch (error) {
-        console.error('❌ Withdrawal error:', error);
+        console.error('Withdrawal error:', error);
         showToast('❌ Error submitting withdrawal. Please try again.', 'error');
       }
 
@@ -616,7 +579,7 @@ onAuthStateChanged(auth, async (user) => {
     });
 
   } catch (error) {
-    console.error('❌ Error loading withdrawal page:', error);
+    console.error('Error loading withdrawal page:', error);
     document.getElementById('withdrawalContent').innerHTML = `
       <div class="text-center py-5">
         <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
