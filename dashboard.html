@@ -236,6 +236,7 @@
         .wallet-card .wallet-number.blue { color: #60a5fa; }
         .wallet-card .wallet-number.purple { color: #a78bfa; }
         .wallet-card .wallet-label { color: #8899bb; font-size: 0.75rem; font-weight: 500; margin-top: 4px; }
+        .wallet-card .wallet-sub { color: #556688; font-size: 0.65rem; margin-top: 2px; }
         
         .stat-card {
             background: rgba(19,34,55,0.6);
@@ -463,6 +464,7 @@
         </div>
     </div>
     
+    <!-- ====== SIDEBAR MENU - ALL LINKS ====== -->
     <a href="dashboard.html" class="nav-item active">
         <i class="bi bi-speedometer2"></i> Dashboard
     </a>
@@ -482,9 +484,11 @@
     <a href="transactions.html" class="nav-item">
         <i class="bi bi-receipt"></i> Transactions
     </a>
+    <!-- ====== PROFILE LINK ADDED HERE ====== -->
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
     </a>
+    <!-- ====== END PROFILE LINK ====== -->
     
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
@@ -745,7 +749,7 @@ function loadDashboard(u) {
                             <div class="wallet-icon deposit"><i class="bi bi-wallet2"></i></div>
                             <div class="wallet-number green">$${depositWallet.toFixed(2)}</div>
                             <div class="wallet-label">Deposit Wallet</div>
-                            <div class="wallet-sub" style="color:#556688;font-size:0.65rem;margin-top:2px;">USDT Balance</div>
+                            <div class="wallet-sub">USDT Balance</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
@@ -753,7 +757,7 @@ function loadDashboard(u) {
                             <div class="wallet-icon withdraw"><i class="bi bi-coin"></i></div>
                             <div class="wallet-number gold">${withdrawalWallet.toFixed(2)}</div>
                             <div class="wallet-label">Withdrawal Wallet</div>
-                            <div class="wallet-sub" style="color:#556688;font-size:0.65rem;margin-top:2px;">RND Balance</div>
+                            <div class="wallet-sub">RND Balance</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
@@ -761,7 +765,7 @@ function loadDashboard(u) {
                             <div class="wallet-icon release"><i class="bi bi-clock-history"></i></div>
                             <div class="wallet-number blue">${releaseWallet.toFixed(2)}</div>
                             <div class="wallet-label">Release Wallet</div>
-                            <div class="wallet-sub" style="color:#556688;font-size:0.65rem;margin-top:2px;">Daily Release RND</div>
+                            <div class="wallet-sub">Daily Release RND</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
@@ -769,7 +773,7 @@ function loadDashboard(u) {
                             <div class="wallet-icon transfer"><i class="bi bi-arrow-left-right"></i></div>
                             <div class="wallet-number purple">${totalStake.toFixed(2)}</div>
                             <div class="wallet-label">Total Stake</div>
-                            <div class="wallet-sub" style="color:#556688;font-size:0.65rem;margin-top:2px;">RND Staked</div>
+                            <div class="wallet-sub">RND Staked</div>
                         </div>
                     </div>
                 </div>
