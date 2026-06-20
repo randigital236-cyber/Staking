@@ -149,9 +149,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 
-// ============================================================
-// 🔥 FIREBASE CONFIG - SAME AS ALL OTHER FILES
-// ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
   authDomain: "rnd2-70080.firebaseapp.com",
@@ -168,11 +165,6 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
-console.log('🔥 Firebase initialized successfully!');
-
-// ============================================================
-// 🔥 TOAST SYSTEM
-// ============================================================
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -187,9 +179,6 @@ function showToast(message, type = 'success') {
   }, 5000);
 }
 
-// ============================================================
-// 🔥 CHECK IF ALREADY LOGGED IN
-// ============================================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     try {
@@ -203,25 +192,17 @@ onAuthStateChanged(auth, async (user) => {
         }
         window.location.href = 'dashboard.html';
       }
-    } catch (e) {
-      console.error('Error checking user:', e);
-    }
+    } catch (e) { console.error('Error checking user:', e); }
   }
 });
 
-// ============================================================
-// 🔥 EMAIL LOGIN
-// ============================================================
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPassword').value;
   const btn = document.getElementById('loginBtn');
 
-  if (!email || !pass) {
-    showToast('❌ Please enter email and password', 'error');
-    return;
-  }
+  if (!email || !pass) { showToast('❌ Please enter email and password', 'error'); return; }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in...';
@@ -241,14 +222,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.innerHTML = 'Sign In <i class="bi bi-arrow-right ms-2"></i>';
 });
 
-// ============================================================
-// 🔥 GOOGLE LOGIN
-// ============================================================
 document.getElementById('googleLoginBtn').addEventListener('click', async () => {
   const btn = document.getElementById('googleLoginBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
-
   try {
     await signInWithPopup(auth, provider);
   } catch (err) {
@@ -259,9 +236,6 @@ document.getElementById('googleLoginBtn').addEventListener('click', async () => 
   }
 });
 
-// ============================================================
-// 🔥 FORGOT PASSWORD
-// ============================================================
 document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
   e.preventDefault();
   const email = prompt('Enter your email address to receive password reset link:');
