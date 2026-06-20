@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>Register - RND Staking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -40,23 +40,8 @@
             background: rgba(8,14,26,0.9) !important;
         }
         .form-control-custom::placeholder { color: #556688 !important; }
-        .form-control-custom:disabled { opacity: 0.5; cursor: not-allowed; }
-        .form-label { 
-            font-weight: 600; 
-            color: #a0b8d0; 
-            font-size: 0.9rem; 
-            margin-bottom: 6px; 
-        }
+        .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
         .form-label .required { color: #ef4444; }
-        .form-label .optional-badge {
-            font-size: 0.65rem;
-            background: rgba(46,204,113,0.15);
-            color: #2ecc71;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-weight: 500;
-            margin-left: 6px;
-        }
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -68,16 +53,8 @@
             transition: all 0.3s ease;
             font-size: 1rem;
         }
-        .btn-primary-custom:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
-            color: #fff;
-        }
-        .btn-primary-custom:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-        }
+        .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
+        .btn-primary-custom:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
         .btn-google {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -88,40 +65,15 @@
             transition: all 0.3s ease;
             font-weight: 500;
         }
-        .btn-google:hover {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-        }
-        .btn-google:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+        .btn-google:hover { background: rgba(255,255,255,0.1); color: #fff; }
         .text-link { color: #2ecc71; text-decoration: none; font-weight: 600; }
         .text-link:hover { text-decoration: underline; }
-        .divider { 
-            display: flex; 
-            align-items: center; 
-            color: #556688;
-            font-size: 0.85rem;
-            gap: 15px;
-            margin: 20px 0;
-        }
-        .divider::before, .divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: rgba(46,204,113,0.15);
-        }
+        .divider { display: flex; align-items: center; color: #556688; font-size: 0.85rem; gap: 15px; margin: 20px 0; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: rgba(46,204,113,0.15); }
         .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .logo-text span { color: #2ecc71; }
         
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            max-width: 400px;
-        }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; }
         .toast-custom {
             background: rgba(19,34,55,0.95);
             backdrop-filter: blur(10px);
@@ -140,31 +92,9 @@
         .toast-custom.error { border-left: 4px solid #ef4444; }
         .toast-custom i { font-size: 1.5rem; }
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
-        .username-auto-info {
-            background: rgba(46,204,113,0.05);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 12px;
-            padding: 10px 14px;
-            font-size: 0.8rem;
-            color: #8899bb;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .username-auto-info i { color: #2ecc71; }
-        .username-auto-info strong { color: #2ecc71; }
-        
-        @media (max-width: 576px) {
-            .card-glass { padding: 1.5rem; }
-            .logo-text { font-size: 1.5rem; }
-            .toast-container { right: 10px; left: 10px; max-width: none; }
-        }
+        @media (max-width: 576px) { .card-glass { padding: 1.5rem; } .logo-text { font-size: 1.5rem; } }
     </style>
 </head>
 <body>
@@ -178,45 +108,24 @@
             <p class="text-muted small">Create your account</p>
         </div>
 
-        <!-- Auto Username Info -->
-        <div class="username-auto-info">
-            <i class="bi bi-info-circle"></i>
-            <span>Your <strong>Username</strong> will be auto-generated from your User ID</span>
-        </div>
-
         <form id="registerForm" novalidate>
-            <!-- Full Name - MANDATORY -->
             <div class="mb-3">
                 <label class="form-label">Full Name <span class="required">*</span></label>
                 <input type="text" id="regName" class="form-control form-control-custom" placeholder="Enter your full name" required>
             </div>
-            
-            <!-- Email - MANDATORY -->
             <div class="mb-3">
                 <label class="form-label">Email Address <span class="required">*</span></label>
                 <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
             </div>
-            
-            <!-- Password - MANDATORY -->
             <div class="mb-3">
                 <label class="form-label">Password <span class="required">*</span></label>
                 <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
             </div>
-            
-            <!-- Referral Code - OPTIONAL -->
             <div class="mb-3">
-                <label class="form-label">
-                    Referral Code 
-                    <span class="optional-badge">Optional</span>
-                </label>
-                <input type="text" id="regRef" class="form-control form-control-custom" 
-                       placeholder="Auto-filled from referral link" readonly 
-                       style="background:#0a1425 !important; cursor:default;">
-                <small class="text-muted" style="font-size:0.7rem;">
-                    <i class="bi bi-link-45deg"></i> If you came from a referral link, code will auto-fill
-                </small>
+                <label class="form-label">Referral Code <span style="font-size:0.65rem;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 10px;border-radius:20px;font-weight:500;margin-left:6px;">Optional</span></label>
+                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Auto-filled from referral link" readonly style="background:#0a1425 !important;cursor:default;">
+                <small class="text-muted" style="font-size:0.7rem;"><i class="bi bi-link-45deg"></i> If you came from a referral link, code will auto-fill</small>
             </div>
-            
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
 
@@ -238,14 +147,12 @@
     "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
-        "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
     }
 }
 </script>
 <script type="module">
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, set, get } from "firebase/database";
 
@@ -264,29 +171,16 @@ const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
-
-console.log('🔥 Firebase initialized successfully!');
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        console.log('User already logged in:', user.uid);
-        window.location.href = 'dashboard.html';
-    }
-});
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
     const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
-    toast.innerHTML = `
-        <i class="bi ${icon}"></i>
-        <span class="toast-msg">${message}</span>
-    `;
+    toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
@@ -295,85 +189,50 @@ function showToast(message, type = 'success') {
     }, 6000);
 }
 
-// ============================================================
-// 🔥 GENERATE USERNAME FROM UID
-// ============================================================
 function generateUsername(uid) {
-    // Take last 8 characters of UID
     return 'RND' + uid.slice(-5).toUpperCase();
 }
 
-// ============================================================
-// 🔥 AUTO-FILL REFERRAL FROM URL
-// ============================================================
 const urlParams = new URLSearchParams(window.location.search);
 const refCode = urlParams.get('ref');
 if (refCode) {
     document.getElementById('regRef').value = refCode.toUpperCase();
-    console.log('🔗 Referral code auto-filled:', refCode);
 }
 
-// ============================================================
-// 🔥 EMAIL REGISTRATION
-// ============================================================
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        window.location.href = 'dashboard.html';
+    }
+});
+
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // GET ALL VALUES
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
     const ref = document.getElementById('regRef').value.trim().toUpperCase();
     const registerBtn = document.getElementById('registerBtn');
     
-    console.log('📝 Form Data:', { name, email, ref });
+    if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
+    if (!email || !email.includes('@')) { showToast('❌ Please enter a valid email address', 'error'); return; }
+    if (pass.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
     
-    // ====== VALIDATION ======
-    if (!name || name.length < 2) {
-        showToast('❌ Please enter your full name', 'error');
-        return;
-    }
-    
-    if (!email || !email.includes('@')) {
-        showToast('❌ Please enter a valid email address', 'error');
-        return;
-    }
-    
-    if (pass.length < 6) {
-        showToast('❌ Password must be at least 6 characters long!', 'error');
-        return;
-    }
-    
-    // ====== REGISTRATION ======
     registerBtn.disabled = true;
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
-        console.log('📝 Creating user with name:', name);
-        
-        // Step 1: Create user in Firebase Auth
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
-        console.log('✅ User created in Auth. UID:', uid);
         
-        // Step 2: Update Auth Profile with name
-        await updateProfile(auth.currentUser, {
-            displayName: name
-        });
-        console.log('✅ Auth profile updated with name:', name);
+        await updateProfile(auth.currentUser, { displayName: name });
         
-        // Step 3: Generate username from UID (8 characters)
         const username = generateUsername(uid);
-        console.log('🔑 Generated Username:', username);
-        
-        // Step 4: REFERRAL CODE = USERNAME
         const refCodeGen = username.toUpperCase();
-        console.log('🔑 Referral Code:', refCodeGen);
         
-        // Step 5: Save user data - name properly saved
         const userData = {
             username: username.toUpperCase(),
-            name: name,  // <--- IMPORTANT: Name from form
+            name: name,
             email: email,
             uid: uid,
             referralCode: refCodeGen,
@@ -397,18 +256,10 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             transferHistory: []
         };
         
-        console.log('💾 Saving user data:', userData);
-        const userRef = ref(db, 'users/' + uid);
-        await set(userRef, userData);
-        console.log('✅ User data saved to database!');
-        
-        // Step 6: Save username mapping
+        await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
-        console.log('✅ Username mapping saved!');
 
-        // Step 7: Update referrer
         if (ref) {
-            console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
             if (snapshot.exists()) {
                 const users = snapshot.val();
@@ -416,34 +267,21 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
                     if (users[key].referralCode === ref) {
                         const refCount = (users[key].totalReferrals || 0) + 1;
                         await set(ref(db, 'users/' + key + '/totalReferrals'), refCount);
-                        console.log('✅ Referrer updated! New count:', refCount);
                         break;
                     }
                 }
             }
         }
         
-        // ✅ Success
-        const referralLink = `${REGISTER_URL}?ref=${refCodeGen}`;
-        showToast('✅ Account created successfully!<br>Welcome <strong>' + name + '</strong>!<br>Your Username: <strong>' + username + '</strong><br>Referral Code: <strong>' + refCodeGen + '</strong>', 'success');
-        console.log('🚀 Redirecting to dashboard...');
-        
-        setTimeout(() => {
-            window.location.href = 'dashboard.html';
-        }, 2000);
+        showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
         
     } catch (err) {
-        console.error('❌ Registration Error:', err);
+        console.error('Registration Error:', err);
         let msg = 'Registration failed. Please try again.';
-        if (err.code === 'auth/email-already-in-use') {
-            msg = '❌ This email is already registered. Please login instead.';
-        } else if (err.code === 'auth/weak-password') {
-            msg = '❌ Password is too weak. Please use at least 6 characters.';
-        } else if (err.code === 'auth/invalid-email') {
-            msg = '❌ Please enter a valid email address.';
-        } else if (err.message && err.message.includes('permission_denied')) {
-            msg = '❌ Database permission denied! Please check Firebase Rules.';
-        }
+        if (err.code === 'auth/email-already-in-use') msg = '❌ This email is already registered. Please login instead.';
+        else if (err.code === 'auth/weak-password') msg = '❌ Password is too weak. Please use at least 6 characters.';
+        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
         showToast(msg, 'error');
     }
     
@@ -451,9 +289,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
 });
 
-// ============================================================
-// 🔥 GOOGLE REGISTRATION
-// ============================================================
 document.getElementById('googleRegisterBtn').addEventListener('click', async () => {
     const btn = document.getElementById('googleRegisterBtn');
     btn.disabled = true;
@@ -465,17 +300,15 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const uid = user.uid;
         const email = user.email;
         const displayName = user.displayName || email.split('@')[0];
-        console.log('✅ Google sign-in successful. UID:', uid);
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
-            // Generate username from UID
             const username = generateUsername(uid);
             const refCodeGen = username.toUpperCase();
             
             const userData = {
                 username: username.toUpperCase(),
-                name: displayName,  // <--- Google display name
+                name: displayName,
                 email: email,
                 uid: uid,
                 referralCode: refCodeGen,
@@ -501,16 +334,13 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
-            console.log('✅ Google user data saved! Username:', username, 'Name:', displayName);
         }
         
         showToast('✅ Account created with Google! Welcome ' + displayName + '! 🎉', 'success');
-        setTimeout(() => {
-            window.location.href = 'dashboard.html';
-        }, 1500);
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
         
     } catch (err) {
-        console.error('❌ Google Registration Error:', err);
+        console.error('Google Registration Error:', err);
         showToast('❌ ' + (err.message || 'Google sign in failed'), 'error');
     }
     
