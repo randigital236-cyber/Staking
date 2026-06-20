@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Same as before - keeping it clean */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -229,7 +230,7 @@
         .wallet-card .wallet-icon.deposit { background: rgba(46,204,113,0.12); color: #2ecc71; }
         .wallet-card .wallet-icon.withdraw { background: rgba(251,191,36,0.12); color: #fbbf24; }
         .wallet-card .wallet-icon.release { background: rgba(59,130,246,0.12); color: #60a5fa; }
-        .wallet-card .wallet-icon.transfer { background: rgba(139,92,246,0.12); color: #a78bfa; }
+        .wallet-card .wallet-icon.stake { background: rgba(139,92,246,0.12); color: #a78bfa; }
         .wallet-card .wallet-number { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .wallet-card .wallet-number.green { color: #2ecc71; }
         .wallet-card .wallet-number.gold { color: #fbbf24; }
@@ -409,6 +410,19 @@
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
+        .rnd-price-badge {
+            background: rgba(46,204,113,0.1);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 30px;
+            padding: 4px 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #2ecc71;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .welcome-section { padding: 20px; }
@@ -464,7 +478,6 @@
         </div>
     </div>
     
-    <!-- ====== SIDEBAR MENU - ALL LINKS ====== -->
     <a href="dashboard.html" class="nav-item active">
         <i class="bi bi-speedometer2"></i> Dashboard
     </a>
@@ -484,11 +497,9 @@
     <a href="transactions.html" class="nav-item">
         <i class="bi bi-receipt"></i> Transactions
     </a>
-    <!-- ====== PROFILE LINK ADDED HERE ====== -->
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
     </a>
-    <!-- ====== END PROFILE LINK ====== -->
     
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
@@ -518,7 +529,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, set, update } from "firebase/database";
+import { getDatabase, ref, get, set, update, query, orderByChild, equalTo } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -534,11 +545,20 @@ const firebaseConfig = {
 const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
+// ============================================================
+// 🔥 PLANS CONFIG
+// ============================================================
+const PLANS = [
+    { id: '6months', name: '6 Months Plan', duration: 180, reward: 25 },
+    { id: '12months', name: '12 Months Plan', duration: 365, reward: 60 },
+    { id: '18months', name: '18 Months Plan', duration: 540, reward: 100 }
+];
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-let rndRate = 0.50;
+let rndPrice = 1.00;
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
@@ -575,7 +595,6 @@ sidebarClose.addEventListener('click', closeSidebar);
 sidebarOverlay.addEventListener('click', closeSidebar);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
-// LOGOUT
 document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
     e.preventDefault();
     await signOut(auth);
@@ -587,14 +606,15 @@ async function fetchLiveRate() {
         const settingsRef = ref(db, 'settings/rate');
         const snapshot = await get(settingsRef);
         if (snapshot.exists()) {
-            rndRate = snapshot.val();
+            rndPrice = snapshot.val();
         } else {
-            await set(settingsRef, 0.50);
-            rndRate = 0.50;
+            await set(settingsRef, 1.00);
+            rndPrice = 1.00;
         }
     } catch (error) {
         console.error('Error fetching rate:', error);
     }
+    return rndPrice;
 }
 
 async function getUserByUsername(username) {
@@ -621,6 +641,48 @@ function getGreeting() {
     if (hour < 12) return 'Morning';
     if (hour < 17) return 'Afternoon';
     return 'Evening';
+}
+
+// ============================================================
+// 🔥 UPDATE DAILY RELEASE
+// ============================================================
+async function updateDailyReleases(userId) {
+    try {
+        const packagesRef = ref(db, 'packages');
+        const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(userId));
+        const packagesSnap = await get(packagesQuery);
+        
+        let totalDailyRelease = 0;
+        let totalStake = 0;
+        let totalReward = 0;
+        let totalRNDStaked = 0;
+        let totalMaturityRND = 0;
+        
+        if (packagesSnap.exists()) {
+            packagesSnap.forEach((childSnap) => {
+                const pkg = childSnap.val();
+                if (pkg.status === 'active') {
+                    totalDailyRelease += (pkg.dailyRelease || 0);
+                    totalStake += (pkg.usdtAmount || 0);
+                    totalReward += (pkg.reward || 0);
+                    totalRNDStaked += (pkg.rndAmount || 0);
+                    totalMaturityRND += (pkg.maturityRND || 0);
+                }
+            });
+        }
+        
+        await update(ref(db, 'users/' + userId), {
+            releaseWallet: totalDailyRelease,
+            totalStake: totalStake,
+            totalReward: totalReward,
+            rndWallet: totalRNDStaked
+        });
+        
+        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, totalMaturityRND };
+    } catch (error) {
+        console.error('Error updating daily releases:', error);
+        return { totalDailyRelease: 0, totalStake: 0, totalReward: 0, totalRNDStaked: 0, totalMaturityRND: 0 };
+    }
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -673,7 +735,11 @@ onAuthStateChanged(auth, async (user) => {
                 window.location.href = 'login.html';
                 return;
             }
-            loadDashboard(u);
+            await updateDailyReleases(user.uid);
+            const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
+            if (updatedSnapshot.exists()) {
+                loadDashboard(updatedSnapshot.val());
+            }
         }
 
     } catch (error) {
@@ -701,7 +767,9 @@ function loadDashboard(u) {
     const depositWallet = u.depositWallet || 0;
     const withdrawalWallet = u.withdrawalWallet || 0;
     const releaseWallet = u.releaseWallet || 0;
+    const rndWallet = u.rndWallet || 0;
     const totalStake = u.totalStake || 0;
+    const totalReward = u.totalReward || 0;
     
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
@@ -716,6 +784,9 @@ function loadDashboard(u) {
     const transferHistory = u.transferHistory || [];
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
     
+    // Calculate USD value of RND
+    const rndValueUSD = rndWallet * rndPrice;
+    
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
             <div class="col-12">
@@ -729,8 +800,8 @@ function loadDashboard(u) {
                                     <button class="copy-btn-small" onclick="copyUserId('${username}')"><i class="bi bi-clipboard"></i> Copy</button>
                                 </span>
                                 <span class="${rankClass}"><i class="bi bi-award me-1"></i>${rank}</span>
-                                <span class="rank-badge member" style="background:rgba(46,204,113,0.08);border-color:rgba(46,204,113,0.15);color:#8899bb;">
-                                    <i class="bi bi-currency-dollar"></i> 1 RND = $${rndRate.toFixed(4)}
+                                <span class="rnd-price-badge">
+                                    <i class="bi bi-currency-dollar"></i> 1 RND = $${rndPrice.toFixed(4)}
                                 </span>
                             </div>
                         </div>
@@ -763,17 +834,17 @@ function loadDashboard(u) {
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
                             <div class="wallet-icon release"><i class="bi bi-clock-history"></i></div>
-                            <div class="wallet-number blue">${releaseWallet.toFixed(2)}</div>
-                            <div class="wallet-label">Release Wallet</div>
-                            <div class="wallet-sub">Daily Release RND</div>
+                            <div class="wallet-number blue">${releaseWallet.toFixed(4)}</div>
+                            <div class="wallet-label">Daily Release</div>
+                            <div class="wallet-sub">RND / Day</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
-                            <div class="wallet-icon transfer"><i class="bi bi-arrow-left-right"></i></div>
-                            <div class="wallet-number purple">${totalStake.toFixed(2)}</div>
-                            <div class="wallet-label">Total Stake</div>
-                            <div class="wallet-sub">RND Staked</div>
+                            <div class="wallet-icon stake"><i class="bi bi-pie-chart"></i></div>
+                            <div class="wallet-number purple">${rndWallet.toFixed(2)}</div>
+                            <div class="wallet-label">RND Staked</div>
+                            <div class="wallet-sub">≈ $${rndValueUSD.toFixed(2)}</div>
                         </div>
                     </div>
                 </div>
@@ -806,29 +877,29 @@ function loadDashboard(u) {
                     <div class="col-6 col-lg-3">
                         <div class="stat-card">
                             <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
-                            <div class="stat-number">$${u.totalStake || 0}</div>
-                            <div class="stat-label">Total Stake</div>
+                            <div class="stat-number">$${totalStake}</div>
+                            <div class="stat-label">Total Stake (USDT)</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="stat-card">
                             <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
-                            <div class="stat-number" style="color:#f1c40f;">$${u.totalReward || 0}</div>
+                            <div class="stat-number" style="color:#f1c40f;">${totalReward}%</div>
                             <div class="stat-label">Total Reward</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="stat-card">
                             <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
-                            <div class="stat-number" style="color:#2ecc71;">$${u.availableReward || 0}</div>
-                            <div class="stat-label">Available Reward</div>
+                            <div class="stat-number" style="color:#2ecc71;">${rndWallet.toFixed(2)}</div>
+                            <div class="stat-label">RND Staked</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="stat-card">
                             <div class="stat-icon"><i class="bi bi-arrow-up-right"></i></div>
-                            <div class="stat-number">$${u.totalWithdrawn || 0}</div>
-                            <div class="stat-label">Total Withdrawn</div>
+                            <div class="stat-number" style="color:#60a5fa;">${releaseWallet.toFixed(4)}</div>
+                            <div class="stat-label">Daily Release (RND)</div>
                         </div>
                     </div>
                 </div>
