@@ -137,6 +137,15 @@
             width: 28px;
             text-align: center;
         }
+        .sidebar-panel .nav-item .badge {
+            margin-left: auto;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
         
         .sidebar-panel .sidebar-footer {
             margin-top: auto;
@@ -222,6 +231,52 @@
             background: rgba(46,204,113,0.08);
             border-color: rgba(46,204,113,0.15);
             color: #8899bb;
+        }
+        
+        /* Wallet Cards */
+        .wallet-card {
+            background: rgba(19,34,55,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .wallet-card:hover {
+            border-color: rgba(46,204,113,0.2);
+            transform: translateY(-3px);
+        }
+        .wallet-card .wallet-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin: 0 auto 10px;
+        }
+        .wallet-card .wallet-icon.deposit { background: rgba(46,204,113,0.12); color: #2ecc71; }
+        .wallet-card .wallet-icon.withdraw { background: rgba(251,191,36,0.12); color: #fbbf24; }
+        .wallet-card .wallet-icon.release { background: rgba(59,130,246,0.12); color: #60a5fa; }
+        .wallet-card .wallet-number {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .wallet-card .wallet-number.green { color: #2ecc71; }
+        .wallet-card .wallet-number.gold { color: #fbbf24; }
+        .wallet-card .wallet-number.blue { color: #60a5fa; }
+        .wallet-card .wallet-label {
+            color: #8899bb;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        .wallet-card .wallet-sub {
+            color: #556688;
+            font-size: 0.65rem;
+            margin-top: 2px;
         }
         
         .stat-card {
@@ -384,12 +439,25 @@
             min-height: 60vh;
         }
         
+        .rate-info {
+            background: rgba(251,191,36,0.05);
+            border: 1px solid rgba(251,191,36,0.1);
+            border-radius: 12px;
+            padding: 8px 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #fbbf24;
+        }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .welcome-section { padding: 20px; }
             .welcome-section h2 { font-size: 1.2rem; }
             .network-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .stat-card .stat-number { font-size: 1.3rem; }
+            .wallet-card .wallet-number { font-size: 1.3rem; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
             .referral-box { flex-direction: column; align-items: stretch; }
@@ -439,7 +507,6 @@
         </div>
     </div>
     
-    <!-- ====== SIMPLIFIED SIDEBAR MENU (Only 5 Items) ====== -->
     <a href="dashboard.html" class="nav-item active">
         <i class="bi bi-speedometer2"></i> Dashboard
     </a>
@@ -513,6 +580,11 @@ const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
 // ============================================================
+// 🔥 RATE CONFIG (Live RND Rate - Admin se set hoga)
+// ============================================================
+let rndRate = 0.50; // Default rate (1 RND = $0.50)
+
+// ============================================================
 // 🔥 INIT FIREBASE
 // ============================================================
 const app = initializeApp(firebaseConfig);
@@ -560,6 +632,26 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
+// 🔥 FETCH LIVE RATE FROM DATABASE
+// ============================================================
+async function fetchLiveRate() {
+    try {
+        const settingsRef = ref(db, 'settings/rate');
+        const snapshot = await get(settingsRef);
+        if (snapshot.exists()) {
+            rndRate = snapshot.val();
+            console.log('✅ Live rate loaded:', rndRate);
+        } else {
+            // Set default rate if not exists
+            await set(settingsRef, 0.50);
+            rndRate = 0.50;
+        }
+    } catch (error) {
+        console.error('❌ Error fetching rate:', error);
+    }
+}
+
+// ============================================================
 // 🔥 CHECK AUTH & LOAD DASHBOARD
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
@@ -572,6 +664,9 @@ onAuthStateChanged(auth, async (user) => {
     console.log('✅ User logged in. UID:', user.uid);
     
     try {
+        // Fetch live rate first
+        await fetchLiveRate();
+        
         const snapshot = await get(ref(db, 'users/' + user.uid));
         
         if (!snapshot.exists()) {
@@ -595,7 +690,11 @@ onAuthStateChanged(auth, async (user) => {
                 subscriptions: 0,
                 banned: false,
                 role: 'user',
-                rank: 'Member'
+                rank: 'Member',
+                // New wallet fields
+                depositWallet: 0,      // Total deposited in USDT
+                rndWallet: 0,          // RND coins available
+                releaseWallet: 0       // Daily release RND coins
             });
             await set(ref(db, 'usernames/' + refCodeGen), user.uid);
             const newSnapshot = await get(ref(db, 'users/' + user.uid));
@@ -642,6 +741,15 @@ function loadDashboard(u) {
     const tradingBV = u.teamBusiness || 0;
     const subscriptions = u.subscriptions || 0;
     
+    // Wallet balances
+    const depositWallet = u.depositWallet || 0;      // USDT deposited
+    const rndWallet = u.rndWallet || 0;              // RND coins
+    const releaseWallet = u.releaseWallet || 0;      // Daily release RND
+    const totalStake = u.totalStake || 0;            // Total RND staked
+    
+    // Calculate RND value in USD
+    const rndValueUSD = (rndWallet * rndRate).toFixed(2);
+    
     // Update sidebar
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
@@ -667,11 +775,52 @@ function loadDashboard(u) {
                             <div class="d-flex flex-wrap align-items-center gap-3 mt-2">
                                 <span class="user-id-badge"><i class="bi bi-person-badge me-1"></i>User ID: <strong>${username}</strong></span>
                                 <span class="${rankClass}"><i class="bi bi-award me-1"></i>${rank}</span>
+                                <span class="rate-info">
+                                    <i class="bi bi-currency-dollar"></i> 1 RND = $${rndRate.toFixed(4)}
+                                </span>
                             </div>
                         </div>
                         <div>
                             <a href="deposit.html" class="btn-primary-custom me-2"><i class="bi bi-plus-circle me-1"></i>Deposit</a>
                             <a href="withdrawal.html" class="btn-outline-custom"><i class="bi bi-arrow-up-right me-1"></i>Withdraw</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wallet Cards -->
+            <div class="col-12">
+                <div class="row g-3">
+                    <div class="col-6 col-lg-3">
+                        <div class="wallet-card">
+                            <div class="wallet-icon deposit"><i class="bi bi-wallet2"></i></div>
+                            <div class="wallet-number green">$${depositWallet.toFixed(2)}</div>
+                            <div class="wallet-label">Deposit Wallet</div>
+                            <div class="wallet-sub">USDT Balance</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="wallet-card">
+                            <div class="wallet-icon withdraw"><i class="bi bi-coin"></i></div>
+                            <div class="wallet-number gold">${rndWallet.toFixed(2)}</div>
+                            <div class="wallet-label">RND Wallet</div>
+                            <div class="wallet-sub">≈ $${rndValueUSD}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="wallet-card">
+                            <div class="wallet-icon release"><i class="bi bi-clock-history"></i></div>
+                            <div class="wallet-number blue">${releaseWallet.toFixed(2)}</div>
+                            <div class="wallet-label">Release Wallet</div>
+                            <div class="wallet-sub">Daily Release RND</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="wallet-card">
+                            <div class="wallet-icon deposit"><i class="bi bi-pie-chart"></i></div>
+                            <div class="wallet-number green">${totalStake.toFixed(2)}</div>
+                            <div class="wallet-label">Total Stake</div>
+                            <div class="wallet-sub">RND Staked</div>
                         </div>
                     </div>
                 </div>
