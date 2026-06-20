@@ -1,341 +1,215 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RND Staking - Ran Digital</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #080e1a; color: #f0f4ff; overflow-x: hidden; }
-        
-        /* Animated Background */
-        .hero-section {
-            background: linear-gradient(135deg, #080e1a 0%, #0f1f3a 50%, #1a2a4a 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(46,204,113,0.08) 0%, transparent 70%);
-            top: -200px;
-            right: -200px;
-            border-radius: 50%;
-            animation: pulseGlow 8s ease-in-out infinite;
-        }
-        .hero-section::after {
-            content: '';
-            position: absolute;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(46,204,113,0.05) 0%, transparent 70%);
-            bottom: -100px;
-            left: -100px;
-            border-radius: 50%;
-            animation: pulseGlow 6s ease-in-out infinite reverse;
-        }
-        @keyframes pulseGlow {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 1; }
-        }
-        
-        .navbar-custom {
-            background: rgba(8,14,26,0.95);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(46,204,113,0.15);
-            padding: 15px 0;
-            position: fixed;
-            width: 100%;
-            top: 0;
-            z-index: 1000;
-        }
-        .nav-link-custom {
-            color: #a0b8d0 !important;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            padding: 8px 20px !important;
-            border-radius: 10px;
-        }
-        .nav-link-custom:hover {
-            color: #2ecc71 !important;
-            background: rgba(46,204,113,0.1);
-        }
-        .btn-primary-custom {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            padding: 12px 30px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-primary-custom:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
-            color: #fff;
-        }
-        .btn-outline-custom {
-            border: 2px solid rgba(46,204,113,0.3);
-            color: #a0b8d0;
-            padding: 12px 30px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            font-weight: 600;
-        }
-        .btn-outline-custom:hover {
-            border-color: #2ecc71;
-            color: #2ecc71;
-            transform: translateY(-3px);
-        }
-        
-        .hero-content {
-            position: relative;
-            z-index: 1;
-            padding-top: 80px;
-        }
-        .hero-title {
-            font-size: 4rem;
-            font-weight: 900;
-            line-height: 1.1;
-            margin-bottom: 20px;
-        }
-        .hero-title span { color: #2ecc71; }
-        .hero-subtitle {
-            font-size: 1.2rem;
-            color: #8899bb;
-            max-width: 500px;
-            line-height: 1.8;
-            margin-bottom: 30px;
-        }
-        
-        .card-glass {
-            background: rgba(19,34,55,0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(46,204,113,0.15);
-            border-radius: 24px;
-            padding: 2rem;
-            transition: all 0.3s ease;
-        }
-        .card-glass:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .feature-icon {
-            width: 60px;
-            height: 60px;
-            background: rgba(46,204,113,0.15);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
-            color: #2ecc71;
-            margin-bottom: 15px;
-        }
-        
-        .floating-cards {
-            position: relative;
-            z-index: 1;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-title { font-size: 2.5rem; }
-            .hero-section { min-height: auto; padding: 100px 0 60px; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>RND Staking Platform</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0b1120; color: #f0f4ff; }
+    .navbar-custom { background: rgba(15,26,46,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(46,204,113,0.15); padding: 12px 0; }
+    .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
+    .navbar-custom .navbar-brand i { color: #2ecc71; }
+    .btn-primary-custom { background: linear-gradient(135deg, #2ecc71, #27ae60); border: none; color: #fff; font-weight: 600; padding: 12px 30px; border-radius: 12px; transition: all 0.3s ease; }
+    .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
+    .btn-outline-light-custom { border: 1px solid rgba(255,255,255,0.15); color: #a0b8d0; padding: 12px 24px; border-radius: 12px; transition: all 0.3s ease; background: transparent; }
+    .btn-outline-light-custom:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .hero { background: linear-gradient(135deg, #0b1120 0%, #1a2a4a 100%); min-height: 90vh; display: flex; align-items: center; padding: 60px 0; }
+    .card-dark { background: rgba(19,34,55,0.6); border: 1px solid rgba(46,204,113,0.1); border-radius: 24px; padding: 2rem; backdrop-filter: blur(10px); }
+    .text-green { color: #2ecc71; }
+    .domain-badge { background: rgba(46,204,113,0.12); border: 1px solid rgba(46,204,113,0.15); border-radius: 30px; padding: 4px 14px; font-size: 0.65rem; color: #2ecc71; }
+    
+    .feature-card { background: rgba(19,34,55,0.4); border: 1px solid rgba(46,204,113,0.08); border-radius: 16px; padding: 1.5rem; transition: all 0.3s ease; text-align: center; }
+    .feature-card:hover { border-color: rgba(46,204,113,0.2); transform: translateY(-5px); }
+    .feature-card .icon { width: 60px; height: 60px; background: rgba(46,204,113,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #2ecc71; margin: 0 auto 15px; }
+    .feature-card h5 { color: #fff; font-weight: 600; }
+    .feature-card p { color: #8899bb; font-size: 0.9rem; }
+    
+    footer { background: rgba(8,14,26,0.8); border-top: 1px solid rgba(46,204,113,0.08); padding: 30px 0; }
+    
+    @media (max-width: 768px) { .hero { min-height: auto; padding: 40px 0; } .hero h1 { font-size: 2rem; } }
+  </style>
 </head>
 <body>
 
-<!-- Navbar -->
+<!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-expand-lg navbar-custom">
-    <div class="container">
-        <a class="navbar-brand fw-bold text-white" href="#">
-            <i class="bi bi-currency-bitcoin text-success me-2"></i>RND Staking
-        </a>
-        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mainNav">
-            <ul class="navbar-nav ms-auto align-items-center">
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="#features">Features</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="#plans">Plans</a></li>
-                <li class="nav-item"><a class="nav-link nav-link-custom" href="login.html">Login</a></li>
-                <li class="nav-item ms-2"><a class="btn-primary-custom" href="register.html">Get Started</a></li>
-            </ul>
-        </div>
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">
+      <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+      <span class="domain-badge ms-2">staking.randigital.in</span>
+    </a>
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" style="color:#fff;font-size:1.5rem;">
+      <i class="bi bi-list"></i>
+    </button>
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+        <li class="nav-item"><a class="nav-link text-light" href="#features">Features</a></li>
+        <li class="nav-item"><a class="nav-link text-light" href="#plans">Plans</a></li>
+        <li class="nav-item"><a class="btn btn-outline-light-custom me-2" href="login.html">Login</a></li>
+        <li class="nav-item"><a class="btn btn-primary-custom" href="register.html">Register</a></li>
+      </ul>
     </div>
+  </div>
 </nav>
 
-<!-- Hero Section -->
-<section class="hero-section">
-    <div class="container hero-content">
-        <div class="row align-items-center g-5">
-            <div class="col-lg-6">
-                <span class="badge bg-success bg-opacity-10 text-success mb-3 px-3 py-2">🔥 Live on BSC Network</span>
-                <h1 class="hero-title">Stake <span>RND</span> Tokens & Earn <span>Up to 100%</span></h1>
-                <p class="hero-subtitle">Lock your tokens and earn daily rewards. Refer friends and earn up to 16% commission across 5 levels.</p>
-                <div class="d-flex flex-wrap gap-3">
-                    <a href="register.html" class="btn-primary-custom">Start Staking <i class="bi bi-arrow-right ms-2"></i></a>
-                    <a href="#plans" class="btn-outline-custom">View Plans</a>
-                </div>
-                <div class="d-flex gap-5 mt-4">
-                    <div><span class="stat-number">10K+</span><br><small class="text-muted">Active Users</small></div>
-                    <div><span class="stat-number">$2.5M</span><br><small class="text-muted">Total Staked</small></div>
-                    <div><span class="stat-number">16%</span><br><small class="text-muted">Referral Bonus</small></div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card-glass floating-cards">
-                    <h5 class="text-success mb-3"><i class="bi bi-boxes me-2"></i>Staking Plans</h5>
-                    <div class="row g-3">
-                        <div class="col-4">
-                            <div class="bg-dark bg-opacity-50 p-3 rounded-3 text-center">
-                                <small class="text-muted">6 Months</small>
-                                <h4 class="text-success mb-0">25%</h4>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="bg-dark bg-opacity-50 p-3 rounded-3 text-center">
-                                <small class="text-muted">12 Months</small>
-                                <h4 class="text-warning mb-0">60%</h4>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="bg-dark bg-opacity-50 p-3 rounded-3 text-center">
-                                <small class="text-muted">18 Months</small>
-                                <h4 class="text-success mb-0">100%</h4>
-                            </div>
-                        </div>
-                    </div>
-                    <hr class="border-secondary">
-                    <div class="d-flex gap-3">
-                        <div><i class="bi bi-check-circle-fill text-success"></i> Min. 10 USDT</div>
-                        <div><i class="bi bi-check-circle-fill text-success"></i> Daily Vesting</div>
-                        <div><i class="bi bi-check-circle-fill text-success"></i> BEP20</div>
-                    </div>
-                </div>
-            </div>
+<!-- ====== HERO SECTION ====== -->
+<section class="hero">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <h1 class="display-4 fw-bold">Stake RND Tokens <br><span class="text-green">Earn Up to 100%</span></h1>
+        <p class="lead text-muted" style="font-size:1.1rem;">Lock your tokens and earn daily rewards. Refer friends and earn up to 16% commission.</p>
+        <div class="d-flex flex-wrap gap-3 mt-4">
+          <a href="register.html" class="btn btn-primary-custom btn-lg">Get Started <i class="bi bi-arrow-right ms-2"></i></a>
+          <a href="#plans" class="btn btn-outline-light-custom btn-lg">View Plans</a>
         </div>
+        <div class="mt-4 d-flex flex-wrap gap-4">
+          <div><i class="bi bi-check-circle-fill text-green me-2"></i> <span class="text-light">Min. 10 USDT</span></div>
+          <div><i class="bi bi-check-circle-fill text-green me-2"></i> <span class="text-light">Daily Rewards</span></div>
+          <div><i class="bi bi-check-circle-fill text-green me-2"></i> <span class="text-light">Secure Staking</span></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card-dark">
+          <h5 class="text-green mb-3"><i class="bi bi-fire me-2"></i>🔥 Staking Plans</h5>
+          <div class="row g-3">
+            <div class="col-4"><div class="bg-dark p-3 rounded text-center" style="background:rgba(8,14,26,0.6) !important;"><small>6 Months</small><br><strong class="text-green">25%</strong></div></div>
+            <div class="col-4"><div class="bg-dark p-3 rounded text-center" style="background:rgba(8,14,26,0.6) !important;"><small>12 Months</small><br><strong class="text-green">60%</strong></div></div>
+            <div class="col-4"><div class="bg-dark p-3 rounded text-center" style="background:rgba(8,14,26,0.6) !important;"><small>18 Months</small><br><strong class="text-green">100%</strong></div></div>
+          </div>
+          <hr class="border-secondary">
+          <p><i class="bi bi-check-circle-fill text-green me-2"></i> Minimum Deposit: 10 USDT</p>
+          <p><i class="bi bi-check-circle-fill text-green me-2"></i> Daily Vesting Release</p>
+          <p><i class="bi bi-check-circle-fill text-green me-2"></i> Referral Commission: 16%</p>
+          <a href="register.html" class="btn btn-primary-custom w-100 mt-2">Join Now</a>
+        </div>
+      </div>
     </div>
+  </div>
 </section>
 
-<!-- Features -->
-<section id="features" class="py-5" style="background: #0a1120;">
-    <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="fw-bold">Why Choose <span class="text-success">RND Staking</span></h2>
-            <p class="text-muted">Secure, transparent, and rewarding staking platform</p>
-        </div>
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card-glass h-100 text-center">
-                    <div class="feature-icon mx-auto">🔒</div>
-                    <h5 class="fw-bold">Secure & Safe</h5>
-                    <p class="text-muted">Powered by Firebase with enterprise-grade security and encrypted data.</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card-glass h-100 text-center">
-                    <div class="feature-icon mx-auto">📈</div>
-                    <h5 class="fw-bold">High Returns</h5>
-                    <p class="text-muted">Earn up to 100% rewards with flexible staking plans.</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card-glass h-100 text-center">
-                    <div class="feature-icon mx-auto">👥</div>
-                    <h5 class="fw-bold">5-Level Referral</h5>
-                    <p class="text-muted">Earn 16% commission from your referral network.</p>
-                </div>
-            </div>
-        </div>
+<!-- ====== FEATURES ====== -->
+<section id="features" class="py-5">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Why Choose <span class="text-green">RND Staking</span></h2>
+      <p class="text-muted">Secure, transparent, and profitable staking platform</p>
     </div>
+    <div class="row g-4">
+      <div class="col-md-3">
+        <div class="feature-card">
+          <div class="icon"><i class="bi bi-shield-check"></i></div>
+          <h5>Secure</h5>
+          <p>Bank-grade security with blockchain technology</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="feature-card">
+          <div class="icon"><i class="bi bi-graph-up-arrow"></i></div>
+          <h5>High Returns</h5>
+          <p>Earn up to 100% returns on your staked tokens</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="feature-card">
+          <div class="icon"><i class="bi bi-people"></i></div>
+          <h5>Referral Bonus</h5>
+          <p>Earn 16% commission from your referrals</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="feature-card">
+          <div class="icon"><i class="bi bi-clock-history"></i></div>
+          <h5>Daily Rewards</h5>
+          <p>Get daily vesting rewards directly to your wallet</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- Plans -->
-<section id="plans" class="py-5" style="background: #080e1a;">
-    <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="fw-bold">Staking <span class="text-success">Plans</span></h2>
-            <p class="text-muted">Choose the plan that suits your investment goals</p>
-        </div>
-        <div class="row g-4 justify-content-center">
-            <div class="col-md-4">
-                <div class="card-glass text-center">
-                    <div class="badge bg-success bg-opacity-10 text-success px-3 py-2">Popular</div>
-                    <h4 class="mt-3">6 Months</h4>
-                    <h2 class="text-success fw-bold">25%</h2>
-                    <p class="text-muted">Return on Investment</p>
-                    <hr class="border-secondary">
-                    <ul class="list-unstyled text-start">
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Lock period: 6 months</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Daily vesting release</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Minimum 10 USDT</li>
-                    </ul>
-                    <a href="register.html" class="btn-primary-custom w-100 text-center">Stake Now</a>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card-glass text-center" style="border-color: #2ecc71; box-shadow: 0 0 40px rgba(46,204,113,0.1);">
-                    <div class="badge bg-success px-3 py-2">🔥 Best Value</div>
-                    <h4 class="mt-3">12 Months</h4>
-                    <h2 class="text-warning fw-bold">60%</h2>
-                    <p class="text-muted">Return on Investment</p>
-                    <hr class="border-secondary">
-                    <ul class="list-unstyled text-start">
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Lock period: 12 months</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Daily vesting release</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Higher returns</li>
-                    </ul>
-                    <a href="register.html" class="btn-primary-custom w-100 text-center">Stake Now</a>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card-glass text-center">
-                    <h4 class="mt-3">18 Months</h4>
-                    <h2 class="text-success fw-bold">100%</h2>
-                    <p class="text-muted">Return on Investment</p>
-                    <hr class="border-secondary">
-                    <ul class="list-unstyled text-start">
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Lock period: 18 months</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Daily vesting release</li>
-                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Maximum returns</li>
-                    </ul>
-                    <a href="register.html" class="btn-primary-custom w-100 text-center">Stake Now</a>
-                </div>
-            </div>
-        </div>
+<!-- ====== PLANS ====== -->
+<section id="plans" class="py-5" style="background:rgba(8,14,26,0.4);">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Our <span class="text-green">Staking Plans</span></h2>
+      <p class="text-muted">Choose the plan that best suits your investment goals</p>
     </div>
+    <div class="row g-4">
+      <div class="col-md-3">
+        <div class="card-dark text-center">
+          <h5 class="text-green">Starter</h5>
+          <h3 class="fw-bold mt-2">$50</h3>
+          <p class="text-muted small">25% ROI • 30 Days</p>
+          <ul class="list-unstyled text-start mt-3" style="color:#a0b8d0;font-size:0.85rem;">
+            <li><i class="bi bi-check-circle text-green me-2"></i>25% Returns</li>
+            <li><i class="bi bi-check-circle text-green me-2"></i>30 Days Lock</li>
+            <li><i class="bi bi-check-circle text-green me-2"></i>Daily Release</li>
+          </ul>
+          <a href="register.html" class="btn btn-primary-custom w-100 mt-2">Start Now</a>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-dark text-center" style="border-color:rgba(46,204,113,0.3);">
+          <h5 class="text-green">Basic</h5>
+          <h3 class="fw-bold mt-2">$100</h3>
+          <p class="text-muted small">35% ROI • 45 Days</p>
+          <ul class="list-unstyled text-start mt-3" style="color:#a0b8d0;font-size:0.85rem;">
+            <li><i class="bi bi-check-circle text-green me-2"></i>35% Returns</li>
+            <li><i class="bi bi-check-circle text-green me-2"></i>45 Days Lock</li>
+            <li><i class="bi bi-check-circle text-green me-2"></i>Daily Release</li>
+          </ul>
+          <a href="register.html" class="btn btn-primary-custom w-100 mt-2">Start Now</a>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-dark text-center" style="border-color:rgba(251,191,36,0.2);">
+          <h5 style="color:#fbbf24;">Standard</h5>
+          <h3 class="fw-bold mt-2">$200</h3>
+          <p class="text-muted small">50% ROI • 60 Days</p>
+          <ul class="list-unstyled text-start mt-3" style="color:#a0b8d0;font-size:0.85rem;">
+            <li><i class="bi bi-check-circle" style="color:#fbbf24;"></i><span class="ms-2">50% Returns</span></li>
+            <li><i class="bi bi-check-circle" style="color:#fbbf24;"></i><span class="ms-2">60 Days Lock</span></li>
+            <li><i class="bi bi-check-circle" style="color:#fbbf24;"></i><span class="ms-2">Daily Release</span></li>
+          </ul>
+          <a href="register.html" class="btn btn-primary-custom w-100 mt-2">Start Now</a>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card-dark text-center" style="border-color:rgba(167,139,250,0.2);">
+          <h5 style="color:#a78bfa;">Premium</h5>
+          <h3 class="fw-bold mt-2">$500</h3>
+          <p class="text-muted small">75% ROI • 90 Days</p>
+          <ul class="list-unstyled text-start mt-3" style="color:#a0b8d0;font-size:0.85rem;">
+            <li><i class="bi bi-check-circle" style="color:#a78bfa;"></i><span class="ms-2">75% Returns</span></li>
+            <li><i class="bi bi-check-circle" style="color:#a78bfa;"></i><span class="ms-2">90 Days Lock</span></li>
+            <li><i class="bi bi-check-circle" style="color:#a78bfa;"></i><span class="ms-2">Daily Release</span></li>
+          </ul>
+          <a href="register.html" class="btn btn-primary-custom w-100 mt-2">Start Now</a>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- Footer -->
-<footer class="py-4" style="background: #060c18; border-top: 1px solid rgba(46,204,113,0.1);">
-    <div class="container text-center">
-        <p class="text-muted mb-0">&copy; 2026 Ran Digital (RND) — Staking Platform v3.0</p>
-        <p class="text-muted small">Built with ❤️ on Firebase</p>
+<!-- ====== FOOTER ====== -->
+<footer>
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <a class="navbar-brand fw-bold text-white" href="#"><i class="bi bi-currency-bitcoin text-green me-2"></i>RND Staking</a>
+        <p class="text-muted small mt-2">&copy; 2026 Ran Digital (RND) — Staking Platform</p>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <a href="login.html" class="text-muted me-3">Login</a>
+        <a href="register.html" class="text-green">Register</a>
+      </div>
     </div>
+  </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
