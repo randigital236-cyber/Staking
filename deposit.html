@@ -224,7 +224,7 @@
             background: rgba(8,14,26,0.9) !important;
         }
         .form-control-custom::placeholder { color: #556688 !important; }
-        .form-control-custom option { background: #0b1120; color: #f0f4ff; }
+        .form-control-custom:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .form-label {
             font-weight: 600;
@@ -429,6 +429,9 @@
         <i class="bi bi-people"></i> Referrals
         <span class="badge" id="referralBadge">0</span>
     </a>
+    <a href="buy-package.html" class="nav-item">
+        <i class="bi bi-box-seam"></i> Buy Package
+    </a>
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
     </a>
@@ -578,6 +581,10 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
         document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
 
+        // Update referral badge
+        const badge = document.getElementById('referralBadge');
+        if (badge) badge.textContent = userData.totalReferrals || 0;
+
         // Get user's deposit history
         const depositsRef = ref(db, 'deposits');
         const depositsQuery = query(depositsRef, orderByChild('uid'), equalTo(user.uid));
@@ -590,7 +597,7 @@ onAuthStateChanged(auth, async (user) => {
             userDeposits.sort((a, b) => b.timestamp - a.timestamp);
         }
 
-        // Load content - Simple Design
+        // Load content
         document.getElementById('depositContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -610,6 +617,9 @@ onAuthStateChanged(auth, async (user) => {
                                 <code>${WALLET_ADDRESS}</code>
                                 <button class="copy-btn" id="copyWalletBtn"><i class="bi bi-clipboard me-1"></i>Copy</button>
                             </div>
+                            <small class="text-muted" style="font-size:0.7rem;">
+                                <i class="bi bi-info-circle"></i> Send USDT only on BEP20 network
+                            </small>
                         </div>
 
                         <form id="depositForm">
@@ -625,15 +635,6 @@ onAuthStateChanged(auth, async (user) => {
                                 <input type="text" id="depTx" class="form-control form-control-custom" 
                                        placeholder="0x... (Paste your transaction hash)" required>
                                 <small class="text-muted" style="font-size:0.7rem;">Paste the transaction hash from your wallet</small>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Select Plan <span class="required">*</span></label>
-                                <select id="depPlan" class="form-select form-control-custom">
-                                    <option value="6">6 Months (25% Reward)</option>
-                                    <option value="12" selected>12 Months (60% Reward)</option>
-                                    <option value="18">18 Months (100% Reward)</option>
-                                </select>
                             </div>
                             
                             <button type="submit" class="btn-primary-custom" id="depositBtn">
@@ -677,7 +678,7 @@ onAuthStateChanged(auth, async (user) => {
                                             </div>
                                             <div>
                                                 ${statusHtml}
-                                                ${d.plan ? `<span class="text-muted ms-2" style="font-size:0.7rem;">${d.plan}M</span>` : ''}
+                                                ${d.txHash ? `<span class="text-muted ms-2" style="font-size:0.6rem;font-family:monospace;">${d.txHash.substring(0,10)}...</span>` : ''}
                                             </div>
                                         </div>
                                     `;
@@ -714,7 +715,6 @@ onAuthStateChanged(auth, async (user) => {
             
             const amount = document.getElementById('depAmount').value;
             const txHash = document.getElementById('depTx').value.trim();
-            const plan = document.getElementById('depPlan').value;
             const btn = document.getElementById('depositBtn');
             
             if (!amount || parseFloat(amount) < 10) {
@@ -735,7 +735,6 @@ onAuthStateChanged(auth, async (user) => {
                     uid: auth.currentUser.uid,
                     amount: parseFloat(amount),
                     txHash: txHash,
-                    plan: parseInt(plan),
                     status: 'pending',
                     timestamp: Date.now()
                 });
