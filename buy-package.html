@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Buy Package - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
+        
+        .navbar-custom {
+            background: rgba(8,14,26,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(46,204,113,0.15);
+            padding: 10px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+        }
+        .navbar-custom .navbar-brand {
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #fff !important;
+        }
+        .navbar-custom .navbar-brand i { color: #2ecc71; }
+        .domain-badge {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.15);
+            border-radius: 30px;
+            padding: 4px 14px;
+            font-size: 0.65rem;
+            color: #2ecc71;
+        }
+        
+        .sidebar-toggle {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.2);
+            color: #2ecc71;
+            padding: 8px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+        .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
+        
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            z-index: 1060;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .sidebar-overlay.active { display: block; opacity: 1; }
+        
+        .sidebar-panel {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100%;
+            background: rgba(12,20,35,0.98);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(46,204,113,0.15);
+            z-index: 1070;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-panel.open { right: 0; }
+        
+        .sidebar-panel .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.1);
+            margin-bottom: 15px;
+        }
+        .sidebar-panel .sidebar-header h5 {
+            color: #fff;
+            font-weight: 700;
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .sidebar-panel .sidebar-header h5 i { color: #2ecc71; }
+        .sidebar-close {
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: #8899bb;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+        .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        
+        .sidebar-panel .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            color: #8899bb;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin: 2px 12px;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+        .sidebar-panel .nav-item:hover {
+            background: rgba(46,204,113,0.08);
+            color: #fff;
+        }
+        .sidebar-panel .nav-item.active {
+            background: rgba(46,204,113,0.12);
+            color: #2ecc71;
+        }
+        .sidebar-panel .nav-item i {
+            font-size: 1.2rem;
+            width: 28px;
+            text-align: center;
+        }
+        .sidebar-panel .nav-item .badge {
+            margin-left: auto;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+        
+        .sidebar-panel .sidebar-footer {
+            margin-top: auto;
+            padding: 20px;
+            border-top: 1px solid rgba(46,204,113,0.08);
+        }
+        .sidebar-panel .sidebar-footer .nav-item {
+            color: #f87171;
+        }
+        .sidebar-panel .sidebar-footer .nav-item:hover {
+            background: rgba(239,68,68,0.08);
+            color: #f87171;
+        }
+        
+        .user-profile-sidebar {
+            padding: 10px 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.08);
+            margin-bottom: 10px;
+        }
+        .user-profile-sidebar .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2ecc71, #1a7a3a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+        .user-profile-sidebar .user-name {
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .user-profile-sidebar .user-id {
+            color: #8899bb;
+            font-size: 0.75rem;
+        }
+        
+        .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        
+        .card-glass {
+            background: rgba(19,34,55,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .card-glass:hover {
+            border-color: rgba(46,204,113,0.3);
+            transform: translateY(-3px);
+        }
+        .card-glass .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
+        
+        .package-card {
+            background: rgba(8,14,26,0.5);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: 100%;
+        }
+        .package-card:hover {
+            border-color: rgba(46,204,113,0.3);
+            transform: translateY(-5px);
+        }
+        .package-card.selected {
+            border-color: #2ecc71;
+            border-width: 2px;
+            background: rgba(46,204,113,0.08);
+        }
+        .package-card .price {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #2ecc71;
+        }
+        .package-card .price span { font-size: 1rem; color: #8899bb; }
+        .package-card .duration {
+            color: #8899bb;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        .package-card .reward {
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-top: 8px;
+        }
+        .package-card .features {
+            margin-top: 12px;
+            text-align: left;
+            color: #a0b8d0;
+            font-size: 0.85rem;
+        }
+        .package-card .features li { list-style: none; margin-bottom: 4px; }
+        .package-card .features li i { color: #2ecc71; margin-right: 8px; }
+        
+        .form-control-custom {
+            background: rgba(8,14,26,0.8) !important;
+            border: 1px solid rgba(46,204,113,0.15) !important;
+            color: #f0f4ff !important;
+            padding: 12px 16px !important;
+            border-radius: 12px !important;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        .form-control-custom:focus {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 0 3px rgba(46,204,113,0.15) !important;
+        }
+        .form-control-custom::placeholder { color: #556688 !important; }
+        .form-control-custom:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .form-label {
+            font-weight: 600;
+            color: #a0b8d0;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        .form-label .required { color: #ef4444; }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 14px;
+            border-radius: 12px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(46,204,113,0.3);
+            color: #fff;
+        }
+        .btn-primary-custom:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-outline-custom {
+            border: 2px solid rgba(46,204,113,0.3);
+            color: #a0b8d0;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            background: transparent;
+            font-size: 0.9rem;
+        }
+        .btn-outline-custom:hover {
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+        
+        .package-history {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .package-history::-webkit-scrollbar { width: 4px; }
+        .package-history::-webkit-scrollbar-track { background: rgba(46,204,113,0.05); border-radius: 10px; }
+        .package-history::-webkit-scrollbar-thumb { background: rgba(46,204,113,0.3); border-radius: 10px; }
+        
+        .package-item {
+            background: rgba(8,14,26,0.4);
+            border-radius: 12px;
+            padding: 12px 16px;
+            border: 1px solid rgba(46,204,113,0.06);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .package-item .amount { font-weight: 700; color: #2ecc71; }
+        .package-item .status-active { color: #2ecc71; font-size: 0.8rem; }
+        .package-item .status-completed { color: #60a5fa; font-size: 0.8rem; }
+        .package-item .date { color: #556688; font-size: 0.7rem; }
+        .package-item .plan { color: #fbbf24; font-weight: 600; font-size: 0.8rem; }
+        
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-container { padding: 15px; }
+            .sidebar-panel { width: 280px; right: -300px; }
+            .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+            .package-card .price { font-size: 1.5rem; }
+        }
+        
+        @media (max-width: 480px) {
+            .sidebar-panel { width: 100%; right: -100%; }
+            .sidebar-panel.open { right: 0; }
+            .card-glass { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ====== TOAST CONTAINER ====== -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ====== NAVBAR ====== -->
+<nav class="navbar navbar-custom">
+    <div class="container-fluid px-3">
+        <a class="navbar-brand fw-bold" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+            <span class="domain-badge ms-2">staking.randigital.in</span>
+        </a>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
+            <i class="bi bi-list"></i>
+        </button>
+    </div>
+</nav>
+
+<!-- ====== SIDEBAR OVERLAY ====== -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ====== SIDEBAR PANEL ====== -->
+<div class="sidebar-panel" id="sidebarPanel">
+    <div class="sidebar-header">
+        <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
+        <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    
+    <div class="user-profile-sidebar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="avatar" id="sidebarAvatar">U</div>
+            <div>
+                <div class="user-name" id="sidebarName">User</div>
+                <div class="user-id" id="sidebarUserId">ID: ---</div>
+            </div>
+        </div>
+    </div>
+    
+    <a href="dashboard.html" class="nav-item">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+    <a href="deposit.html" class="nav-item">
+        <i class="bi bi-arrow-down-circle"></i> Deposit
+    </a>
+    <a href="withdrawal.html" class="nav-item">
+        <i class="bi bi-arrow-up-circle"></i> Withdraw
+    </a>
+    <a href="referrals.html" class="nav-item">
+        <i class="bi bi-people"></i> Referrals
+        <span class="badge" id="referralBadge">0</span>
+    </a>
+    <a href="buy-package.html" class="nav-item active">
+        <i class="bi bi-box-seam"></i> Buy Package
+    </a>
+    <a href="profile.html" class="nav-item">
+        <i class="bi bi-person"></i> Profile
+    </a>
+    
+    <div class="sidebar-footer">
+        <a href="#" class="nav-item" id="logoutBtnSidebar">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </div>
+</div>
+
+<!-- ====== BUY PACKAGE CONTENT ====== -->
+<div class="dashboard-container" id="packageContent">
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="text-muted mt-3">Loading packages...</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+    }
+}
+</script>
+<script type="module">
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { getDatabase, ref, get, push, set, update, query, orderByChild, equalTo } from "firebase/database";
+
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+    authDomain: "rnd2-70080.firebaseapp.com",
+    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rnd2-70080",
+    storageBucket: "rnd2-70080.firebasestorage.app",
+    messagingSenderId: "468625887938",
+    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+    measurementId: "G-ELVJD5NQKB"
+};
+
+// ============================================================
+// 🔥 PACKAGES CONFIG
+// ============================================================
+const PACKAGES = [
+    { id: 'starter', name: 'Starter', price: 50, reward: 25, duration: 30, color: '#2ecc71' },
+    { id: 'basic', name: 'Basic', price: 100, reward: 35, duration: 45, color: '#fbbf24' },
+    { id: 'standard', name: 'Standard', price: 200, reward: 50, duration: 60, color: '#60a5fa' },
+    { id: 'premium', name: 'Premium', price: 500, reward: 75, duration: 90, color: '#a78bfa' },
+    { id: 'vip', name: 'VIP', price: 1000, reward: 100, duration: 120, color: '#f472b6' }
+];
+
+// ============================================================
+// 🔥 INIT FIREBASE
+// ============================================================
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+console.log('🔥 Firebase initialized successfully!');
+
+// ============================================================
+// 🔥 TOAST SYSTEM
+// ============================================================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-custom ${type}`;
+    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
+    toast.innerHTML = `
+        <i class="bi ${icon}"></i>
+        <span class="toast-msg">${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// ============================================================
+// 🔥 SIDEBAR CONTROLS
+// ============================================================
+const sidebarPanel = document.getElementById('sidebarPanel');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebarClose = document.getElementById('sidebarClose');
+
+function openSidebar() {
+    sidebarPanel.classList.add('open');
+    sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    sidebarPanel.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+sidebarToggle.addEventListener('click', openSidebar);
+sidebarClose.addEventListener('click', closeSidebar);
+sidebarOverlay.addEventListener('click', closeSidebar);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+});
+
+// ============================================================
+// 🔥 LOGOUT
+// ============================================================
+document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await signOut(auth);
+    window.location.href = 'login.html';
+});
+
+// ============================================================
+// 🔥 GET USER DATA
+// ============================================================
+async function getUserData(uid) {
+    const snap = await get(ref(db, 'users/' + uid));
+    return snap.exists() ? snap.val() : null;
+}
+
+// ============================================================
+// 🔥 CHECK AUTH & LOAD PACKAGES
+// ============================================================
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        console.log('❌ No user logged in. Redirecting to login...');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    console.log('✅ User logged in. UID:', user.uid);
+
+    try {
+        const userData = await getUserData(user.uid);
+        if (!userData) {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+
+        // Update sidebar
+        const username = userData.username || userData.referralCode || 'USER';
+        const name = userData.name || 'User';
+        document.getElementById('sidebarName').textContent = name;
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
+        document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
+
+        const badge = document.getElementById('referralBadge');
+        if (badge) badge.textContent = userData.totalReferrals || 0;
+
+        // Get user's package history
+        const packagesRef = ref(db, 'packages');
+        const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(user.uid));
+        const packagesSnap = await get(packagesQuery);
+        let userPackages = [];
+        if (packagesSnap.exists()) {
+            packagesSnap.forEach((childSnap) => {
+                userPackages.push({ id: childSnap.key, ...childSnap.val() });
+            });
+            userPackages.sort((a, b) => b.timestamp - a.timestamp);
+        }
+
+        // Check if user has enough balance
+        const depositWallet = userData.depositWallet || 0;
+        const withdrawalWallet = userData.withdrawalWallet || 0;
+
+        // Load packages
+        document.getElementById('packageContent').innerHTML = `
+            <div class="row g-4">
+                <div class="col-12">
+                    <h4 class="fw-bold"><i class="bi bi-box-seam text-success me-2"></i>Buy Package</h4>
+                    <hr class="border-secondary">
+                </div>
+
+                <!-- Balance Info -->
+                <div class="col-12">
+                    <div class="card-glass">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="text-center p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
+                                    <small class="text-muted">Deposit Wallet (USDT)</small>
+                                    <h3 class="text-success">$${depositWallet.toFixed(2)}</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
+                                    <small class="text-muted">Withdrawal Wallet (RND)</small>
+                                    <h3 class="text-gold" style="color:#fbbf24;">${withdrawalWallet.toFixed(2)} RND</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Packages -->
+                <div class="col-12">
+                    <div class="row g-3">
+                        ${PACKAGES.map((pkg, index) => `
+                            <div class="col-md-4 col-lg-2-4">
+                                <div class="package-card" data-package="${pkg.id}" onclick="selectPackage('${pkg.id}')">
+                                    <h5 style="color:${pkg.color};">${pkg.name}</h5>
+                                    <div class="price">$${pkg.price} <span>USDT</span></div>
+                                    <div class="duration">${pkg.duration} Days</div>
+                                    <div class="reward">+${pkg.reward}% Return</div>
+                                    <div class="features">
+                                        <li><i class="bi bi-check-circle"></i> ${pkg.reward}% ROI</li>
+                                        <li><i class="bi bi-check-circle"></i> ${pkg.duration} Days Lock</li>
+                                        <li><i class="bi bi-check-circle"></i> Daily Release</li>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Selected Package & Buy Form -->
+                <div class="col-12">
+                    <div class="card-glass">
+                        <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>Confirm Purchase</div>
+                        <form id="buyForm">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Selected Package</label>
+                                    <input type="text" id="selectedPackage" class="form-control form-control-custom" value="None" readonly>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Price (USDT)</label>
+                                    <input type="text" id="packagePrice" class="form-control form-control-custom" value="0" readonly>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Pay From</label>
+                                    <select id="payFrom" class="form-select form-control-custom">
+                                        <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
+                                        <option value="withdrawalWallet">💳 Withdrawal Wallet (RND)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn-primary-custom" id="buyBtn">
+                                        <i class="bi bi-check-circle me-1"></i>Buy Now
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Package History -->
+                <div class="col-12">
+                    <div class="card-glass">
+                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History</div>
+                        ${userPackages.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-box-seam fs-1 d-block mb-2"></i>
+                                <p>No packages purchased yet.</p>
+                            </div>
+                        ` : `
+                            <div class="package-history">
+                                ${userPackages.map((p) => {
+                                    const statusClass = p.status === 'active' ? 'status-active' : 'status-completed';
+                                    const statusText = p.status === 'active' ? '🟢 Active' : '🔵 Completed';
+                                    const pkgInfo = PACKAGES.find(pk => pk.id === p.packageId);
+                                    return `
+                                        <div class="package-item">
+                                            <div>
+                                                <span class="plan">${pkgInfo ? pkgInfo.name : p.packageId}</span>
+                                                <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
+                                            </div>
+                                            <div>
+                                                <span class="amount">${p.amount} ${p.currency || 'USDT'}</span>
+                                                <span class="${statusClass} ms-2">${statusText}</span>
+                                                ${p.reward ? `<span class="text-muted ms-2" style="font-size:0.7rem;">+${p.reward}%</span>` : ''}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // ============================================================
+        // 🔥 SELECT PACKAGE
+        // ============================================================
+        window.selectPackage = function(packageId) {
+            const pkg = PACKAGES.find(p => p.id === packageId);
+            if (!pkg) return;
+
+            document.querySelectorAll('.package-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`.package-card[data-package="${packageId}"]`).classList.add('selected');
+
+            document.getElementById('selectedPackage').value = pkg.name;
+            document.getElementById('packagePrice').value = pkg.price;
+
+            // Update buy button
+            const buyBtn = document.getElementById('buyBtn');
+            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${pkg.name} ($${pkg.price})`;
+        };
+
+        // ============================================================
+        // 🔥 BUY PACKAGE
+        // ============================================================
+        document.getElementById('buyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const selectedPkgName = document.getElementById('selectedPackage').value;
+            const price = parseFloat(document.getElementById('packagePrice').value);
+            const payFrom = document.getElementById('payFrom').value;
+            const buyBtn = document.getElementById('buyBtn');
+
+            if (!selectedPkgName || selectedPkgName === 'None') {
+                showToast('❌ Please select a package first!', 'error');
+                return;
+            }
+
+            const pkg = PACKAGES.find(p => p.name === selectedPkgName);
+            if (!pkg) {
+                showToast('❌ Invalid package selected!', 'error');
+                return;
+            }
+
+            // Check balance
+            const userData = await getUserData(auth.currentUser.uid);
+            if (!userData) {
+                showToast('❌ User data not found!', 'error');
+                return;
+            }
+
+            const balance = userData[payFrom] || 0;
+            const currency = payFrom === 'depositWallet' ? 'USDT' : 'RND';
+
+            if (balance < price) {
+                showToast(`❌ Insufficient balance in ${payFrom === 'depositWallet' ? 'Deposit Wallet' : 'Withdrawal Wallet'}! You have ${balance} ${currency}`, 'error');
+                return;
+            }
+
+            buyBtn.disabled = true;
+            buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            try {
+                // Update user balance
+                await update(ref(db, 'users/' + auth.currentUser.uid), {
+                    [payFrom]: balance - price
+                });
+
+                // Add to packages
+                await push(ref(db, 'packages'), {
+                    uid: auth.currentUser.uid,
+                    packageId: pkg.id,
+                    packageName: pkg.name,
+                    amount: price,
+                    currency: currency,
+                    reward: pkg.reward,
+                    duration: pkg.duration,
+                    status: 'active',
+                    timestamp: Date.now()
+                });
+
+                showToast(`✅ ${pkg.name} package purchased successfully! +${pkg.reward}% ROI`, 'success');
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+
+            } catch (error) {
+                console.error('❌ Purchase error:', error);
+                showToast('❌ Error purchasing package. Please try again.', 'error');
+            }
+
+            buyBtn.disabled = false;
+            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${selectedPkgName}`;
+        });
+
+    } catch (error) {
+        console.error('❌ Error loading packages:', error);
+        document.getElementById('packageContent').innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                <h4>Error Loading Page</h4>
+                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
+                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+            </div>
+        `;
+    }
+});
+</script>
+</body>
+</html>
