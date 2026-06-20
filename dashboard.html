@@ -202,11 +202,6 @@
             color: #fff;
         }
         .welcome-section h2 span { color: #2ecc71; }
-        .welcome-section p {
-            color: #8899bb;
-            font-size: 0.9rem;
-            margin-top: 4px;
-        }
         .welcome-section .user-id-badge {
             background: rgba(46,204,113,0.15);
             border: 1px solid rgba(46,204,113,0.2);
@@ -229,9 +224,7 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .user-id-badge .copy-btn-small:hover {
-            background: rgba(46,204,113,0.25);
-        }
+        .user-id-badge .copy-btn-small:hover { background: rgba(46,204,113,0.25); }
         
         .rank-badge {
             background: rgba(251,191,36,0.12);
@@ -801,6 +794,7 @@ onAuthStateChanged(auth, async (user) => {
                 role: 'user',
                 rank: 'Member',
                 depositWallet: 0,
+                withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0
             });
@@ -872,6 +866,7 @@ function loadDashboard(u) {
     const subscriptions = u.subscriptions || 0;
     
     const depositWallet = u.depositWallet || 0;
+    const withdrawalWallet = u.withdrawalWallet || 0;
     const rndWallet = u.rndWallet || 0;
     const releaseWallet = u.releaseWallet || 0;
     const totalStake = u.totalStake || 0;
@@ -934,9 +929,9 @@ function loadDashboard(u) {
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
                             <div class="wallet-icon withdraw"><i class="bi bi-coin"></i></div>
-                            <div class="wallet-number gold">${rndWallet.toFixed(2)}</div>
-                            <div class="wallet-label">RND Wallet</div>
-                            <div class="wallet-sub">≈ $${rndValueUSD}</div>
+                            <div class="wallet-number gold">${withdrawalWallet.toFixed(2)}</div>
+                            <div class="wallet-label">Withdrawal Wallet</div>
+                            <div class="wallet-sub">RND Balance</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
@@ -1015,10 +1010,10 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Transfer Money Section -->
+            <!-- Transfer Money Section - ONLY Deposit Wallet & Withdrawal Wallet -->
             <div class="col-12">
                 <div class="card-glass">
-                    <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money (RND Transfer)</div>
+                    <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money (USDT / RND Transfer)</div>
                     <form id="transferForm">
                         <div class="row g-3">
                             <div class="col-md-4">
@@ -1027,12 +1022,12 @@ function loadDashboard(u) {
                             </div>
                             <div class="col-md-3">
                                 <input type="number" id="transferAmount" class="form-control form-control-custom" 
-                                       placeholder="Amount (RND)" min="0.01" step="0.01" required>
+                                       placeholder="Amount" min="0.01" step="0.01" required>
                             </div>
                             <div class="col-md-3">
                                 <select id="transferWallet" class="form-select form-control-custom">
-                                    <option value="rndWallet">RND Wallet</option>
-                                    <option value="releaseWallet">Release Wallet</option>
+                                    <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
+                                    <option value="withdrawalWallet">💳 Withdrawal Wallet (RND)</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -1058,7 +1053,7 @@ function loadDashboard(u) {
                                         }
                                     </div>
                                     <div>
-                                        <span class="amount ${t.type === 'sent' ? 'sent' : 'received'}">${t.type === 'sent' ? '-' : '+'}${t.amount} RND</span>
+                                        <span class="amount ${t.type === 'sent' ? 'sent' : 'received'}">${t.type === 'sent' ? '-' : '+'}${t.amount} ${t.currency || 'RND'}</span>
                                         <div class="date">${new Date(t.timestamp).toLocaleString('hi-IN')}</div>
                                     </div>
                                 </div>
@@ -1135,7 +1130,7 @@ window.copyUserId = function(username) {
 };
 
 // ============================================================
-// 🔥 HANDLE TRANSFER
+// 🔥 HANDLE TRANSFER (Only Deposit Wallet & Withdrawal Wallet)
 // ============================================================
 async function handleTransfer() {
     const toUsername = document.getElementById('transferUserId').value.trim().toUpperCase();
@@ -1184,9 +1179,13 @@ async function handleTransfer() {
     // Check balance
     const senderBalance = senderData[walletType] || 0;
     if (senderBalance < amount) {
-        showToast('❌ Insufficient balance! You have ' + senderBalance.toFixed(2) + ' RND', 'error');
+        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Withdrawal Wallet';
+        showToast('❌ Insufficient balance in ' + walletLabel + '! You have ' + senderBalance.toFixed(2), 'error');
         return;
     }
+    
+    // Get currency symbol
+    const currency = walletType === 'depositWallet' ? 'USDT' : 'RND';
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
@@ -1210,6 +1209,7 @@ async function handleTransfer() {
             to: toUsername,
             amount: amount,
             from: senderUsername,
+            currency: currency,
             timestamp: Date.now()
         });
         await update(ref(db, 'users/' + user.uid), {
@@ -1223,13 +1223,14 @@ async function handleTransfer() {
             from: senderUsername,
             to: toUsername,
             amount: amount,
+            currency: currency,
             timestamp: Date.now()
         });
         await update(ref(db, 'users/' + recipient.uid), {
             transferHistory: recipientHistory
         });
         
-        showToast('✅ ' + amount + ' RND sent to ' + toUsername + ' successfully!', 'success');
+        showToast('✅ ' + amount + ' ' + currency + ' sent to ' + toUsername + ' successfully!', 'success');
         
         // Reset form
         document.getElementById('transferUserId').value = '';
@@ -1242,7 +1243,7 @@ async function handleTransfer() {
         
     } catch (error) {
         console.error('❌ Transfer error:', error);
-        showToast('❌ Error sending RND. Please try again.', 'error');
+        showToast('❌ Error sending. Please try again.', 'error');
     }
     
     btn.disabled = false;
