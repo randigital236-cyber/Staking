@@ -315,6 +315,7 @@
         .deposit-item .status-approved { color: #2ecc71; font-size: 0.8rem; }
         .deposit-item .status-rejected { color: #ef4444; font-size: 0.8rem; }
         .deposit-item .date { color: #556688; font-size: 0.7rem; }
+        .deposit-item .tx-hash { font-family: monospace; font-size: 0.6rem; color: #556688; }
         
         .btn-outline-custom {
             border: 2px solid rgba(46,204,113,0.3);
@@ -431,6 +432,9 @@
     </a>
     <a href="buy-package.html" class="nav-item">
         <i class="bi bi-box-seam"></i> Buy Package
+    </a>
+    <a href="transactions.html" class="nav-item">
+        <i class="bi bi-receipt"></i> Transactions
     </a>
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
@@ -585,16 +589,18 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
 
-        // Get user's deposit history
+        // Get user's deposit history - Fixed: Using simple get without query
         const depositsRef = ref(db, 'deposits');
-        const depositsQuery = query(depositsRef, orderByChild('uid'), equalTo(user.uid));
-        const depositsSnap = await get(depositsQuery);
+        const depositsSnap = await get(depositsRef);
         let userDeposits = [];
         if (depositsSnap.exists()) {
-            depositsSnap.forEach((childSnap) => {
-                userDeposits.push({ id: childSnap.key, ...childSnap.val() });
-            });
-            userDeposits.sort((a, b) => b.timestamp - a.timestamp);
+            const allDeposits = depositsSnap.val();
+            for (let key in allDeposits) {
+                if (allDeposits[key].uid === user.uid) {
+                    userDeposits.push({ id: key, ...allDeposits[key] });
+                }
+            }
+            userDeposits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         }
 
         // Load content
@@ -675,10 +681,10 @@ onAuthStateChanged(auth, async (user) => {
                                             <div>
                                                 <span class="amount">${d.amount} USDT</span>
                                                 <div class="date">${new Date(d.timestamp).toLocaleString('hi-IN')}</div>
+                                                ${d.txHash ? `<div class="tx-hash">${d.txHash.substring(0, 20)}...</div>` : ''}
                                             </div>
                                             <div>
                                                 ${statusHtml}
-                                                ${d.txHash ? `<span class="text-muted ms-2" style="font-size:0.6rem;font-family:monospace;">${d.txHash.substring(0,10)}...</span>` : ''}
                                             </div>
                                         </div>
                                     `;
