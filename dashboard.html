@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Same as before - keeping it clean */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -635,7 +636,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE ALL USER DATA (Like Trade World)
+// 🔥 UPDATE ALL USER DATA
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -659,7 +660,7 @@ async function updateUserData(userId) {
             }
         }
         
-        // Calculate referral counts from all users (Like Trade World)
+        // Calculate referral counts
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
@@ -670,7 +671,6 @@ async function updateUserData(userId) {
             const allUsers = allUsersSnap.val();
             const referralCode = userData.referralCode || userData.username;
             
-            // Direct referrals (Level 1)
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
@@ -678,7 +678,6 @@ async function updateUserData(userId) {
                     teamLevels.level1++;
                     level1Earn += ((u.totalStake || 0) * 0.08);
                     
-                    // Level 2
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
@@ -686,21 +685,18 @@ async function updateUserData(userId) {
                             teamLevels.level2++;
                             level2Earn += ((u2.totalStake || 0) * 0.04);
                             
-                            // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
                                     teamLevels.level3++;
                                     level3Earn += ((u3.totalStake || 0) * 0.02);
                                     
-                                    // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
                                             teamLevels.level4++;
                                             level4Earn += ((u4.totalStake || 0) * 0.01);
                                             
-                                            // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
@@ -754,7 +750,7 @@ onAuthStateChanged(auth, async (user) => {
         
         const snapshot = await get(ref(db, 'users/' + user.uid));
         if (!snapshot.exists()) {
-            const refCodeGen = 'RND' + user.uid.slice(-5).toUpperCase();
+            const refCodeGen = user.uid.slice(-6).toUpperCase();
             const name = user.displayName || 'User';
             
             await set(ref(db, 'users/' + user.uid), {
@@ -923,7 +919,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Network Section - Like Trade World -->
+            <!-- Network Section -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Network</h5>
                 <div class="network-stats">
@@ -940,7 +936,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Level Wise Earnings - Like Trade World -->
+            <!-- Level Wise Earnings -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>5 Level Referral Earnings</div>
