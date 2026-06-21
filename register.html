@@ -123,8 +123,8 @@
             </div>
             <div class="mb-3">
                 <label class="form-label">Referral Code <span style="font-size:0.65rem;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 10px;border-radius:20px;font-weight:500;margin-left:6px;">Optional</span></label>
-                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Auto-filled from referral link" readonly style="background:#0a1425 !important;cursor:default;">
-                <small class="text-muted" style="font-size:0.7rem;"><i class="bi bi-link-45deg"></i> If you came from a referral link, code will auto-fill</small>
+                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code or auto-fills" style="background:#0a1425 !important;">
+                <small class="text-muted" style="font-size:0.7rem;"><i class="bi bi-link-45deg"></i> If you have a referral code, enter it here</small>
             </div>
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
@@ -154,7 +154,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile } from "firebase/auth";
-import { getDatabase, ref, set, get } from "firebase/database";
+import { getDatabase, ref, set, get, update } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -166,9 +166,6 @@ const firebaseConfig = {
     appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
     measurementId: "G-ELVJD5NQKB"
 };
-
-const DOMAIN = "https://staking.randigital.in";
-const REGISTER_URL = `${DOMAIN}/register.html`;
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -193,6 +190,7 @@ function generateUsername(uid) {
     return 'RND' + uid.slice(-5).toUpperCase();
 }
 
+// Auto-fill referral from URL
 const urlParams = new URLSearchParams(window.location.search);
 const refCode = urlParams.get('ref');
 if (refCode) {
@@ -205,6 +203,9 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// ============================================================
+// 🔥 EMAIL REGISTRATION
+// ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -222,14 +223,20 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
+        // Step 1: Create user in Firebase Auth
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         
+        // Step 2: Update Auth Profile with name
         await updateProfile(auth.currentUser, { displayName: name });
+        console.log('✅ Auth profile updated with name:', name);
         
+        // Step 3: Generate username
         const username = generateUsername(uid);
         const refCodeGen = username.toUpperCase();
+        console.log('✅ Generated Username:', username);
         
+        // Step 4: Save user data with FULL NAME
         const userData = {
             username: username.toUpperCase(),
             name: name,
@@ -253,20 +260,28 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             withdrawalWallet: 0,
             rndWallet: 0,
             releaseWallet: 0,
+            referralEarnings: 0,
             transferHistory: []
         };
         
+        console.log('💾 Saving user data:', userData);
         await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
+        console.log('✅ User data saved to database!');
 
+        // Step 5: Update referrer's totalReferrals count
         if (ref) {
+            console.log('🔗 Updating referrer:', ref);
             const snapshot = await get(ref(db, 'users'));
             if (snapshot.exists()) {
                 const users = snapshot.val();
                 for (let key in users) {
                     if (users[key].referralCode === ref) {
                         const refCount = (users[key].totalReferrals || 0) + 1;
-                        await set(ref(db, 'users/' + key + '/totalReferrals'), refCount);
+                        await update(ref(db, 'users/' + key), {
+                            totalReferrals: refCount
+                        });
+                        console.log('✅ Referrer updated! New count:', refCount);
                         break;
                     }
                 }
@@ -289,6 +304,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
 });
 
+// ============================================================
+// 🔥 GOOGLE REGISTRATION
+// ============================================================
 document.getElementById('googleRegisterBtn').addEventListener('click', async () => {
     const btn = document.getElementById('googleRegisterBtn');
     btn.disabled = true;
@@ -300,11 +318,15 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const uid = user.uid;
         const email = user.email;
         const displayName = user.displayName || email.split('@')[0];
+        console.log('✅ Google sign-in successful. UID:', uid);
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
             const username = generateUsername(uid);
             const refCodeGen = username.toUpperCase();
+            
+            // Check if referral code from URL
+            const ref = document.getElementById('regRef').value.trim().toUpperCase();
             
             const userData = {
                 username: username.toUpperCase(),
@@ -312,7 +334,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 email: email,
                 uid: uid,
                 referralCode: refCodeGen,
-                referredBy: '',
+                referredBy: ref || '',
                 createdAt: Date.now(),
                 totalStake: 0,
                 totalReward: 0,
@@ -329,11 +351,31 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
+                referralEarnings: 0,
                 transferHistory: []
             };
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
+            
+            // Update referrer
+            if (ref) {
+                const snapshot = await get(ref(db, 'users'));
+                if (snapshot.exists()) {
+                    const users = snapshot.val();
+                    for (let key in users) {
+                        if (users[key].referralCode === ref) {
+                            const refCount = (users[key].totalReferrals || 0) + 1;
+                            await update(ref(db, 'users/' + key), {
+                                totalReferrals: refCount
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            console.log('✅ Google user data saved! Username:', username, 'Name:', displayName);
         }
         
         showToast('✅ Account created with Google! Welcome ' + displayName + '! 🎉', 'success');
