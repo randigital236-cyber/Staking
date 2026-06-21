@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Same as before */
+        /* Same as before - keeping it clean */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -531,7 +531,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, set, update, query, orderByChild, equalTo } from "firebase/database";
+import { getDatabase, ref, get, set, update } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -636,83 +636,65 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE ALL USER DATA
+// 🔥 UPDATE ALL USER DATA (Packages from User Node)
 // ============================================================
 async function updateUserData(userId) {
     try {
-        // Get user data
         const userSnap = await get(ref(db, 'users/' + userId));
         if (!userSnap.exists()) return null;
         const userData = userSnap.val();
-        
-        // Update daily releases from packages
-        const packagesRef = ref(db, 'packages');
-        const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(userId));
-        const packagesSnap = await get(packagesQuery);
+        const packages = userData.packages || {};
         
         let totalDailyRelease = 0;
         let totalStake = 0;
         let totalReward = 0;
         let totalRNDStaked = 0;
         
-        if (packagesSnap.exists()) {
-            packagesSnap.forEach((childSnap) => {
-                const pkg = childSnap.val();
-                if (pkg.status === 'active') {
-                    totalDailyRelease += (pkg.dailyRelease || 0);
-                    totalStake += (pkg.usdtAmount || 0);
-                    totalReward += (pkg.reward || 0);
-                    totalRNDStaked += (pkg.rndAmount || 0);
-                }
-            });
+        for (let key in packages) {
+            const pkg = packages[key];
+            if (pkg.status === 'active') {
+                totalDailyRelease += (pkg.dailyRelease || 0);
+                totalStake += (pkg.usdtAmount || 0);
+                totalReward += (pkg.reward || 0);
+                totalRNDStaked += (pkg.rndAmount || 0);
+            }
         }
         
-        // Calculate referral counts
+        // Calculate referral counts from all users
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
-        let level1 = 0, level2 = 0, level3 = 0, level4 = 0, level5 = 0;
         let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
         
         if (allUsersSnap.exists()) {
             const allUsers = allUsersSnap.val();
             const referralCode = userData.referralCode || userData.username;
             
-            // Get all referrals level by level
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
                     directCount++;
-                    level1++;
                     level1Earn += ((u.totalStake || 0) * 0.08);
                     
-                    // Level 2
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
                             downlineCount++;
-                            level2++;
                             level2Earn += ((u2.totalStake || 0) * 0.04);
                             
-                            // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
-                                    level3++;
                                     level3Earn += ((u3.totalStake || 0) * 0.02);
                                     
-                                    // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
-                                            level4++;
                                             level4Earn += ((u4.totalStake || 0) * 0.01);
                                             
-                                            // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
-                                                    level5++;
                                                     level5Earn += ((u5.totalStake || 0) * 0.01);
                                                 }
                                             }
@@ -728,7 +710,6 @@ async function updateUserData(userId) {
         
         const totalReferralEarnings = level1Earn + level2Earn + level3Earn + level4Earn + level5Earn;
         
-        // Update user
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
@@ -744,26 +725,13 @@ async function updateUserData(userId) {
             referralEarnings: totalReferralEarnings
         });
         
-        return {
-            totalDailyRelease,
-            totalStake,
-            totalReward,
-            totalRNDStaked,
-            directCount,
-            downlineCount,
-            level1, level2, level3, level4, level5,
-            level1Earn, level2Earn, level3Earn, level4Earn, level5Earn,
-            totalReferralEarnings
-        };
+        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, directCount, downlineCount, totalReferralEarnings };
     } catch (error) {
         console.error('Error updating user data:', error);
         return null;
     }
 }
 
-// ============================================================
-// 🔥 MAIN AUTH CHECK
-// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
@@ -807,6 +775,7 @@ onAuthStateChanged(auth, async (user) => {
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
+                packages: {},
                 transferHistory: []
             });
             await set(ref(db, 'usernames/' + refCodeGen), user.uid);
@@ -840,9 +809,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// ============================================================
-// 🔥 LOAD DASHBOARD
-// ============================================================
 function loadDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
     const name = u.name || 'User';
@@ -858,7 +824,6 @@ function loadDashboard(u) {
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
     
-    // Level wise earnings
     const level1Earn = u.level1Earnings || 0;
     const level2Earn = u.level2Earnings || 0;
     const level3Earn = u.level3Earnings || 0;
