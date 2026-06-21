@@ -454,7 +454,7 @@ async function getRNDPrice() {
 }
 
 // ============================================================
-// 🔥 UPDATE USER DATA (Including Packages)
+// 🔥 UPDATE USER DATA
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -709,7 +709,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         // ============================================================
-        // 🔥 BUY PLAN - PACKAGE USER NODE MEIN SAVE HOGA
+        // 🔥 BUY PLAN
         // ============================================================
         const buyForm = document.getElementById('buyForm');
         if (buyForm) {
@@ -790,6 +790,7 @@ onAuthStateChanged(auth, async (user) => {
                         packages: packages
                     });
 
+                    // Update user data (release wallet etc)
                     await updateUserData(auth.currentUser.uid);
 
                     showToast(`✅ ${plan.name} purchased! ${(result.rndReceived || 0).toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${(result.dailyRelease || 0).toFixed(4)} RND`, 'success');
