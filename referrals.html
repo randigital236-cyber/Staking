@@ -255,12 +255,35 @@
             color: #2ecc71;
         }
         
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stats-grid .stat-item {
+            background: rgba(19,34,55,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 16px;
+            padding: 18px;
+            text-align: center;
+        }
+        .stats-grid .stat-item .number { font-size: 1.8rem; font-weight: 800; color: #2ecc71; }
+        .stats-grid .stat-item .label { color: #8899bb; font-size: 0.75rem; font-weight: 500; }
+        .stats-grid .stat-item .earnings { color: #fbbf24; font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stats-grid .stat-item .number { font-size: 1.3rem; }
         }
-        @media (max-width: 480px) { .sidebar-panel { width: 100%; right: -100%; } .sidebar-panel.open { right: 0; } }
+        @media (max-width: 480px) { 
+            .sidebar-panel { width: 100%; right: -100%; } 
+            .sidebar-panel.open { right: 0; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        }
     </style>
 </head>
 <body>
@@ -394,7 +417,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS (Like Trade World)
+// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS
 // ============================================================
 async function calculateReferralEarnings(userData) {
     try {
@@ -408,10 +431,14 @@ async function calculateReferralEarnings(userData) {
             const allUsers = allUsersSnapshot.val();
             const referralCode = userData.referralCode || userData.username;
             
+            console.log('🔍 User Data:', userData);
+            console.log('🔍 Referral Code to match:', referralCode);
+            
             // Level 1 - Direct Referrals
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
+                    console.log('✅ Found Direct Referral:', u.name, 'ReferredBy:', u.referredBy);
                     directReferrals.push(u);
                     teamLevels.level1++;
                     const stake = u.totalStake || 0;
@@ -470,6 +497,13 @@ async function calculateReferralEarnings(userData) {
         const uniqueLevel4 = level4Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         const uniqueLevel5 = level5Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         
+        console.log('📊 Referral Data Summary:');
+        console.log('   Level 1:', directReferrals.length, 'Earnings:', level1Earn);
+        console.log('   Level 2:', uniqueLevel2.length, 'Earnings:', level2Earn);
+        console.log('   Level 3:', uniqueLevel3.length, 'Earnings:', level3Earn);
+        console.log('   Level 4:', uniqueLevel4.length, 'Earnings:', level4Earn);
+        console.log('   Level 5:', uniqueLevel5.length, 'Earnings:', level5Earn);
+        
         return {
             directReferrals,
             level1Users: directReferrals,
@@ -492,7 +526,12 @@ async function calculateReferralEarnings(userData) {
         };
     } catch (error) {
         console.error('Error calculating referral earnings:', error);
-        return { directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0, level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0, totalEarnings: 0, teamLevels: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 } };
+        return { 
+            directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], 
+            level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0,
+            level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0,
+            totalEarnings: 0, teamLevels: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 }
+        };
     }
 }
 
@@ -522,6 +561,10 @@ onAuthStateChanged(auth, async (user) => {
         if (badge) badge.textContent = referralData.level1Count;
 
         const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
+        
+        // Calculate total downline
+        const totalDownline = referralData.level2Count + referralData.level3Count + referralData.level4Count + referralData.level5Count;
+        const totalDownlineEarnings = referralData.level2Earn + referralData.level3Earn + referralData.level4Earn + referralData.level5Earn;
 
         document.getElementById('referralContent').innerHTML = `
             <div class="row g-4">
@@ -530,6 +573,23 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
                 
+                <!-- Stats Cards -->
+                <div class="col-12">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="number">${referralData.level1Count}</div>
+                            <div class="label">Direct Referrals</div>
+                            <div class="earnings">💰 $${(referralData.level1Earn || 0).toFixed(2)} Earned</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="number">${totalDownline}</div>
+                            <div class="label">Total Downline</div>
+                            <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Referral Link -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -537,9 +597,13 @@ onAuthStateChanged(auth, async (user) => {
                             <code>${referralLink}</code>
                             <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                         </div>
+                        <div class="mt-2">
+                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;">${userData.referralCode}</strong></small>
+                        </div>
                     </div>
                 </div>
                 
+                <!-- Commission Structure -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3"></i>Commission Structure</div>
@@ -604,7 +668,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
                 
-                <!-- Level 1 Referrals -->
+                <!-- Level 1 - Direct Referrals -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-list-ul"></i>Level 1 - Direct Referrals (${referralData.level1Count}) <span class="level-badge">8%</span></div>
@@ -623,6 +687,7 @@ onAuthStateChanged(auth, async (user) => {
                                             <th>Email</th>
                                             <th>Stake</th>
                                             <th>Your Earnings (8%)</th>
+                                            <th>Joined</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -633,6 +698,7 @@ onAuthStateChanged(auth, async (user) => {
                                                 <td>${r.email || 'N/A'}</td>
                                                 <td>$${(r.totalStake || 0).toFixed(2)}</td>
                                                 <td style="color:#fbbf24;">$${((r.totalStake || 0) * 0.08).toFixed(2)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -656,6 +722,7 @@ onAuthStateChanged(auth, async (user) => {
                                         <th>Email</th>
                                         <th>Stake</th>
                                         <th>Your Earnings (4%)</th>
+                                        <th>Joined</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -666,6 +733,7 @@ onAuthStateChanged(auth, async (user) => {
                                             <td>${r.email || 'N/A'}</td>
                                             <td>$${(r.totalStake || 0).toFixed(2)}</td>
                                             <td style="color:#60a5fa;">$${((r.totalStake || 0) * 0.04).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -689,6 +757,7 @@ onAuthStateChanged(auth, async (user) => {
                                         <th>Email</th>
                                         <th>Stake</th>
                                         <th>Your Earnings (2%)</th>
+                                        <th>Joined</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -699,6 +768,7 @@ onAuthStateChanged(auth, async (user) => {
                                             <td>${r.email || 'N/A'}</td>
                                             <td>$${(r.totalStake || 0).toFixed(2)}</td>
                                             <td style="color:#a78bfa;">$${((r.totalStake || 0) * 0.02).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -722,6 +792,7 @@ onAuthStateChanged(auth, async (user) => {
                                         <th>Email</th>
                                         <th>Stake</th>
                                         <th>Your Earnings (1%)</th>
+                                        <th>Joined</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -732,6 +803,7 @@ onAuthStateChanged(auth, async (user) => {
                                             <td>${r.email || 'N/A'}</td>
                                             <td>$${(r.totalStake || 0).toFixed(2)}</td>
                                             <td style="color:#f472b6;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -755,6 +827,7 @@ onAuthStateChanged(auth, async (user) => {
                                         <th>Email</th>
                                         <th>Stake</th>
                                         <th>Your Earnings (1%)</th>
+                                        <th>Joined</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -765,6 +838,7 @@ onAuthStateChanged(auth, async (user) => {
                                             <td>${r.email || 'N/A'}</td>
                                             <td>$${(r.totalStake || 0).toFixed(2)}</td>
                                             <td style="color:#fb923c;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
