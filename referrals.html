@@ -384,27 +384,6 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 GET SUB-REFERRALS
-// ============================================================
-async function getSubReferrals(referralCode) {
-  try {
-    const allUsersSnapshot = await get(ref(db, 'users'));
-    let referrals = [];
-    if (allUsersSnapshot.exists()) {
-      const allUsers = allUsersSnapshot.val();
-      for (let key in allUsers) {
-        if (allUsers[key].referredBy === referralCode) {
-          referrals.push(allUsers[key]);
-        }
-      }
-    }
-    return referrals;
-  } catch (error) {
-    return [];
-  }
-}
-
-// ============================================================
 // 🔥 CALCULATE REFERRAL EARNINGS
 // ============================================================
 async function calculateReferralEarnings(userData) {
@@ -430,22 +409,27 @@ async function calculateReferralEarnings(userData) {
           directEarnings += (stake * 0.08);
           
           // Get downline
-          const subRefs = await getSubReferrals(u.referralCode || u.username);
-          subRefs.forEach(sr => {
-            const srStake = sr.totalStake || 0;
-            totalDownlineStake += srStake;
-            downlineEarnings += (srStake * 0.04);
-          });
-          downlineReferrals = downlineReferrals.concat(subRefs);
+          for (let subKey in allUsers) {
+            const sub = allUsers[subKey];
+            if (sub.referredBy === u.referralCode) {
+              downlineReferrals.push(sub);
+              const subStake = sub.totalStake || 0;
+              totalDownlineStake += subStake;
+              downlineEarnings += (subStake * 0.04);
+            }
+          }
         }
       }
     }
     
+    // Remove duplicates from downline
+    const uniqueDownline = downlineReferrals.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+    
     return {
       directReferrals,
-      downlineReferrals,
+      downlineReferrals: uniqueDownline,
       directCount: directReferrals.length,
-      downlineCount: downlineReferrals.length,
+      downlineCount: uniqueDownline.length,
       directEarnings: directEarnings,
       downlineEarnings: downlineEarnings,
       totalEarnings: directEarnings + downlineEarnings,
@@ -478,7 +462,6 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
     document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
     
-    // Calculate referral earnings
     const referralData = await calculateReferralEarnings(userData);
     
     const badge = document.getElementById('referralBadge');
@@ -568,10 +551,10 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
         
-        <!-- Referral List -->
+        <!-- Direct Referrals List -->
         <div class="col-12">
           <div class="card-glass">
-            <div class="card-title"><i class="bi bi-list-ul"></i>Your Referrals (${referralData.directCount})</div>
+            <div class="card-title"><i class="bi bi-list-ul"></i>Your Direct Referrals (${referralData.directCount})</div>
             ${referralData.directCount === 0 ? `
               <div class="text-center text-muted py-4">
                 <i class="bi bi-people fs-1 d-block mb-2"></i>
