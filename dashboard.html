@@ -536,9 +536,6 @@ const firebaseConfig = {
 const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
-// ============================================================
-// 🔥 PLANS CONFIG
-// ============================================================
 const PLANS = [
     { id: '6months', name: '6 Months Plan', duration: 180, reward: 25 },
     { id: '12months', name: '12 Months Plan', duration: 365, reward: 60 },
@@ -565,7 +562,6 @@ function showToast(message, type = 'success') {
     }, 5000);
 }
 
-// SIDEBAR CONTROLS
 const sidebarPanel = document.getElementById('sidebarPanel');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -635,10 +631,11 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE DAILY RELEASE & REFERRAL EARNINGS
+// 🔥 UPDATE ALL USER DATA
 // ============================================================
-async function updateDailyReleases(userId) {
+async function updateUserData(userId) {
     try {
+        // Update daily releases from packages
         const packagesRef = ref(db, 'packages');
         const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(userId));
         const packagesSnap = await get(packagesQuery);
@@ -660,91 +657,72 @@ async function updateDailyReleases(userId) {
             });
         }
         
-        await update(ref(db, 'users/' + userId), {
-            releaseWallet: totalDailyRelease,
-            totalStake: totalStake,
-            totalReward: totalReward,
-            rndWallet: totalRNDStaked
-        });
+        // Get user data for referral calculations
+        const userSnap = await get(ref(db, 'users/' + userId));
+        const userData = userSnap.val();
         
-        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked };
-    } catch (error) {
-        console.error('Error updating daily releases:', error);
-        return { totalDailyRelease: 0, totalStake: 0, totalReward: 0, totalRNDStaked: 0 };
-    }
-}
-
-// ============================================================
-// 🔥 CALCULATE REFERRAL EARNINGS
-// ============================================================
-async function calculateReferralEarnings(userId, userData) {
-    try {
-        const allUsersSnapshot = await get(ref(db, 'users'));
-        let directReferrals = [];
-        let downlineReferrals = [];
+        // Calculate referral earnings
+        const allUsersSnap = await get(ref(db, 'users'));
+        let directCount = 0;
+        let downlineCount = 0;
         let directEarnings = 0;
         let downlineEarnings = 0;
         
-        if (allUsersSnapshot.exists()) {
-            const allUsers = allUsersSnapshot.val();
+        if (allUsersSnap.exists()) {
+            const allUsers = allUsersSnap.val();
             const referralCode = userData.referralCode || userData.username;
             
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
-                    directReferrals.push(u);
-                    // Direct referral earning: 8% of their total stake
+                    directCount++;
                     directEarnings += ((u.totalStake || 0) * 0.08);
                     
-                    // Check downline (referrals of referrals)
-                    const subReferrals = await getSubReferrals(u.referralCode || u.username);
-                    downlineReferrals = downlineReferrals.concat(subReferrals);
-                    // Downline earning: 4% of their total stake
-                    subReferrals.forEach(sr => {
-                        downlineEarnings += ((sr.totalStake || 0) * 0.04);
-                    });
+                    // Get downline
+                    for (let subKey in allUsers) {
+                        const sub = allUsers[subKey];
+                        if (sub.referredBy === u.referralCode) {
+                            downlineCount++;
+                            downlineEarnings += ((sub.totalStake || 0) * 0.04);
+                        }
+                    }
                 }
             }
         }
         
-        // Update user's referral earnings
+        const totalReferralEarnings = directEarnings + downlineEarnings;
+        
+        // Update user
         await update(ref(db, 'users/' + userId), {
-            totalReferrals: directReferrals.length,
-            downline: downlineReferrals.length,
-            referralEarnings: directEarnings + downlineEarnings
+            releaseWallet: totalDailyRelease,
+            totalStake: totalStake,
+            totalReward: totalReward,
+            rndWallet: totalRNDStaked,
+            totalReferrals: directCount,
+            downline: downlineCount,
+            referralEarnings: totalReferralEarnings
         });
         
         return {
-            directCount: directReferrals.length,
-            downlineCount: downlineReferrals.length,
-            directEarnings: directEarnings,
-            downlineEarnings: downlineEarnings,
-            totalEarnings: directEarnings + downlineEarnings
+            totalDailyRelease,
+            totalStake,
+            totalReward,
+            totalRNDStaked,
+            directCount,
+            downlineCount,
+            directEarnings,
+            downlineEarnings,
+            totalReferralEarnings
         };
     } catch (error) {
-        console.error('Error calculating referral earnings:', error);
-        return { directCount: 0, downlineCount: 0, directEarnings: 0, downlineEarnings: 0, totalEarnings: 0 };
+        console.error('Error updating user data:', error);
+        return null;
     }
 }
 
-async function getSubReferrals(referralCode) {
-    try {
-        const allUsersSnapshot = await get(ref(db, 'users'));
-        let referrals = [];
-        if (allUsersSnapshot.exists()) {
-            const allUsers = allUsersSnapshot.val();
-            for (let key in allUsers) {
-                if (allUsers[key].referredBy === referralCode) {
-                    referrals.push(allUsers[key]);
-                }
-            }
-        }
-        return referrals;
-    } catch (error) {
-        return [];
-    }
-}
-
+// ============================================================
+// 🔥 MAIN AUTH CHECK
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
@@ -757,9 +735,11 @@ onAuthStateChanged(auth, async (user) => {
         const snapshot = await get(ref(db, 'users/' + user.uid));
         if (!snapshot.exists()) {
             const refCodeGen = 'RND' + user.uid.slice(-5).toUpperCase();
+            const name = user.displayName || 'User';
+            
             await set(ref(db, 'users/' + user.uid), {
                 username: refCodeGen,
-                name: user.displayName || 'User',
+                name: name,
                 email: user.email,
                 uid: user.uid,
                 referralCode: refCodeGen,
@@ -770,8 +750,9 @@ onAuthStateChanged(auth, async (user) => {
                 availableReward: 0,
                 totalWithdrawn: 0,
                 totalReferrals: 0,
+                teamBusiness: 0,
                 downline: 0,
-                referralEarnings: 0,
+                subscriptions: 0,
                 banned: false,
                 role: 'user',
                 rank: 'Member',
@@ -779,6 +760,7 @@ onAuthStateChanged(auth, async (user) => {
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
+                referralEarnings: 0,
                 transferHistory: []
             });
             await set(ref(db, 'usernames/' + refCodeGen), user.uid);
@@ -792,9 +774,10 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        await updateDailyReleases(user.uid);
-        await calculateReferralEarnings(user.uid, u);
+        // Update all user data
+        await updateUserData(user.uid);
         
+        // Get fresh data
         const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
         if (updatedSnapshot.exists()) {
             loadDashboard(updatedSnapshot.val());
@@ -813,6 +796,9 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// ============================================================
+// 🔥 LOAD DASHBOARD
+// ============================================================
 function loadDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
     const name = u.name || 'User';
@@ -842,6 +828,10 @@ function loadDashboard(u) {
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
     
     const rndValueUSD = rndWallet * rndPrice;
+    
+    // Calculate referral earnings display
+    const directEarningsDisplay = directReferrals * 10; // Example: $10 per direct referral
+    const downlineEarningsDisplay = downline * 5; // Example: $5 per downline
     
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -906,19 +896,19 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Network Section - Only Direct Referrals & Downline with Earnings -->
+            <!-- Network Section -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Network</h5>
                 <div class="network-stats">
                     <div class="network-stat-card">
                         <div class="number">${directReferrals}</div>
                         <div class="label">Direct Referrals</div>
-                        <div class="earnings">💰 $${(directReferrals * 10).toFixed(2)} Earned</div>
+                        <div class="earnings">💰 $${(directEarningsDisplay || 0).toFixed(2)} Earned</div>
                     </div>
                     <div class="network-stat-card">
                         <div class="number">${downline}</div>
                         <div class="label">Downline</div>
-                        <div class="earnings">💰 $${(downline * 5).toFixed(2)} Earned</div>
+                        <div class="earnings">💰 $${(downlineEarningsDisplay || 0).toFixed(2)} Earned</div>
                     </div>
                 </div>
             </div>
