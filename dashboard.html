@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Same as before - keeping it clean */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -636,7 +635,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE ALL USER DATA (Packages from User Node)
+// 🔥 UPDATE ALL USER DATA
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -670,28 +669,33 @@ async function updateUserData(userId) {
             const allUsers = allUsersSnap.val();
             const referralCode = userData.referralCode || userData.username;
             
+            // Direct referrals (Level 1)
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
                     directCount++;
                     level1Earn += ((u.totalStake || 0) * 0.08);
                     
+                    // Level 2 (referrals of direct referrals)
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
                             downlineCount++;
                             level2Earn += ((u2.totalStake || 0) * 0.04);
                             
+                            // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
                                     level3Earn += ((u3.totalStake || 0) * 0.02);
                                     
+                                    // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
                                             level4Earn += ((u4.totalStake || 0) * 0.01);
                                             
+                                            // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
