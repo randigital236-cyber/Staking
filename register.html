@@ -212,6 +212,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const refCode = urlParams.get('ref');
 if (refCode) {
     document.getElementById('regRef').value = refCode.toUpperCase();
+    console.log('🔗 Referral code auto-filled:', refCode.toUpperCase());
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -225,9 +226,14 @@ onAuthStateChanged(auth, (user) => {
 // ============================================================
 async function update5LevelReferral(referralCode, newUserStake) {
     try {
+        console.log('🔍 Updating referral for code:', referralCode);
         const allUsersSnap = await get(ref(db, 'users'));
-        if (!allUsersSnap.exists()) return;
+        if (!allUsersSnap.exists()) {
+            console.log('❌ No users found in database');
+            return;
+        }
         const allUsers = allUsersSnap.val();
+        console.log('📊 All users:', Object.keys(allUsers));
         
         // Find referrer
         let referrerUid = null;
@@ -236,22 +242,28 @@ async function update5LevelReferral(referralCode, newUserStake) {
             if (allUsers[key].referralCode === referralCode) {
                 referrerUid = key;
                 referrerData = allUsers[key];
+                console.log('✅ Referrer found:', referrerData.name, 'UID:', referrerUid);
                 break;
             }
         }
-        if (!referrerUid) return;
+        if (!referrerUid) {
+            console.log('❌ Referrer not found with code:', referralCode);
+            return;
+        }
         
         // Level 1 - 8%
         const level1Earn = newUserStake * 0.08;
+        const currentRefs = referrerData.totalReferrals || 0;
         await update(ref(db, 'users/' + referrerUid), {
-            totalReferrals: (referrerData.totalReferrals || 0) + 1,
+            totalReferrals: currentRefs + 1,
             level1Earnings: (referrerData.level1Earnings || 0) + level1Earn,
             referralEarnings: (referrerData.referralEarnings || 0) + level1Earn
         });
+        console.log('✅ Level 1 updated:', referrerUid, 'Earnings:', level1Earn);
         
         // Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
-        if (level2RefCode) {
+        if (level2RefCode && level2RefCode !== '') {
             for (let key in allUsers) {
                 if (allUsers[key].referralCode === level2RefCode) {
                     const level2User = allUsers[key];
@@ -261,10 +273,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                         level2Earnings: (level2User.level2Earnings || 0) + level2Earn,
                         referralEarnings: (level2User.referralEarnings || 0) + level2Earn
                     });
+                    console.log('✅ Level 2 updated:', key, 'Earnings:', level2Earn);
                     
                     // Level 3 - 2%
                     const level3RefCode = level2User.referredBy;
-                    if (level3RefCode) {
+                    if (level3RefCode && level3RefCode !== '') {
                         for (let k3 in allUsers) {
                             if (allUsers[k3].referralCode === level3RefCode) {
                                 const level3User = allUsers[k3];
@@ -273,10 +286,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                                     level3Earnings: (level3User.level3Earnings || 0) + level3Earn,
                                     referralEarnings: (level3User.referralEarnings || 0) + level3Earn
                                 });
+                                console.log('✅ Level 3 updated:', k3, 'Earnings:', level3Earn);
                                 
                                 // Level 4 - 1%
                                 const level4RefCode = level3User.referredBy;
-                                if (level4RefCode) {
+                                if (level4RefCode && level4RefCode !== '') {
                                     for (let k4 in allUsers) {
                                         if (allUsers[k4].referralCode === level4RefCode) {
                                             const level4User = allUsers[k4];
@@ -285,10 +299,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                                                 level4Earnings: (level4User.level4Earnings || 0) + level4Earn,
                                                 referralEarnings: (level4User.referralEarnings || 0) + level4Earn
                                             });
+                                            console.log('✅ Level 4 updated:', k4, 'Earnings:', level4Earn);
                                             
                                             // Level 5 - 1%
                                             const level5RefCode = level4User.referredBy;
-                                            if (level5RefCode) {
+                                            if (level5RefCode && level5RefCode !== '') {
                                                 for (let k5 in allUsers) {
                                                     if (allUsers[k5].referralCode === level5RefCode) {
                                                         const level5User = allUsers[k5];
@@ -297,6 +312,7 @@ async function update5LevelReferral(referralCode, newUserStake) {
                                                             level5Earnings: (level5User.level5Earnings || 0) + level5Earn,
                                                             referralEarnings: (level5User.referralEarnings || 0) + level5Earn
                                                         });
+                                                        console.log('✅ Level 5 updated:', k5, 'Earnings:', level5Earn);
                                                         break;
                                                     }
                                                 }
@@ -314,9 +330,9 @@ async function update5LevelReferral(referralCode, newUserStake) {
             }
         }
         
-        console.log('✅ 5 Level Referral System Updated!');
+        console.log('✅ 5 Level Referral System Updated Successfully!');
     } catch (error) {
-        console.error('Error updating referral system:', error);
+        console.error('❌ Error updating referral system:', error);
     }
 }
 
@@ -332,6 +348,8 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const ref = document.getElementById('regRef').value.trim().toUpperCase();
     const registerBtn = document.getElementById('registerBtn');
     
+    console.log('📝 Registration Data:', { name, email, ref });
+    
     if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
     if (!email || !email.includes('@')) { showToast('❌ Please enter a valid email address', 'error'); return; }
     if (pass.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
@@ -343,12 +361,14 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         await updateProfile(auth.currentUser, { displayName: name });
+        console.log('✅ User created with UID:', uid);
         
         const username = generateUsername(uid);
         const refCodeGen = username.toUpperCase();
+        console.log('✅ Generated Referral Code:', refCodeGen);
         
         // ============================================================
-        // 🔥 USER DATA - SAB EK SATH USERS NODE MEIN
+        // 🔥 USER DATA - SAB USERS NODE MEIN
         // ============================================================
         const userData = {
             // Basic Info
@@ -357,7 +377,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             uid: uid,
             username: username.toUpperCase(),
             referralCode: refCodeGen,
-            referredBy: ref || '',
+            referredBy: ref || '',  // 🔥 REFERRAL CODE SAVE HOGA
             rank: 'Member',
             role: 'user',
             banned: false,
@@ -387,28 +407,33 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             teamBusiness: 0,
             subscriptions: 0,
             
-            // Packages - User ke andar hi store hoga
+            // Packages - User ke andar hi store
             packages: {},
             
             // Transfer History
             transferHistory: []
         };
         
-        // Save user data - SAB USERS NODE KE ANDAR
+        // Save user data
         await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
-        console.log('✅ User data saved in users node!');
+        console.log('✅ User data saved! ReferredBy:', userData.referredBy);
 
-        // Update referral system
+        // ============================================================
+        // 🔥 UPDATE REFERRER - Agar referral code hai toh
+        // ============================================================
         if (ref) {
+            console.log('🔗 Updating referrer with code:', ref);
             await update5LevelReferral(ref, 0);
+        } else {
+            console.log('ℹ️ No referral code provided');
         }
         
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
         
     } catch (err) {
-        console.error('Registration Error:', err);
+        console.error('❌ Registration Error:', err);
         let msg = 'Registration failed. Please try again.';
         if (err.code === 'auth/email-already-in-use') msg = '❌ This email is already registered.';
         else if (err.code === 'auth/weak-password') msg = '❌ Password must be at least 6 characters.';
@@ -434,12 +459,14 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         const uid = user.uid;
         const email = user.email;
         const displayName = user.displayName || email.split('@')[0];
+        console.log('✅ Google sign-in successful. UID:', uid);
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
             const username = generateUsername(uid);
             const refCodeGen = username.toUpperCase();
             const ref = document.getElementById('regRef').value.trim().toUpperCase();
+            console.log('📝 Google Registration with referral:', ref);
             
             const userData = {
                 name: displayName,
@@ -476,8 +503,10 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
+            console.log('✅ Google user data saved! ReferredBy:', userData.referredBy);
             
             if (ref) {
+                console.log('🔗 Updating referrer for Google user:', ref);
                 await update5LevelReferral(ref, 0);
             }
         }
@@ -486,7 +515,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
         
     } catch (err) {
-        console.error('Google Registration Error:', err);
+        console.error('❌ Google Registration Error:', err);
         showToast('❌ ' + (err.message || 'Google sign in failed'), 'error');
     }
     
