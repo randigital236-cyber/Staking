@@ -94,6 +94,16 @@
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
+        .commission-badge {
+            display: inline-block;
+            background: rgba(46,204,113,0.08);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 2px 12px;
+            font-size: 0.7rem;
+            color: #2ecc71;
+        }
+        
         @media (max-width: 576px) { .card-glass { padding: 1.5rem; } .logo-text { font-size: 1.5rem; } }
     </style>
 </head>
@@ -106,6 +116,13 @@
         <div class="text-center mb-4">
             <div class="logo-text"><i class="bi bi-currency-bitcoin me-2"></i>RND<span>Staking</span></div>
             <p class="text-muted small">Create your account</p>
+            <div class="mt-2">
+                <span class="commission-badge">Level 1: 8%</span>
+                <span class="commission-badge">Level 2: 4%</span>
+                <span class="commission-badge">Level 3: 2%</span>
+                <span class="commission-badge">Level 4: 1%</span>
+                <span class="commission-badge">Level 5: 1%</span>
+            </div>
         </div>
 
         <form id="registerForm" novalidate>
@@ -123,8 +140,8 @@
             </div>
             <div class="mb-3">
                 <label class="form-label">Referral Code <span style="font-size:0.65rem;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 10px;border-radius:20px;font-weight:500;margin-left:6px;">Optional</span></label>
-                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code or auto-fills" style="background:#0a1425 !important;">
-                <small class="text-muted" style="font-size:0.7rem;"><i class="bi bi-link-45deg"></i> If you have a referral code, enter it here</small>
+                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referral code" style="background:#0a1425 !important;">
+                <small class="text-muted" style="font-size:0.7rem;"><i class="bi bi-link-45deg"></i> Enter referral code if you have one</small>
             </div>
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
@@ -204,6 +221,146 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================
+// 🔥 GET USER REFERRAL TREE (5 Levels)
+// ============================================================
+async function getReferralTree(referralCode, depth = 0, maxDepth = 5) {
+    if (depth >= maxDepth) return null;
+    
+    try {
+        const allUsersSnap = await get(ref(db, 'users'));
+        if (!allUsersSnap.exists()) return null;
+        
+        const allUsers = allUsersSnap.val();
+        let referrals = [];
+        
+        for (let key in allUsers) {
+            const u = allUsers[key];
+            if (u.referredBy === referralCode) {
+                referrals.push({
+                    uid: key,
+                    data: u,
+                    level: depth + 1,
+                    children: await getReferralTree(u.referralCode, depth + 1, maxDepth)
+                });
+            }
+        }
+        
+        return referrals;
+    } catch (error) {
+        console.error('Error getting referral tree:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 UPDATE REFERRER'S DATA (5 Levels)
+// ============================================================
+async function updateReferrerData(referralCode, newUserData) {
+    try {
+        // Find the referrer
+        const allUsersSnap = await get(ref(db, 'users'));
+        if (!allUsersSnap.exists()) return;
+        
+        const allUsers = allUsersSnap.val();
+        let referrerUid = null;
+        let referrerData = null;
+        
+        for (let key in allUsers) {
+            if (allUsers[key].referralCode === referralCode) {
+                referrerUid = key;
+                referrerData = allUsers[key];
+                break;
+            }
+        }
+        
+        if (!referrerUid) return;
+        
+        // Update referrer's totalReferrals
+        const currentRefs = referrerData.totalReferrals || 0;
+        await update(ref(db, 'users/' + referrerUid), {
+            totalReferrals: currentRefs + 1
+        });
+        
+        // Update Level 1 earnings (8%)
+        const level1Earnings = (newUserData.totalStake || 0) * 0.08;
+        const currentLevel1 = referrerData.level1Earnings || 0;
+        await update(ref(db, 'users/' + referrerUid), {
+            level1Earnings: currentLevel1 + level1Earnings,
+            referralEarnings: (referrerData.referralEarnings || 0) + level1Earnings
+        });
+        
+        // Get Level 2 referrer
+        const level2RefCode = referrerData.referredBy;
+        if (level2RefCode) {
+            for (let key in allUsers) {
+                if (allUsers[key].referralCode === level2RefCode) {
+                    const level2User = allUsers[key];
+                    const level2Earnings = (newUserData.totalStake || 0) * 0.04;
+                    await update(ref(db, 'users/' + key), {
+                        level2Earnings: (level2User.level2Earnings || 0) + level2Earnings,
+                        referralEarnings: (level2User.referralEarnings || 0) + level2Earnings
+                    });
+                    
+                    // Get Level 3 referrer
+                    const level3RefCode = level2User.referredBy;
+                    if (level3RefCode) {
+                        for (let k in allUsers) {
+                            if (allUsers[k].referralCode === level3RefCode) {
+                                const level3User = allUsers[k];
+                                const level3Earnings = (newUserData.totalStake || 0) * 0.02;
+                                await update(ref(db, 'users/' + k), {
+                                    level3Earnings: (level3User.level3Earnings || 0) + level3Earnings,
+                                    referralEarnings: (level3User.referralEarnings || 0) + level3Earnings
+                                });
+                                
+                                // Get Level 4 referrer
+                                const level4RefCode = level3User.referredBy;
+                                if (level4RefCode) {
+                                    for (let l in allUsers) {
+                                        if (allUsers[l].referralCode === level4RefCode) {
+                                            const level4User = allUsers[l];
+                                            const level4Earnings = (newUserData.totalStake || 0) * 0.01;
+                                            await update(ref(db, 'users/' + l), {
+                                                level4Earnings: (level4User.level4Earnings || 0) + level4Earnings,
+                                                referralEarnings: (level4User.referralEarnings || 0) + level4Earnings
+                                            });
+                                            
+                                            // Get Level 5 referrer
+                                            const level5RefCode = level4User.referredBy;
+                                            if (level5RefCode) {
+                                                for (let m in allUsers) {
+                                                    if (allUsers[m].referralCode === level5RefCode) {
+                                                        const level5User = allUsers[m];
+                                                        const level5Earnings = (newUserData.totalStake || 0) * 0.01;
+                                                        await update(ref(db, 'users/' + m), {
+                                                            level5Earnings: (level5User.level5Earnings || 0) + level5Earnings,
+                                                            referralEarnings: (level5User.referralEarnings || 0) + level5Earnings
+                                                        });
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        console.log('✅ Referral data updated for all 5 levels!');
+        
+    } catch (error) {
+        console.error('Error updating referrer data:', error);
+    }
+}
+
+// ============================================================
 // 🔥 EMAIL REGISTRATION
 // ============================================================
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
@@ -250,8 +407,15 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             availableReward: 0,
             totalWithdrawn: 0,
             totalReferrals: 0,
-            teamBusiness: 0,
             downline: 0,
+            // 5 Level Referral Earnings
+            level1Earnings: 0,
+            level2Earnings: 0,
+            level3Earnings: 0,
+            level4Earnings: 0,
+            level5Earnings: 0,
+            referralEarnings: 0,
+            teamBusiness: 0,
             subscriptions: 0,
             banned: false,
             role: 'user',
@@ -260,7 +424,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             withdrawalWallet: 0,
             rndWallet: 0,
             releaseWallet: 0,
-            referralEarnings: 0,
             transferHistory: []
         };
         
@@ -269,23 +432,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
         console.log('✅ User data saved to database!');
 
-        // Step 5: Update referrer's totalReferrals count
+        // Step 5: Update referrer's data (5 Levels)
         if (ref) {
-            console.log('🔗 Updating referrer:', ref);
-            const snapshot = await get(ref(db, 'users'));
-            if (snapshot.exists()) {
-                const users = snapshot.val();
-                for (let key in users) {
-                    if (users[key].referralCode === ref) {
-                        const refCount = (users[key].totalReferrals || 0) + 1;
-                        await update(ref(db, 'users/' + key), {
-                            totalReferrals: refCount
-                        });
-                        console.log('✅ Referrer updated! New count:', refCount);
-                        break;
-                    }
-                }
-            }
+            console.log('🔗 Updating referrer tree for:', ref);
+            await updateReferrerData(ref, { totalStake: 0 });
+            console.log('✅ Referrer tree updated!');
         }
         
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
@@ -341,8 +492,14 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 availableReward: 0,
                 totalWithdrawn: 0,
                 totalReferrals: 0,
-                teamBusiness: 0,
                 downline: 0,
+                level1Earnings: 0,
+                level2Earnings: 0,
+                level3Earnings: 0,
+                level4Earnings: 0,
+                level5Earnings: 0,
+                referralEarnings: 0,
+                teamBusiness: 0,
                 subscriptions: 0,
                 banned: false,
                 role: 'user',
@@ -351,28 +508,15 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
-                referralEarnings: 0,
                 transferHistory: []
             };
             
             await set(ref(db, 'users/' + uid), userData);
             await set(ref(db, 'usernames/' + username.toUpperCase()), uid);
             
-            // Update referrer
+            // Update referrer data (5 Levels)
             if (ref) {
-                const snapshot = await get(ref(db, 'users'));
-                if (snapshot.exists()) {
-                    const users = snapshot.val();
-                    for (let key in users) {
-                        if (users[key].referralCode === ref) {
-                            const refCount = (users[key].totalReferrals || 0) + 1;
-                            await update(ref(db, 'users/' + key), {
-                                totalReferrals: refCount
-                            });
-                            break;
-                        }
-                    }
-                }
+                await updateReferrerData(ref, { totalStake: 0 });
             }
             
             console.log('✅ Google user data saved! Username:', username, 'Name:', displayName);
