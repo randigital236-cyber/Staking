@@ -171,7 +171,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile } from "firebase/auth";
-import { getDatabase, ref, set, get, update } from "firebase/database";
+import { getDatabase, ref, set, get, update, push } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -222,9 +222,9 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (Like Trade World)
 // ============================================================
-async function update5LevelReferral(referralCode, newUserStake) {
+async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
         console.log('🔍 Updating referral for code:', referralCode);
         const allUsersSnap = await get(ref(db, 'users'));
@@ -233,7 +233,6 @@ async function update5LevelReferral(referralCode, newUserStake) {
             return;
         }
         const allUsers = allUsersSnap.val();
-        console.log('📊 All users:', Object.keys(allUsers));
         
         // Find referrer
         let referrerUid = null;
@@ -251,15 +250,28 @@ async function update5LevelReferral(referralCode, newUserStake) {
             return;
         }
         
-        // Level 1 - 8%
-        const level1Earn = newUserStake * 0.08;
-        const currentRefs = referrerData.totalReferrals || 0;
+        // Add new user to referrer's direct referrals
+        const directRefs = referrerData.directReferrals || {};
+        directRefs[newUserUid] = {
+            uid: newUserUid,
+            name: newUserName,
+            email: newUserEmail,
+            joinedAt: Date.now(),
+            level: 1
+        };
+        
+        // Level 1 - 8% (Direct)
+        const level1Earn = 0; // Will update when user invests
+        
+        // Update referrer
         await update(ref(db, 'users/' + referrerUid), {
-            totalReferrals: currentRefs + 1,
+            totalReferrals: (referrerData.totalReferrals || 0) + 1,
+            downline: (referrerData.downline || 0) + 1,
+            directReferrals: directRefs,
             level1Earnings: (referrerData.level1Earnings || 0) + level1Earn,
             referralEarnings: (referrerData.referralEarnings || 0) + level1Earn
         });
-        console.log('✅ Level 1 updated:', referrerUid, 'Earnings:', level1Earn);
+        console.log('✅ Level 1 (Direct) updated for:', referrerUid);
         
         // Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
@@ -267,13 +279,12 @@ async function update5LevelReferral(referralCode, newUserStake) {
             for (let key in allUsers) {
                 if (allUsers[key].referralCode === level2RefCode) {
                     const level2User = allUsers[key];
-                    const level2Earn = newUserStake * 0.04;
                     await update(ref(db, 'users/' + key), {
                         downline: (level2User.downline || 0) + 1,
-                        level2Earnings: (level2User.level2Earnings || 0) + level2Earn,
-                        referralEarnings: (level2User.referralEarnings || 0) + level2Earn
+                        level2Earnings: (level2User.level2Earnings || 0) + 0,
+                        referralEarnings: (level2User.referralEarnings || 0) + 0
                     });
-                    console.log('✅ Level 2 updated:', key, 'Earnings:', level2Earn);
+                    console.log('✅ Level 2 updated for:', key);
                     
                     // Level 3 - 2%
                     const level3RefCode = level2User.referredBy;
@@ -281,12 +292,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                         for (let k3 in allUsers) {
                             if (allUsers[k3].referralCode === level3RefCode) {
                                 const level3User = allUsers[k3];
-                                const level3Earn = newUserStake * 0.02;
                                 await update(ref(db, 'users/' + k3), {
-                                    level3Earnings: (level3User.level3Earnings || 0) + level3Earn,
-                                    referralEarnings: (level3User.referralEarnings || 0) + level3Earn
+                                    level3Earnings: (level3User.level3Earnings || 0) + 0,
+                                    referralEarnings: (level3User.referralEarnings || 0) + 0
                                 });
-                                console.log('✅ Level 3 updated:', k3, 'Earnings:', level3Earn);
+                                console.log('✅ Level 3 updated for:', k3);
                                 
                                 // Level 4 - 1%
                                 const level4RefCode = level3User.referredBy;
@@ -294,12 +304,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                                     for (let k4 in allUsers) {
                                         if (allUsers[k4].referralCode === level4RefCode) {
                                             const level4User = allUsers[k4];
-                                            const level4Earn = newUserStake * 0.01;
                                             await update(ref(db, 'users/' + k4), {
-                                                level4Earnings: (level4User.level4Earnings || 0) + level4Earn,
-                                                referralEarnings: (level4User.referralEarnings || 0) + level4Earn
+                                                level4Earnings: (level4User.level4Earnings || 0) + 0,
+                                                referralEarnings: (level4User.referralEarnings || 0) + 0
                                             });
-                                            console.log('✅ Level 4 updated:', k4, 'Earnings:', level4Earn);
+                                            console.log('✅ Level 4 updated for:', k4);
                                             
                                             // Level 5 - 1%
                                             const level5RefCode = level4User.referredBy;
@@ -307,12 +316,11 @@ async function update5LevelReferral(referralCode, newUserStake) {
                                                 for (let k5 in allUsers) {
                                                     if (allUsers[k5].referralCode === level5RefCode) {
                                                         const level5User = allUsers[k5];
-                                                        const level5Earn = newUserStake * 0.01;
                                                         await update(ref(db, 'users/' + k5), {
-                                                            level5Earnings: (level5User.level5Earnings || 0) + level5Earn,
-                                                            referralEarnings: (level5User.referralEarnings || 0) + level5Earn
+                                                            level5Earnings: (level5User.level5Earnings || 0) + 0,
+                                                            referralEarnings: (level5User.referralEarnings || 0) + 0
                                                         });
-                                                        console.log('✅ Level 5 updated:', k5, 'Earnings:', level5Earn);
+                                                        console.log('✅ Level 5 updated for:', k5);
                                                         break;
                                                     }
                                                 }
@@ -368,7 +376,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         console.log('✅ Generated Referral Code:', refCodeGen);
         
         // ============================================================
-        // 🔥 USER DATA - SAB USERS NODE MEIN
+        // 🔥 USER DATA - Like Trade World Structure
         // ============================================================
         const userData = {
             // Basic Info
@@ -377,11 +385,12 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             uid: uid,
             username: username.toUpperCase(),
             referralCode: refCodeGen,
-            referredBy: ref || '',  // 🔥 REFERRAL CODE SAVE HOGA
+            referredBy: ref || '',
             rank: 'Member',
             role: 'user',
             banned: false,
             createdAt: Date.now(),
+            lastActive: Date.now(),
             
             // Wallets
             depositWallet: 0,
@@ -395,7 +404,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             availableReward: 0,
             totalWithdrawn: 0,
             
-            // Referral System (5 Levels)
+            // Referral System (5 Levels) - Like Trade World
             totalReferrals: 0,
             downline: 0,
             level1Earnings: 0,
@@ -407,7 +416,19 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             teamBusiness: 0,
             subscriptions: 0,
             
-            // Packages - User ke andar hi store
+            // Direct Referrals List - Like Trade World
+            directReferrals: {},
+            
+            // Team Structure - Like Trade World
+            teamStructure: {
+                level1: 0,
+                level2: 0,
+                level3: 0,
+                level4: 0,
+                level5: 0
+            },
+            
+            // Packages
             packages: {},
             
             // Transfer History
@@ -420,11 +441,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         console.log('✅ User data saved! ReferredBy:', userData.referredBy);
 
         // ============================================================
-        // 🔥 UPDATE REFERRER - Agar referral code hai toh
+        // 🔥 UPDATE REFERRER - Like Trade World
         // ============================================================
         if (ref) {
             console.log('🔗 Updating referrer with code:', ref);
-            await update5LevelReferral(ref, 0);
+            await update5LevelReferral(ref, uid, name, email);
         } else {
             console.log('ℹ️ No referral code provided');
         }
@@ -479,6 +500,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 role: 'user',
                 banned: false,
                 createdAt: Date.now(),
+                lastActive: Date.now(),
                 depositWallet: 0,
                 withdrawalWallet: 0,
                 releaseWallet: 0,
@@ -497,6 +519,8 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
                 referralEarnings: 0,
                 teamBusiness: 0,
                 subscriptions: 0,
+                directReferrals: {},
+                teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
                 packages: {},
                 transferHistory: []
             };
@@ -507,7 +531,7 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             
             if (ref) {
                 console.log('🔗 Updating referrer for Google user:', ref);
-                await update5LevelReferral(ref, 0);
+                await update5LevelReferral(ref, uid, displayName, email);
             }
         }
         
