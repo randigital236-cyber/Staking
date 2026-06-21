@@ -635,7 +635,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE ALL USER DATA
+// 🔥 UPDATE ALL USER DATA (Like Trade World)
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -659,11 +659,12 @@ async function updateUserData(userId) {
             }
         }
         
-        // Calculate referral counts from all users
+        // Calculate referral counts from all users (Like Trade World)
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
         let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
+        let teamLevels = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
         
         if (allUsersSnap.exists()) {
             const allUsers = allUsersSnap.val();
@@ -674,31 +675,36 @@ async function updateUserData(userId) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
                     directCount++;
+                    teamLevels.level1++;
                     level1Earn += ((u.totalStake || 0) * 0.08);
                     
-                    // Level 2 (referrals of direct referrals)
+                    // Level 2
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
                             downlineCount++;
+                            teamLevels.level2++;
                             level2Earn += ((u2.totalStake || 0) * 0.04);
                             
                             // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
+                                    teamLevels.level3++;
                                     level3Earn += ((u3.totalStake || 0) * 0.02);
                                     
                                     // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
+                                            teamLevels.level4++;
                                             level4Earn += ((u4.totalStake || 0) * 0.01);
                                             
                                             // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
+                                                    teamLevels.level5++;
                                                     level5Earn += ((u5.totalStake || 0) * 0.01);
                                                 }
                                             }
@@ -726,10 +732,11 @@ async function updateUserData(userId) {
             level3Earnings: level3Earn,
             level4Earnings: level4Earn,
             level5Earnings: level5Earn,
-            referralEarnings: totalReferralEarnings
+            referralEarnings: totalReferralEarnings,
+            teamStructure: teamLevels
         });
         
-        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, directCount, downlineCount, totalReferralEarnings };
+        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, directCount, downlineCount, totalReferralEarnings, teamLevels };
     } catch (error) {
         console.error('Error updating user data:', error);
         return null;
@@ -758,6 +765,7 @@ onAuthStateChanged(auth, async (user) => {
                 referralCode: refCodeGen,
                 referredBy: '',
                 createdAt: Date.now(),
+                lastActive: Date.now(),
                 totalStake: 0,
                 totalReward: 0,
                 availableReward: 0,
@@ -779,6 +787,8 @@ onAuthStateChanged(auth, async (user) => {
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
+                directReferrals: {},
+                teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
                 packages: {},
                 transferHistory: []
             });
@@ -833,6 +843,7 @@ function loadDashboard(u) {
     const level3Earn = u.level3Earnings || 0;
     const level4Earn = u.level4Earnings || 0;
     const level5Earn = u.level5Earnings || 0;
+    const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
@@ -912,7 +923,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Network Section -->
+            <!-- Network Section - Like Trade World -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Network</h5>
                 <div class="network-stats">
@@ -929,7 +940,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- Level Wise Earnings -->
+            <!-- Level Wise Earnings - Like Trade World -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>5 Level Referral Earnings</div>
@@ -938,30 +949,35 @@ function loadDashboard(u) {
                             <div class="p-2 text-center" style="background:rgba(46,204,113,0.05);border-radius:10px;border:1px solid rgba(46,204,113,0.1);">
                                 <small class="text-muted">Level 1 (8%)</small>
                                 <div style="color:#fbbf24;font-weight:700;">$${(level1Earn || 0).toFixed(2)}</div>
+                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level1 || 0} members</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6">
                             <div class="p-2 text-center" style="background:rgba(59,130,246,0.05);border-radius:10px;border:1px solid rgba(59,130,246,0.1);">
                                 <small class="text-muted">Level 2 (4%)</small>
                                 <div style="color:#60a5fa;font-weight:700;">$${(level2Earn || 0).toFixed(2)}</div>
+                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level2 || 0} members</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6">
                             <div class="p-2 text-center" style="background:rgba(167,139,250,0.05);border-radius:10px;border:1px solid rgba(167,139,250,0.1);">
                                 <small class="text-muted">Level 3 (2%)</small>
                                 <div style="color:#a78bfa;font-weight:700;">$${(level3Earn || 0).toFixed(2)}</div>
+                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level3 || 0} members</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6">
                             <div class="p-2 text-center" style="background:rgba(244,114,182,0.05);border-radius:10px;border:1px solid rgba(244,114,182,0.1);">
                                 <small class="text-muted">Level 4 (1%)</small>
                                 <div style="color:#f472b6;font-weight:700;">$${(level4Earn || 0).toFixed(2)}</div>
+                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level4 || 0} members</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6">
                             <div class="p-2 text-center" style="background:rgba(251,146,60,0.05);border-radius:10px;border:1px solid rgba(251,146,60,0.1);">
                                 <small class="text-muted">Level 5 (1%)</small>
                                 <div style="color:#fb923c;font-weight:700;">$${(level5Earn || 0).toFixed(2)}</div>
+                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level5 || 0} members</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6">
