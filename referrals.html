@@ -394,7 +394,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS
+// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS (Like Trade World)
 // ============================================================
 async function calculateReferralEarnings(userData) {
     try {
@@ -402,6 +402,7 @@ async function calculateReferralEarnings(userData) {
         let directReferrals = [];
         let level1Users = [], level2Users = [], level3Users = [], level4Users = [], level5Users = [];
         let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
+        let teamLevels = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
         
         if (allUsersSnapshot.exists()) {
             const allUsers = allUsersSnapshot.val();
@@ -412,6 +413,7 @@ async function calculateReferralEarnings(userData) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
                     directReferrals.push(u);
+                    teamLevels.level1++;
                     const stake = u.totalStake || 0;
                     level1Earn += (stake * 0.08);
                     
@@ -420,6 +422,7 @@ async function calculateReferralEarnings(userData) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
                             level2Users.push(u2);
+                            teamLevels.level2++;
                             const stake2 = u2.totalStake || 0;
                             level2Earn += (stake2 * 0.04);
                             
@@ -428,6 +431,7 @@ async function calculateReferralEarnings(userData) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
                                     level3Users.push(u3);
+                                    teamLevels.level3++;
                                     const stake3 = u3.totalStake || 0;
                                     level3Earn += (stake3 * 0.02);
                                     
@@ -436,6 +440,7 @@ async function calculateReferralEarnings(userData) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
                                             level4Users.push(u4);
+                                            teamLevels.level4++;
                                             const stake4 = u4.totalStake || 0;
                                             level4Earn += (stake4 * 0.01);
                                             
@@ -444,6 +449,7 @@ async function calculateReferralEarnings(userData) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
                                                     level5Users.push(u5);
+                                                    teamLevels.level5++;
                                                     const stake5 = u5.totalStake || 0;
                                                     level5Earn += (stake5 * 0.01);
                                                 }
@@ -481,11 +487,12 @@ async function calculateReferralEarnings(userData) {
             level3Earn: level3Earn,
             level4Earn: level4Earn,
             level5Earn: level5Earn,
-            totalEarnings: level1Earn + level2Earn + level3Earn + level4Earn + level5Earn
+            totalEarnings: level1Earn + level2Earn + level3Earn + level4Earn + level5Earn,
+            teamLevels: teamLevels
         };
     } catch (error) {
         console.error('Error calculating referral earnings:', error);
-        return { directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0, level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0, totalEarnings: 0 };
+        return { directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0, level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0, totalEarnings: 0, teamLevels: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 } };
     }
 }
 
