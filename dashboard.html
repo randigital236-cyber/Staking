@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Same as before */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -415,6 +416,16 @@
             font-size: 0.85rem;
         }
         
+        .level-badge {
+            display: inline-block;
+            background: rgba(46,204,113,0.08);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 2px 12px;
+            font-size: 0.65rem;
+            color: #2ecc71;
+        }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .welcome-section { padding: 20px; }
@@ -536,12 +547,6 @@ const firebaseConfig = {
 const DOMAIN = "https://staking.randigital.in";
 const REGISTER_URL = `${DOMAIN}/register.html`;
 
-const PLANS = [
-    { id: '6months', name: '6 Months Plan', duration: 180, reward: 25 },
-    { id: '12months', name: '12 Months Plan', duration: 365, reward: 60 },
-    { id: '18months', name: '18 Months Plan', duration: 540, reward: 100 }
-];
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
@@ -635,6 +640,11 @@ function getGreeting() {
 // ============================================================
 async function updateUserData(userId) {
     try {
+        // Get user data
+        const userSnap = await get(ref(db, 'users/' + userId));
+        if (!userSnap.exists()) return null;
+        const userData = userSnap.val();
+        
         // Update daily releases from packages
         const packagesRef = ref(db, 'packages');
         const packagesQuery = query(packagesRef, orderByChild('uid'), equalTo(userId));
@@ -657,40 +667,66 @@ async function updateUserData(userId) {
             });
         }
         
-        // Get user data for referral calculations
-        const userSnap = await get(ref(db, 'users/' + userId));
-        const userData = userSnap.val();
-        
-        // Calculate referral earnings
+        // Calculate referral counts
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
-        let directEarnings = 0;
-        let downlineEarnings = 0;
+        let level1 = 0, level2 = 0, level3 = 0, level4 = 0, level5 = 0;
+        let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
         
         if (allUsersSnap.exists()) {
             const allUsers = allUsersSnap.val();
             const referralCode = userData.referralCode || userData.username;
             
+            // Get all referrals level by level
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
                     directCount++;
-                    directEarnings += ((u.totalStake || 0) * 0.08);
+                    level1++;
+                    level1Earn += ((u.totalStake || 0) * 0.08);
                     
-                    // Get downline
-                    for (let subKey in allUsers) {
-                        const sub = allUsers[subKey];
-                        if (sub.referredBy === u.referralCode) {
+                    // Level 2
+                    for (let k2 in allUsers) {
+                        const u2 = allUsers[k2];
+                        if (u2.referredBy === u.referralCode) {
                             downlineCount++;
-                            downlineEarnings += ((sub.totalStake || 0) * 0.04);
+                            level2++;
+                            level2Earn += ((u2.totalStake || 0) * 0.04);
+                            
+                            // Level 3
+                            for (let k3 in allUsers) {
+                                const u3 = allUsers[k3];
+                                if (u3.referredBy === u2.referralCode) {
+                                    level3++;
+                                    level3Earn += ((u3.totalStake || 0) * 0.02);
+                                    
+                                    // Level 4
+                                    for (let k4 in allUsers) {
+                                        const u4 = allUsers[k4];
+                                        if (u4.referredBy === u3.referralCode) {
+                                            level4++;
+                                            level4Earn += ((u4.totalStake || 0) * 0.01);
+                                            
+                                            // Level 5
+                                            for (let k5 in allUsers) {
+                                                const u5 = allUsers[k5];
+                                                if (u5.referredBy === u4.referralCode) {
+                                                    level5++;
+                                                    level5Earn += ((u5.totalStake || 0) * 0.01);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
         
-        const totalReferralEarnings = directEarnings + downlineEarnings;
+        const totalReferralEarnings = level1Earn + level2Earn + level3Earn + level4Earn + level5Earn;
         
         // Update user
         await update(ref(db, 'users/' + userId), {
@@ -700,6 +736,11 @@ async function updateUserData(userId) {
             rndWallet: totalRNDStaked,
             totalReferrals: directCount,
             downline: downlineCount,
+            level1Earnings: level1Earn,
+            level2Earnings: level2Earn,
+            level3Earnings: level3Earn,
+            level4Earnings: level4Earn,
+            level5Earnings: level5Earn,
             referralEarnings: totalReferralEarnings
         });
         
@@ -710,8 +751,8 @@ async function updateUserData(userId) {
             totalRNDStaked,
             directCount,
             downlineCount,
-            directEarnings,
-            downlineEarnings,
+            level1, level2, level3, level4, level5,
+            level1Earn, level2Earn, level3Earn, level4Earn, level5Earn,
             totalReferralEarnings
         };
     } catch (error) {
@@ -750,8 +791,14 @@ onAuthStateChanged(auth, async (user) => {
                 availableReward: 0,
                 totalWithdrawn: 0,
                 totalReferrals: 0,
-                teamBusiness: 0,
                 downline: 0,
+                level1Earnings: 0,
+                level2Earnings: 0,
+                level3Earnings: 0,
+                level4Earnings: 0,
+                level5Earnings: 0,
+                referralEarnings: 0,
+                teamBusiness: 0,
                 subscriptions: 0,
                 banned: false,
                 role: 'user',
@@ -760,7 +807,6 @@ onAuthStateChanged(auth, async (user) => {
                 withdrawalWallet: 0,
                 rndWallet: 0,
                 releaseWallet: 0,
-                referralEarnings: 0,
                 transferHistory: []
             });
             await set(ref(db, 'usernames/' + refCodeGen), user.uid);
@@ -774,10 +820,8 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // Update all user data
         await updateUserData(user.uid);
         
-        // Get fresh data
         const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
         if (updatedSnapshot.exists()) {
             loadDashboard(updatedSnapshot.val());
@@ -814,6 +858,13 @@ function loadDashboard(u) {
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
     
+    // Level wise earnings
+    const level1Earn = u.level1Earnings || 0;
+    const level2Earn = u.level2Earnings || 0;
+    const level3Earn = u.level3Earnings || 0;
+    const level4Earn = u.level4Earnings || 0;
+    const level5Earn = u.level5Earnings || 0;
+    
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
     document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
@@ -828,10 +879,6 @@ function loadDashboard(u) {
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
     
     const rndValueUSD = rndWallet * rndPrice;
-    
-    // Calculate referral earnings display
-    const directEarningsDisplay = directReferrals * 10; // Example: $10 per direct referral
-    const downlineEarningsDisplay = downline * 5; // Example: $5 per downline
     
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -903,12 +950,57 @@ function loadDashboard(u) {
                     <div class="network-stat-card">
                         <div class="number">${directReferrals}</div>
                         <div class="label">Direct Referrals</div>
-                        <div class="earnings">💰 $${(directEarningsDisplay || 0).toFixed(2)} Earned</div>
+                        <div class="earnings">💰 $${(level1Earn || 0).toFixed(2)} Earned</div>
                     </div>
                     <div class="network-stat-card">
                         <div class="number">${downline}</div>
-                        <div class="label">Downline</div>
-                        <div class="earnings">💰 $${(downlineEarningsDisplay || 0).toFixed(2)} Earned</div>
+                        <div class="label">Total Downline</div>
+                        <div class="earnings">💰 $${((level2Earn + level3Earn + level4Earn + level5Earn) || 0).toFixed(2)} Earned</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Level Wise Earnings -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>5 Level Referral Earnings</div>
+                    <div class="row g-2">
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(46,204,113,0.05);border-radius:10px;border:1px solid rgba(46,204,113,0.1);">
+                                <small class="text-muted">Level 1 (8%)</small>
+                                <div style="color:#fbbf24;font-weight:700;">$${(level1Earn || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(59,130,246,0.05);border-radius:10px;border:1px solid rgba(59,130,246,0.1);">
+                                <small class="text-muted">Level 2 (4%)</small>
+                                <div style="color:#60a5fa;font-weight:700;">$${(level2Earn || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(167,139,250,0.05);border-radius:10px;border:1px solid rgba(167,139,250,0.1);">
+                                <small class="text-muted">Level 3 (2%)</small>
+                                <div style="color:#a78bfa;font-weight:700;">$${(level3Earn || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(244,114,182,0.05);border-radius:10px;border:1px solid rgba(244,114,182,0.1);">
+                                <small class="text-muted">Level 4 (1%)</small>
+                                <div style="color:#f472b6;font-weight:700;">$${(level4Earn || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(251,146,60,0.05);border-radius:10px;border:1px solid rgba(251,146,60,0.1);">
+                                <small class="text-muted">Level 5 (1%)</small>
+                                <div style="color:#fb923c;font-weight:700;">$${(level5Earn || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6">
+                            <div class="p-2 text-center" style="background:rgba(46,204,113,0.1);border-radius:10px;border:2px solid rgba(46,204,113,0.2);">
+                                <small class="text-muted">Total Earnings</small>
+                                <div style="color:#2ecc71;font-weight:700;font-size:1.2rem;">$${(referralEarnings || 0).toFixed(2)}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1005,7 +1097,7 @@ function loadDashboard(u) {
                     <div class="mt-3 d-flex flex-wrap gap-2">
                         <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
                         <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;">${username}</strong></span>
-                        <span class="text-muted small"><i class="bi bi-cash-stack me-1"></i>Referral Earnings: <strong style="color:#fbbf24;">$${(referralEarnings || 0).toFixed(2)}</strong></span>
+                        <span class="text-muted small"><i class="bi bi-cash-stack me-1"></i>Total Earnings: <strong style="color:#fbbf24;">$${(referralEarnings || 0).toFixed(2)}</strong></span>
                     </div>
                 </div>
             </div>
