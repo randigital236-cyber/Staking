@@ -245,6 +245,16 @@
     .earnings-box .label { color: #8899bb; font-size: 0.85rem; }
     .earnings-box .value { color: #fbbf24; font-weight: 700; font-size: 1.1rem; }
     
+    .level-badge {
+      display: inline-block;
+      background: rgba(46,204,113,0.08);
+      border: 1px solid rgba(46,204,113,0.1);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.65rem;
+      color: #2ecc71;
+    }
+    
     @media (max-width: 768px) {
       .dashboard-container { padding: 15px; }
       .sidebar-panel { width: 280px; right: -300px; }
@@ -384,61 +394,101 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 CALCULATE REFERRAL EARNINGS
+// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS
 // ============================================================
 async function calculateReferralEarnings(userData) {
   try {
     const allUsersSnapshot = await get(ref(db, 'users'));
     let directReferrals = [];
-    let downlineReferrals = [];
-    let directEarnings = 0;
-    let downlineEarnings = 0;
+    let level1Users = [], level2Users = [], level3Users = [], level4Users = [], level5Users = [];
+    let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
     let totalDirectStake = 0;
-    let totalDownlineStake = 0;
     
     if (allUsersSnapshot.exists()) {
       const allUsers = allUsersSnapshot.val();
       const referralCode = userData.referralCode || userData.username;
       
+      // Level 1 - Direct Referrals
       for (let key in allUsers) {
         const u = allUsers[key];
         if (u.referredBy === referralCode) {
           directReferrals.push(u);
           const stake = u.totalStake || 0;
           totalDirectStake += stake;
-          directEarnings += (stake * 0.08);
+          level1Earn += (stake * 0.08);
           
-          // Get downline
-          for (let subKey in allUsers) {
-            const sub = allUsers[subKey];
-            if (sub.referredBy === u.referralCode) {
-              downlineReferrals.push(sub);
-              const subStake = sub.totalStake || 0;
-              totalDownlineStake += subStake;
-              downlineEarnings += (subStake * 0.04);
+          // Level 2
+          for (let k2 in allUsers) {
+            const u2 = allUsers[k2];
+            if (u2.referredBy === u.referralCode) {
+              level2Users.push(u2);
+              const stake2 = u2.totalStake || 0;
+              level2Earn += (stake2 * 0.04);
+              
+              // Level 3
+              for (let k3 in allUsers) {
+                const u3 = allUsers[k3];
+                if (u3.referredBy === u2.referralCode) {
+                  level3Users.push(u3);
+                  const stake3 = u3.totalStake || 0;
+                  level3Earn += (stake3 * 0.02);
+                  
+                  // Level 4
+                  for (let k4 in allUsers) {
+                    const u4 = allUsers[k4];
+                    if (u4.referredBy === u3.referralCode) {
+                      level4Users.push(u4);
+                      const stake4 = u4.totalStake || 0;
+                      level4Earn += (stake4 * 0.01);
+                      
+                      // Level 5
+                      for (let k5 in allUsers) {
+                        const u5 = allUsers[k5];
+                        if (u5.referredBy === u4.referralCode) {
+                          level5Users.push(u5);
+                          const stake5 = u5.totalStake || 0;
+                          level5Earn += (stake5 * 0.01);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
       }
     }
     
-    // Remove duplicates from downline
-    const uniqueDownline = downlineReferrals.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+    // Remove duplicates
+    const uniqueLevel2 = level2Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+    const uniqueLevel3 = level3Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+    const uniqueLevel4 = level4Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+    const uniqueLevel5 = level5Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
     
     return {
       directReferrals,
-      downlineReferrals: uniqueDownline,
-      directCount: directReferrals.length,
-      downlineCount: uniqueDownline.length,
-      directEarnings: directEarnings,
-      downlineEarnings: downlineEarnings,
-      totalEarnings: directEarnings + downlineEarnings,
-      totalDirectStake: totalDirectStake,
-      totalDownlineStake: totalDownlineStake
+      level1Users: directReferrals,
+      level2Users: uniqueLevel2,
+      level3Users: uniqueLevel3,
+      level4Users: uniqueLevel4,
+      level5Users: uniqueLevel5,
+      level1Count: directReferrals.length,
+      level2Count: uniqueLevel2.length,
+      level3Count: uniqueLevel3.length,
+      level4Count: uniqueLevel4.length,
+      level5Count: uniqueLevel5.length,
+      level1Earn: level1Earn,
+      level2Earn: level2Earn,
+      level3Earn: level3Earn,
+      level4Earn: level4Earn,
+      level5Earn: level5Earn,
+      totalEarnings: level1Earn + level2Earn + level3Earn + level4Earn + level5Earn,
+      totalDirectStake: totalDirectStake
     };
   } catch (error) {
     console.error('Error calculating referral earnings:', error);
-    return { directReferrals: [], downlineReferrals: [], directCount: 0, downlineCount: 0, directEarnings: 0, downlineEarnings: 0, totalEarnings: 0, totalDirectStake: 0, totalDownlineStake: 0 };
+    return { directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0, level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0, totalEarnings: 0, totalDirectStake: 0 };
   }
 }
 
@@ -465,7 +515,7 @@ onAuthStateChanged(auth, async (user) => {
     const referralData = await calculateReferralEarnings(userData);
     
     const badge = document.getElementById('referralBadge');
-    if (badge) badge.textContent = referralData.directCount;
+    if (badge) badge.textContent = referralData.level1Count;
 
     const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
 
@@ -500,62 +550,61 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
         
-        <!-- Earnings Summary -->
+        <!-- 5 Level Earnings Summary -->
         <div class="col-12">
           <div class="card-glass">
-            <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>Referral Earnings</div>
+            <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Earnings</div>
             <div class="row g-3">
-              <div class="col-md-4">
-                <div class="earnings-box">
-                  <span class="label">👥 Direct Referrals</span>
-                  <span class="value">${referralData.directCount}</span>
+              <div class="col-md-2 col-6">
+                <div class="earnings-box" style="border-color:rgba(46,204,113,0.15);">
+                  <span class="label">👥 Level 1</span>
+                  <span class="value" style="font-size:1rem;">${referralData.level1Count}</span>
+                  <span class="label" style="font-size:0.65rem;color:#fbbf24;">$${(referralData.level1Earn || 0).toFixed(2)}</span>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="earnings-box">
-                  <span class="label">💰 Direct Earnings (8%)</span>
-                  <span class="value">$${(referralData.directEarnings || 0).toFixed(2)}</span>
+              <div class="col-md-2 col-6">
+                <div class="earnings-box" style="border-color:rgba(59,130,246,0.15);">
+                  <span class="label">👥 Level 2</span>
+                  <span class="value" style="font-size:1rem;color:#60a5fa;">${referralData.level2Count}</span>
+                  <span class="label" style="font-size:0.65rem;color:#60a5fa;">$${(referralData.level2Earn || 0).toFixed(2)}</span>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="earnings-box">
-                  <span class="label">📊 Direct Stake</span>
-                  <span class="value">$${(referralData.totalDirectStake || 0).toFixed(2)}</span>
-                </div>
-              </div>
-              <div class="col-md-4">
+              <div class="col-md-2 col-6">
                 <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
-                  <span class="label">👥 Downline</span>
-                  <span class="value" style="color:#a78bfa;">${referralData.downlineCount}</span>
+                  <span class="label">👥 Level 3</span>
+                  <span class="value" style="font-size:1rem;color:#a78bfa;">${referralData.level3Count}</span>
+                  <span class="label" style="font-size:0.65rem;color:#a78bfa;">$${(referralData.level3Earn || 0).toFixed(2)}</span>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
-                  <span class="label">💰 Downline Earnings (4%)</span>
-                  <span class="value" style="color:#a78bfa;">$${(referralData.downlineEarnings || 0).toFixed(2)}</span>
+              <div class="col-md-2 col-6">
+                <div class="earnings-box" style="border-color:rgba(244,114,182,0.15);">
+                  <span class="label">👥 Level 4</span>
+                  <span class="value" style="font-size:1rem;color:#f472b6;">${referralData.level4Count}</span>
+                  <span class="label" style="font-size:0.65rem;color:#f472b6;">$${(referralData.level4Earn || 0).toFixed(2)}</span>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
-                  <span class="label">📊 Downline Stake</span>
-                  <span class="value" style="color:#a78bfa;">$${(referralData.totalDownlineStake || 0).toFixed(2)}</span>
+              <div class="col-md-2 col-6">
+                <div class="earnings-box" style="border-color:rgba(251,146,60,0.15);">
+                  <span class="label">👥 Level 5</span>
+                  <span class="value" style="font-size:1rem;color:#fb923c;">${referralData.level5Count}</span>
+                  <span class="label" style="font-size:0.65rem;color:#fb923c;">$${(referralData.level5Earn || 0).toFixed(2)}</span>
                 </div>
               </div>
-            </div>
-            <div class="mt-3 p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted">🏆 Total Referral Earnings</span>
-                <span style="font-size:1.5rem;font-weight:800;color:#fbbf24;">$${(referralData.totalEarnings || 0).toFixed(2)}</span>
+              <div class="col-md-2 col-6">
+                <div class="earnings-box" style="border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.05);">
+                  <span class="label">🏆 Total</span>
+                  <span class="value" style="font-size:1.2rem;color:#2ecc71;">$${(referralData.totalEarnings || 0).toFixed(2)}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
         
-        <!-- Direct Referrals List -->
+        <!-- Level 1 Referrals -->
         <div class="col-12">
           <div class="card-glass">
-            <div class="card-title"><i class="bi bi-list-ul"></i>Your Direct Referrals (${referralData.directCount})</div>
-            ${referralData.directCount === 0 ? `
+            <div class="card-title"><i class="bi bi-list-ul"></i>Level 1 - Direct Referrals (${referralData.level1Count}) <span class="level-badge">8%</span></div>
+            ${referralData.level1Count === 0 ? `
               <div class="text-center text-muted py-4">
                 <i class="bi bi-people fs-1 d-block mb-2"></i>
                 <p>No referrals yet. Share your referral link to earn!</p>
@@ -568,18 +617,16 @@ onAuthStateChanged(auth, async (user) => {
                       <th>#</th>
                       <th>Name</th>
                       <th>Email</th>
-                      <th>Joined</th>
                       <th>Stake</th>
                       <th>Your Earnings (8%)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${referralData.directReferrals.map((r, i) => `
+                    ${referralData.level1Users.map((r, i) => `
                       <tr>
                         <td>${i + 1}</td>
                         <td>${r.name || 'N/A'}</td>
                         <td>${r.email || 'N/A'}</td>
-                        <td>${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                         <td>$${(r.totalStake || 0).toFixed(2)}</td>
                         <td style="color:#fbbf24;">$${((r.totalStake || 0) * 0.08).toFixed(2)}</td>
                       </tr>
@@ -591,11 +638,11 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
         
-        <!-- Downline List -->
-        ${referralData.downlineCount > 0 ? `
+        <!-- Level 2 Referrals -->
+        ${referralData.level2Count > 0 ? `
         <div class="col-12">
           <div class="card-glass">
-            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Your Downline (${referralData.downlineCount})</div>
+            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 2 Referrals (${referralData.level2Count}) <span class="level-badge">4%</span></div>
             <div class="table-responsive">
               <table class="table table-custom">
                 <thead>
@@ -603,20 +650,117 @@ onAuthStateChanged(auth, async (user) => {
                     <th>#</th>
                     <th>Name</th>
                     <th>Email</th>
-                    <th>Joined</th>
                     <th>Stake</th>
                     <th>Your Earnings (4%)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${referralData.downlineReferrals.map((r, i) => `
+                  ${referralData.level2Users.map((r, i) => `
                     <tr>
                       <td>${i + 1}</td>
                       <td>${r.name || 'N/A'}</td>
                       <td>${r.email || 'N/A'}</td>
-                      <td>${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                       <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                      <td style="color:#a78bfa;">$${((r.totalStake || 0) * 0.04).toFixed(2)}</td>
+                      <td style="color:#60a5fa;">$${((r.totalStake || 0) * 0.04).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+        
+        <!-- Level 3 Referrals -->
+        ${referralData.level3Count > 0 ? `
+        <div class="col-12">
+          <div class="card-glass">
+            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 3 Referrals (${referralData.level3Count}) <span class="level-badge">2%</span></div>
+            <div class="table-responsive">
+              <table class="table table-custom">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Stake</th>
+                    <th>Your Earnings (2%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${referralData.level3Users.map((r, i) => `
+                    <tr>
+                      <td>${i + 1}</td>
+                      <td>${r.name || 'N/A'}</td>
+                      <td>${r.email || 'N/A'}</td>
+                      <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                      <td style="color:#a78bfa;">$${((r.totalStake || 0) * 0.02).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+        
+        <!-- Level 4 Referrals -->
+        ${referralData.level4Count > 0 ? `
+        <div class="col-12">
+          <div class="card-glass">
+            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 4 Referrals (${referralData.level4Count}) <span class="level-badge">1%</span></div>
+            <div class="table-responsive">
+              <table class="table table-custom">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Stake</th>
+                    <th>Your Earnings (1%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${referralData.level4Users.map((r, i) => `
+                    <tr>
+                      <td>${i + 1}</td>
+                      <td>${r.name || 'N/A'}</td>
+                      <td>${r.email || 'N/A'}</td>
+                      <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                      <td style="color:#f472b6;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+        
+        <!-- Level 5 Referrals -->
+        ${referralData.level5Count > 0 ? `
+        <div class="col-12">
+          <div class="card-glass">
+            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 5 Referrals (${referralData.level5Count}) <span class="level-badge">1%</span></div>
+            <div class="table-responsive">
+              <table class="table table-custom">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Stake</th>
+                    <th>Your Earnings (1%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${referralData.level5Users.map((r, i) => `
+                    <tr>
+                      <td>${i + 1}</td>
+                      <td>${r.name || 'N/A'}</td>
+                      <td>${r.email || 'N/A'}</td>
+                      <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                      <td style="color:#fb923c;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
