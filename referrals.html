@@ -22,14 +22,6 @@
     }
     .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
     .navbar-custom .navbar-brand i { color: #2ecc71; }
-    .domain-badge {
-      background: rgba(46,204,113,0.12);
-      border: 1px solid rgba(46,204,113,0.15);
-      border-radius: 30px;
-      padding: 4px 14px;
-      font-size: 0.65rem;
-      color: #2ecc71;
-    }
     
     .sidebar-toggle {
       background: rgba(46,204,113,0.12);
@@ -239,6 +231,20 @@
     .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     
+    .earnings-box {
+      background: rgba(251,191,36,0.05);
+      border: 1px solid rgba(251,191,36,0.15);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .earnings-box .label { color: #8899bb; font-size: 0.85rem; }
+    .earnings-box .value { color: #fbbf24; font-weight: 700; font-size: 1.1rem; }
+    
     @media (max-width: 768px) {
       .dashboard-container { padding: 15px; }
       .sidebar-panel { width: 280px; right: -300px; }
@@ -256,7 +262,6 @@
   <div class="container-fluid px-3">
     <a class="navbar-brand fw-bold" href="dashboard.html">
       <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
-      <span class="domain-badge ms-2">staking.randigital.in</span>
     </a>
     <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
       <i class="bi bi-list"></i>
@@ -378,6 +383,81 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
   window.location.href = 'login.html';
 });
 
+// ============================================================
+// 🔥 GET SUB-REFERRALS
+// ============================================================
+async function getSubReferrals(referralCode) {
+  try {
+    const allUsersSnapshot = await get(ref(db, 'users'));
+    let referrals = [];
+    if (allUsersSnapshot.exists()) {
+      const allUsers = allUsersSnapshot.val();
+      for (let key in allUsers) {
+        if (allUsers[key].referredBy === referralCode) {
+          referrals.push(allUsers[key]);
+        }
+      }
+    }
+    return referrals;
+  } catch (error) {
+    return [];
+  }
+}
+
+// ============================================================
+// 🔥 CALCULATE REFERRAL EARNINGS
+// ============================================================
+async function calculateReferralEarnings(userData) {
+  try {
+    const allUsersSnapshot = await get(ref(db, 'users'));
+    let directReferrals = [];
+    let downlineReferrals = [];
+    let directEarnings = 0;
+    let downlineEarnings = 0;
+    let totalDirectStake = 0;
+    let totalDownlineStake = 0;
+    
+    if (allUsersSnapshot.exists()) {
+      const allUsers = allUsersSnapshot.val();
+      const referralCode = userData.referralCode || userData.username;
+      
+      for (let key in allUsers) {
+        const u = allUsers[key];
+        if (u.referredBy === referralCode) {
+          directReferrals.push(u);
+          const stake = u.totalStake || 0;
+          totalDirectStake += stake;
+          directEarnings += (stake * 0.08);
+          
+          // Get downline
+          const subRefs = await getSubReferrals(u.referralCode || u.username);
+          subRefs.forEach(sr => {
+            const srStake = sr.totalStake || 0;
+            totalDownlineStake += srStake;
+            downlineEarnings += (srStake * 0.04);
+          });
+          downlineReferrals = downlineReferrals.concat(subRefs);
+        }
+      }
+    }
+    
+    return {
+      directReferrals,
+      downlineReferrals,
+      directCount: directReferrals.length,
+      downlineCount: downlineReferrals.length,
+      directEarnings: directEarnings,
+      downlineEarnings: downlineEarnings,
+      totalEarnings: directEarnings + downlineEarnings,
+      totalDirectStake: totalDirectStake,
+      totalDownlineStake: totalDownlineStake
+    };
+  } catch (error) {
+    console.error('Error calculating referral earnings:', error);
+    return { directReferrals: [], downlineReferrals: [], directCount: 0, downlineCount: 0, directEarnings: 0, downlineEarnings: 0, totalEarnings: 0, totalDirectStake: 0, totalDownlineStake: 0 };
+  }
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = 'login.html';
@@ -398,19 +478,11 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
     document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
     
+    // Calculate referral earnings
+    const referralData = await calculateReferralEarnings(userData);
+    
     const badge = document.getElementById('referralBadge');
-    if (badge) badge.textContent = userData.totalReferrals || 0;
-
-    const allUsersSnapshot = await get(ref(db, 'users'));
-    let referrals = [];
-    if (allUsersSnapshot.exists()) {
-      const allUsers = allUsersSnapshot.val();
-      for (let key in allUsers) {
-        if (allUsers[key].referredBy === userData.referralCode) {
-          referrals.push({ uid: key, ...allUsers[key] });
-        }
-      }
-    }
+    if (badge) badge.textContent = referralData.directCount;
 
     const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
 
@@ -427,9 +499,6 @@ onAuthStateChanged(auth, async (user) => {
             <div class="referral-box">
               <code>${referralLink}</code>
               <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
-            </div>
-            <div class="mt-3">
-              <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${referrals.length}</strong></span>
             </div>
           </div>
         </div>
@@ -448,10 +517,62 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
         
+        <!-- Earnings Summary -->
         <div class="col-12">
           <div class="card-glass">
-            <div class="card-title"><i class="bi bi-list-ul"></i>Your Referrals (${referrals.length})</div>
-            ${referrals.length === 0 ? `
+            <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>Referral Earnings</div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="earnings-box">
+                  <span class="label">👥 Direct Referrals</span>
+                  <span class="value">${referralData.directCount}</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="earnings-box">
+                  <span class="label">💰 Direct Earnings (8%)</span>
+                  <span class="value">$${(referralData.directEarnings || 0).toFixed(2)}</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="earnings-box">
+                  <span class="label">📊 Direct Stake</span>
+                  <span class="value">$${(referralData.totalDirectStake || 0).toFixed(2)}</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
+                  <span class="label">👥 Downline</span>
+                  <span class="value" style="color:#a78bfa;">${referralData.downlineCount}</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
+                  <span class="label">💰 Downline Earnings (4%)</span>
+                  <span class="value" style="color:#a78bfa;">$${(referralData.downlineEarnings || 0).toFixed(2)}</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
+                  <span class="label">📊 Downline Stake</span>
+                  <span class="value" style="color:#a78bfa;">$${(referralData.totalDownlineStake || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">🏆 Total Referral Earnings</span>
+                <span style="font-size:1.5rem;font-weight:800;color:#fbbf24;">$${(referralData.totalEarnings || 0).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Referral List -->
+        <div class="col-12">
+          <div class="card-glass">
+            <div class="card-title"><i class="bi bi-list-ul"></i>Your Referrals (${referralData.directCount})</div>
+            ${referralData.directCount === 0 ? `
               <div class="text-center text-muted py-4">
                 <i class="bi bi-people fs-1 d-block mb-2"></i>
                 <p>No referrals yet. Share your referral link to earn!</p>
@@ -466,16 +587,18 @@ onAuthStateChanged(auth, async (user) => {
                       <th>Email</th>
                       <th>Joined</th>
                       <th>Stake</th>
+                      <th>Your Earnings (8%)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${referrals.map((r, i) => `
+                    ${referralData.directReferrals.map((r, i) => `
                       <tr>
                         <td>${i + 1}</td>
                         <td>${r.name || 'N/A'}</td>
                         <td>${r.email || 'N/A'}</td>
                         <td>${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
-                        <td>$${r.totalStake || 0}</td>
+                        <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                        <td style="color:#fbbf24;">$${((r.totalStake || 0) * 0.08).toFixed(2)}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -484,6 +607,41 @@ onAuthStateChanged(auth, async (user) => {
             `}
           </div>
         </div>
+        
+        <!-- Downline List -->
+        ${referralData.downlineCount > 0 ? `
+        <div class="col-12">
+          <div class="card-glass">
+            <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Your Downline (${referralData.downlineCount})</div>
+            <div class="table-responsive">
+              <table class="table table-custom">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Joined</th>
+                    <th>Stake</th>
+                    <th>Your Earnings (4%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${referralData.downlineReferrals.map((r, i) => `
+                    <tr>
+                      <td>${i + 1}</td>
+                      <td>${r.name || 'N/A'}</td>
+                      <td>${r.email || 'N/A'}</td>
+                      <td>${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
+                      <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                      <td style="color:#a78bfa;">$${((r.totalStake || 0) * 0.04).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        ` : ''}
       </div>
     `;
 
