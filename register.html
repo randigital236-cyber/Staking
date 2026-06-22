@@ -40,6 +40,10 @@
             background: rgba(8,14,26,0.9) !important;
         }
         .form-control-custom::placeholder { color: #556688 !important; }
+        .form-control-custom:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
         .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
         .form-label .required { color: #ef4444; }
         .btn-primary-custom {
@@ -105,7 +109,24 @@
             background: rgba(46,204,113,0.08);
         }
         
-        @media (max-width: 576px) { .card-glass { padding: 1.5rem; } .logo-text { font-size: 1.5rem; } }
+        .referral-field-wrapper {
+            position: relative;
+        }
+        .referral-field-wrapper .input-group-text {
+            background: rgba(8,14,26,0.8);
+            border: 1px solid rgba(46,204,113,0.15);
+            border-right: none;
+            color: #2ecc71;
+            border-radius: 12px 0 0 12px;
+        }
+        .referral-field-wrapper .form-control-custom {
+            border-radius: 0 12px 12px 0;
+        }
+        
+        @media (max-width: 576px) { 
+            .card-glass { padding: 1.5rem; } 
+            .logo-text { font-size: 1.5rem; } 
+        }
     </style>
 </head>
 <body>
@@ -127,26 +148,45 @@
         </div>
 
         <form id="registerForm" novalidate>
+            <!-- Full Name -->
             <div class="mb-3">
                 <label class="form-label">Full Name <span class="required">*</span></label>
                 <input type="text" id="regName" class="form-control form-control-custom" placeholder="Enter your full name" required>
             </div>
+            
+            <!-- Email -->
             <div class="mb-3">
                 <label class="form-label">Email Address <span class="required">*</span></label>
                 <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="you@example.com" required>
             </div>
+            
+            <!-- Password -->
             <div class="mb-3">
                 <label class="form-label">Password <span class="required">*</span></label>
                 <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
             </div>
+            
+            <!-- Confirm Password -->
             <div class="mb-3">
-                <label class="form-label">Referral Code <span style="font-size:0.65rem;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 10px;border-radius:20px;font-weight:500;margin-left:6px;">Optional</span></label>
-                <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Enter referrer's User ID" style="background:#0a1425 !important;">
+                <label class="form-label">Confirm Password <span class="required">*</span></label>
+                <input type="password" id="regConfirmPassword" class="form-control form-control-custom" placeholder="Confirm your password" required minlength="6">
+            </div>
+            
+            <!-- Referral Code - READONLY / AUTO-FILLED -->
+            <div class="mb-3">
+                <label class="form-label">Referral Code <span style="font-size:0.65rem;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 10px;border-radius:20px;font-weight:500;margin-left:6px;">Auto-filled</span></label>
+                <div class="referral-field-wrapper">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                        <input type="text" id="regRef" class="form-control form-control-custom" placeholder="Auto-filled from referral link" readonly disabled style="background:#0a1425 !important;cursor:default;">
+                    </div>
+                </div>
                 <div class="referral-notice" id="referralNotice">
                     <i class="bi bi-info-circle me-1"></i> 
-                    <span id="referralNoticeText">Enter referrer's User ID if you have one</span>
+                    <span id="referralNoticeText">Referral code will auto-fill from link</span>
                 </div>
             </div>
+            
             <button type="submit" class="btn-primary-custom" id="registerBtn">Create Account <i class="bi bi-arrow-right ms-2"></i></button>
         </form>
 
@@ -171,6 +211,9 @@ import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, set, get, update } from "firebase/database";
 
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -186,6 +229,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// ============================================================
+// 🔥 TOAST SYSTEM
+// ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -216,29 +262,35 @@ function getReferralFromURL() {
     return '';
 }
 
-// Auto-fill referral from URL
+// ============================================================
+// 🔥 AUTO-FILL REFERRAL FROM URL - READONLY
+// ============================================================
 const refFromURL = getReferralFromURL();
+const regRefInput = document.getElementById('regRef');
+const referralNotice = document.getElementById('referralNotice');
+const referralNoticeText = document.getElementById('referralNoticeText');
+
 if (refFromURL) {
-    document.getElementById('regRef').value = refFromURL;
-    document.getElementById('referralNoticeText').textContent = '✅ Referral code auto-filled from link!';
-    document.getElementById('referralNotice').className = 'referral-notice active';
+    regRefInput.value = refFromURL;
+    referralNoticeText.textContent = '✅ Referral code auto-filled from link!';
+    referralNotice.className = 'referral-notice active';
     console.log('✅✅✅ Referral code auto-filled:', refFromURL);
 } else {
+    regRefInput.value = '';
+    referralNoticeText.textContent = 'No referral code detected in URL';
+    referralNotice.className = 'referral-notice';
     console.log('ℹ️ No referral code in URL');
 }
 
-document.getElementById('regRef').addEventListener('input', function() {
-    const val = this.value.trim();
-    if (val) {
-        document.getElementById('referralNoticeText').textContent = '📌 Referral code: ' + val;
-        document.getElementById('referralNotice').className = 'referral-notice active';
-    } else {
-        document.getElementById('referralNoticeText').textContent = 'Enter referrer\'s User ID if you have one';
-        document.getElementById('referralNotice').className = 'referral-notice';
+// ============================================================
+// 🔥 CHECK IF ALREADY LOGGED IN
+// ============================================================
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // User already logged in, redirect to dashboard
+        window.location.href = 'dashboard.html';
     }
 });
-
-// Auto redirect disabled during registration to preserve referral flow
 
 // ============================================================
 // 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
@@ -272,7 +324,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             return;
         }
         
-        // Add to direct referrals
+        // 🔥 Add to direct referrals
         const directRefs = referrerData.directReferrals || {};
         directRefs[newUserUid] = {
             uid: newUserUid,
@@ -282,7 +334,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
-        // Update Level 1 (Direct)
+        // 🔥 Update Level 1 (Direct)
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
             downline: (referrerData.downline || 0) + 1,
@@ -290,7 +342,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
         });
         console.log('✅ Level 1 (Direct) updated for:', referrerUid);
         
-        // Level 2 - 4%
+        // 🔥 Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
             console.log('🔍 Level 2 referral code:', level2RefCode);
@@ -302,7 +354,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                     });
                     console.log('✅ Level 2 updated for:', key);
                     
-                    // Level 3 - 2%
+                    // 🔥 Level 3 - 2%
                     const level3RefCode = level2User.referredBy;
                     if (level3RefCode && level3RefCode !== '') {
                         for (let k3 in allUsers) {
@@ -313,7 +365,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                 });
                                 console.log('✅ Level 3 updated for:', k3);
                                 
-                                // Level 4 - 1%
+                                // 🔥 Level 4 - 1%
                                 const level4RefCode = level3User.referredBy;
                                 if (level4RefCode && level4RefCode !== '') {
                                     for (let k4 in allUsers) {
@@ -324,7 +376,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                             });
                                             console.log('✅ Level 4 updated for:', k4);
                                             
-                                            // Level 5 - 1%
+                                            // 🔥 Level 5 - 1%
                                             const level5RefCode = level4User.referredBy;
                                             if (level5RefCode && level5RefCode !== '') {
                                                 for (let k5 in allUsers) {
@@ -365,7 +417,8 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
-    const pass = document.getElementById('regPassword').value;
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
     const refCode = document.getElementById('regRef').value.trim();
     const registerBtn = document.getElementById('registerBtn');
     
@@ -375,34 +428,47 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     console.log('📝 Referral Code from input:', refCode);
     console.log('📝 Referral Code from URL:', referralCodeFromURL);
     
+    // ============================================================
+    // 🔥 VALIDATION
+    // ============================================================
     if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
     if (!email || !email.includes('@')) { showToast('❌ Please enter a valid email address', 'error'); return; }
-    if (pass.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
+    if (password.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
+    if (password !== confirmPassword) { showToast('❌ Passwords do not match!', 'error'); return; }
     
     registerBtn.disabled = true;
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
-        // Step 1: Create user
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        // ============================================================
+        // 🔥 STEP 1: Create user in Firebase Auth
+        // ============================================================
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         await updateProfile(auth.currentUser, { displayName: name });
         console.log('✅ User created with UID:', uid);
         
-        // Step 2: Referral Code = FULL UID
+        // ============================================================
+        // 🔥 STEP 2: Generate Referral Code = FULL UID
+        // ============================================================
         const referralCode = uid;
         console.log('✅ Generated Referral Code:', referralCode);
         
-        // Step 3: Final referral code
+        // ============================================================
+        // 🔥 STEP 3: Final referral code (from input or URL)
+        // ============================================================
         const finalRefCode = refCode || referralCodeFromURL || '';
         console.log('✅✅✅ FINAL REFERRAL CODE TO SAVE:', finalRefCode);
         
-        // Step 4: USER DATA
+        // ============================================================
+        // 🔥 STEP 4: USER DATA - AS PER REQUIREMENTS
+        // ============================================================
         const userData = {
-            name: name,
-            email: email,
+            // ===== BASIC INFO =====
             uid: uid,
             username: uid,
+            name: name,
+            email: email,
             referralCode: uid,
             referredBy: finalRefCode,
             rank: 'Member',
@@ -410,16 +476,21 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             banned: false,
             createdAt: Date.now(),
             lastActive: Date.now(),
+            
+            // ===== WALLETS =====
             depositWallet: 0,
-            withdrawalWallet: 0,
-            releaseWallet: 0,
+            referralWallet: 0,
             rndWallet: 0,
+            lockedRND: 0,
+            releaseWallet: 0,
+            
+            // ===== STAKING =====
             totalStake: 0,
             totalReward: 0,
             availableReward: 0,
             totalWithdrawn: 0,
-            totalReferrals: 0,
-            downline: 0,
+            
+            // ===== 5 LEVEL REFERRAL EARNINGS =====
             level1Earnings: 0,
             level2Earnings: 0,
             level3Earnings: 0,
@@ -428,22 +499,46 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             referralEarnings: 0,
             teamBusiness: 0,
             subscriptions: 0,
+            
+            // ===== REFERRAL COUNTS =====
+            totalReferrals: 0,
+            downline: 0,
+            
+            // ===== TEAM STRUCTURE (5 Levels) =====
+            teamStructure: {
+                level1: 0,
+                level2: 0,
+                level3: 0,
+                level4: 0,
+                level5: 0
+            },
+            
+            // ===== DIRECT REFERRALS LIST =====
             directReferrals: {},
-            teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
+            
+            // ===== PACKAGES =====
             packages: {},
+            
+            // ===== TRANSFER HISTORY =====
             transferHistory: []
         };
         
         console.log('💾 SAVING USER DATA:');
         console.log('   - referralCode:', userData.referralCode);
         console.log('   - referredBy:', userData.referredBy);
+        console.log('   - name:', userData.name);
+        console.log('   - uid:', userData.uid);
         
-        // Step 5: Save to database
+        // ============================================================
+        // 🔥 STEP 5: Save to Firebase Database
+        // ============================================================
         await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + uid), uid);
         console.log('✅ User data saved to database!');
 
-        // Step 6: UPDATE REFERRER
+        // ============================================================
+        // 🔥 STEP 6: UPDATE REFERRER (Sponsor)
+        // ============================================================
         if (finalRefCode) {
             console.log('🔗 ===== UPDATING REFERRER =====');
             console.log('🔗 Referrer Code:', finalRefCode);
@@ -452,13 +547,17 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             console.log('ℹ️ No referral code provided - skipping referrer update');
         }
         
-        // 🔥 🔥 🔥 FIX: Wait for 1.5 seconds before redirecting
+        // ============================================================
+        // 🔥 STEP 7: Wait for data to be fully saved
+        // ============================================================
         console.log('⏳ Waiting 1.5 seconds for data to be fully saved...');
         await new Promise(resolve => setTimeout(resolve, 1500));
         
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
         
-        // 🔥 Redirect to dashboard
+        // ============================================================
+        // 🔥 STEP 8: Redirect to Dashboard
+        // ============================================================
         window.location.href = 'dashboard.html';
         
     } catch (err) {
