@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Same as before */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -23,6 +22,7 @@
         }
         .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
         .navbar-custom .navbar-brand i { color: #2ecc71; }
+        
         .sidebar-toggle {
             background: rgba(46,204,113,0.12);
             border: 1px solid rgba(46,204,113,0.2);
@@ -34,6 +34,7 @@
             font-size: 1.2rem;
         }
         .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
+        
         .sidebar-overlay {
             position: fixed;
             top: 0;
@@ -48,6 +49,7 @@
             transition: opacity 0.3s ease;
         }
         .sidebar-overlay.active { display: block; opacity: 1; }
+        
         .sidebar-panel {
             position: fixed;
             top: 0;
@@ -65,6 +67,7 @@
             flex-direction: column;
         }
         .sidebar-panel.open { right: 0; }
+        
         .sidebar-panel .sidebar-header {
             display: flex;
             justify-content: space-between;
@@ -90,6 +93,7 @@
             font-size: 1.2rem;
         }
         .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        
         .sidebar-panel .nav-item {
             display: flex;
             align-items: center;
@@ -115,6 +119,7 @@
             padding: 2px 10px;
             border-radius: 20px;
         }
+        
         .sidebar-panel .sidebar-footer {
             margin-top: auto;
             padding: 20px;
@@ -122,6 +127,7 @@
         }
         .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
         .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
+        
         .user-profile-sidebar {
             padding: 10px 20px 20px;
             border-bottom: 1px solid rgba(46,204,113,0.08);
@@ -141,7 +147,9 @@
         }
         .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
         .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
+        
         .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        
         .card-glass {
             background: rgba(19,34,55,0.8);
             backdrop-filter: blur(10px);
@@ -153,6 +161,7 @@
         .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
+        
         .package-card {
             background: rgba(8,14,26,0.5);
             border: 1px solid rgba(46,204,113,0.1);
@@ -164,7 +173,11 @@
             height: 100%;
         }
         .package-card:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-5px); }
-        .package-card.selected { border-color: #2ecc71; border-width: 2px; background: rgba(46,204,113,0.08); }
+        .package-card.selected {
+            border-color: #2ecc71;
+            border-width: 2px;
+            background: rgba(46,204,113,0.08);
+        }
         .package-card .price { font-size: 2rem; font-weight: 800; color: #2ecc71; }
         .package-card .price span { font-size: 1rem; color: #8899bb; }
         .package-card .duration { color: #8899bb; font-size: 0.85rem; margin-top: 4px; }
@@ -174,6 +187,7 @@
         .package-card .features { margin-top: 12px; text-align: left; color: #a0b8d0; font-size: 0.85rem; }
         .package-card .features li { list-style: none; margin-bottom: 4px; }
         .package-card .features li i { color: #2ecc71; margin-right: 8px; }
+        
         .form-control-custom {
             background: rgba(8,14,26,0.8) !important;
             border: 1px solid rgba(46,204,113,0.15) !important;
@@ -183,11 +197,16 @@
             font-size: 0.95rem;
             transition: all 0.3s ease;
         }
-        .form-control-custom:focus { border-color: #2ecc71 !important; box-shadow: 0 0 0 3px rgba(46,204,113,0.15) !important; }
+        .form-control-custom:focus {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 0 3px rgba(46,204,113,0.15) !important;
+        }
         .form-control-custom::placeholder { color: #556688 !important; }
         .form-control-custom:disabled { opacity: 0.5; cursor: not-allowed; }
+        
         .form-label { font-weight: 600; color: #a0b8d0; font-size: 0.9rem; margin-bottom: 6px; }
         .form-label .required { color: #ef4444; }
+        
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -201,6 +220,7 @@
         }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
         .btn-primary-custom:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+        
         .btn-outline-custom {
             border: 2px solid rgba(46,204,113,0.3);
             color: #a0b8d0;
@@ -214,10 +234,12 @@
             font-size: 0.9rem;
         }
         .btn-outline-custom:hover { border-color: #2ecc71; color: #2ecc71; }
+        
         .package-history { margin-top: 20px; max-height: 300px; overflow-y: auto; }
         .package-history::-webkit-scrollbar { width: 4px; }
         .package-history::-webkit-scrollbar-track { background: rgba(46,204,113,0.05); border-radius: 10px; }
         .package-history::-webkit-scrollbar-thumb { background: rgba(46,204,113,0.3); border-radius: 10px; }
+        
         .package-item {
             background: rgba(8,14,26,0.4);
             border-radius: 12px;
@@ -239,6 +261,7 @@
         .package-item .daily { color: #34d399; font-size: 0.7rem; }
         .package-item .total-reward { color: #fbbf24; font-size: 0.7rem; }
         .package-item .rate-badge { background: rgba(46,204,113,0.1); color: #2ecc71; padding: 2px 10px; border-radius: 12px; font-size: 0.6rem; }
+        
         .toast-container {
             position: fixed;
             top: 20px;
@@ -265,6 +288,7 @@
         .toast-custom i { font-size: 1.5rem; }
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
         .rnd-price-badge {
             background: rgba(46,204,113,0.1);
             border: 1px solid rgba(46,204,113,0.2);
@@ -277,6 +301,25 @@
             font-weight: 600;
             font-size: 0.85rem;
         }
+        
+        .commission-box {
+            background: rgba(251,191,36,0.05);
+            border: 1px solid rgba(251,191,36,0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-top: 10px;
+        }
+        .commission-box .level-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(251,191,36,0.05);
+        }
+        .commission-box .level-row:last-child { border-bottom: none; }
+        .commission-box .level-label { color: #8899bb; }
+        .commission-box .level-value { color: #fbbf24; font-weight: 600; }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
@@ -454,6 +497,89 @@ async function getRNDPrice() {
 }
 
 // ============================================================
+// 🔥 🔥 🔥 DISTRIBUTE REFERRAL COMMISSION - 5 LEVELS
+// ============================================================
+async function distributeReferralCommission(userUid, amount) {
+    try {
+        console.log('💰 ===== DISTRIBUTING REFERRAL COMMISSION =====');
+        console.log('💰 User UID:', userUid);
+        console.log('💰 Amount:', amount);
+        
+        const rates = [0.08, 0.04, 0.02, 0.01, 0.01];
+        const levelNames = ['Level 1 (8%)', 'Level 2 (4%)', 'Level 3 (2%)', 'Level 4 (1%)', 'Level 5 (1%)'];
+        
+        const usersSnap = await get(ref(db, 'users'));
+        if (!usersSnap.exists()) {
+            console.log('❌ No users found in database');
+            return;
+        }
+        const users = usersSnap.val();
+        
+        // Get current user's referrer
+        const currentUser = users[userUid];
+        if (!currentUser) {
+            console.log('❌ Current user not found');
+            return;
+        }
+        
+        let currentRefCode = currentUser.referredBy || '';
+        console.log('🔍 Starting referral chain from:', currentRefCode);
+        
+        let commissionDistributed = false;
+        
+        for (let level = 0; level < 5; level++) {
+            if (!currentRefCode) {
+                console.log(`ℹ️ No referrer found at level ${level + 1}, stopping`);
+                break;
+            }
+            
+            let sponsorUid = null;
+            let sponsor = null;
+            
+            for (const uid in users) {
+                if (users[uid].referralCode === currentRefCode) {
+                    sponsorUid = uid;
+                    sponsor = users[uid];
+                    break;
+                }
+            }
+            
+            if (!sponsorUid || !sponsor) {
+                console.log(`❌ Sponsor not found for code: ${currentRefCode}`);
+                break;
+            }
+            
+            const bonus = amount * rates[level];
+            console.log(`💰 ${levelNames[level]} → ${sponsor.name || 'User'} (${sponsorUid}) gets $${bonus.toFixed(2)}`);
+            
+            const updates = {
+                referralEarnings: (sponsor.referralEarnings || 0) + bonus,
+                withdrawalWallet: (sponsor.withdrawalWallet || 0) + bonus,
+                teamBusiness: (sponsor.teamBusiness || 0) + amount
+            };
+            
+            updates[`level${level + 1}Earnings`] =
+                (sponsor[`level${level + 1}Earnings`] || 0) + bonus;
+            
+            await update(ref(db, 'users/' + sponsorUid), updates);
+            console.log(`✅ ${levelNames[level]} updated for ${sponsor.name || 'User'}`);
+            
+            currentRefCode = sponsor.referredBy || '';
+            commissionDistributed = true;
+        }
+        
+        if (commissionDistributed) {
+            console.log('✅ ===== REFERRAL COMMISSION DISTRIBUTED =====');
+        } else {
+            console.log('ℹ️ No referral commission distributed');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error distributing referral commission:', error);
+    }
+}
+
+// ============================================================
 // 🔥 UPDATE USER DATA
 // ============================================================
 async function updateUserData(userId) {
@@ -503,8 +629,8 @@ onAuthStateChanged(auth, async (user) => {
         const username = userData.username || userData.referralCode || 'USER';
         const name = userData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
-        document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
-        document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
+        document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
 
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
@@ -605,6 +731,39 @@ onAuthStateChanged(auth, async (user) => {
                             </div>
                             `;
                         }).join('')}
+                    </div>
+                </div>
+
+                <!-- 🔥 Commission Structure Preview -->
+                <div class="col-12">
+                    <div class="card-glass">
+                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Referral Commission Structure</div>
+                        <div class="commission-box">
+                            <div class="level-row">
+                                <span class="level-label">Level 1 (Direct Referral)</span>
+                                <span class="level-value">8%</span>
+                            </div>
+                            <div class="level-row">
+                                <span class="level-label">Level 2</span>
+                                <span class="level-value">4%</span>
+                            </div>
+                            <div class="level-row">
+                                <span class="level-label">Level 3</span>
+                                <span class="level-value">2%</span>
+                            </div>
+                            <div class="level-row">
+                                <span class="level-label">Level 4</span>
+                                <span class="level-value">1%</span>
+                            </div>
+                            <div class="level-row">
+                                <span class="level-label">Level 5</span>
+                                <span class="level-value">1%</span>
+                            </div>
+                            <div class="level-row" style="border-top:2px solid rgba(251,191,36,0.2);padding-top:8px;margin-top:4px;">
+                                <span class="level-label" style="font-weight:700;color:#fbbf24;">Total Commission</span>
+                                <span class="level-value" style="font-size:1.1rem;">16%</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -709,7 +868,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         // ============================================================
-        // 🔥 BUY PLAN
+        // 🔥 BUY PLAN - WITH REFERRAL COMMISSION
         // ============================================================
         const buyForm = document.getElementById('buyForm');
         if (buyForm) {
@@ -764,7 +923,7 @@ onAuthStateChanged(auth, async (user) => {
                         });
                     }
 
-                    // 🔥 SAVE PACKAGE IN USER NODE
+                    // Save package in user node
                     const userRef = ref(db, 'users/' + auth.currentUser.uid);
                     const userSnap = await get(userRef);
                     const currentUserData = userSnap.val();
@@ -789,6 +948,10 @@ onAuthStateChanged(auth, async (user) => {
                     await update(ref(db, 'users/' + auth.currentUser.uid), {
                         packages: packages
                     });
+
+                    // 🔥 🔥 🔥 DISTRIBUTE REFERRAL COMMISSION
+                    console.log('💰 Distributing referral commission for purchase...');
+                    await distributeReferralCommission(auth.currentUser.uid, payAmount);
 
                     // Update user data (release wallet etc)
                     await updateUserData(auth.currentUser.uid);
