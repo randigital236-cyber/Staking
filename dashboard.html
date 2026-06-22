@@ -461,7 +461,6 @@
             .sidebar-panel.open { right: 0; }
             .network-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
             .level-stats { grid-template-columns: 1fr 1fr; }
-            .network-stat-card .number { font-size: 1.3rem; }
         }
     </style>
 </head>
@@ -657,7 +656,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE USER DATA - ONLY READ, NO OVERWRITE
+// 🔥 UPDATE USER DATA - CALCULATE RND WALLET & LOCKED RND
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -673,87 +672,43 @@ async function updateUserData(userId) {
         let totalStake = 0;
         let totalReward = 0;
         let totalRNDStaked = 0;
-        let lockedRND = 0;
+        let totalLockedRND = 0;
+        let totalReleasedRND = 0;
         
         for (let key in packages) {
             const pkg = packages[key];
             if (pkg.status === 'active') {
                 totalDailyRelease += (pkg.dailyRelease || 0);
                 totalStake += (pkg.usdtAmount || 0);
-                totalReward += (pkg.reward || 0);
-                totalRNDStaked += (pkg.rndAmount || 0);
-                lockedRND += (pkg.rndAmount || 0);
+                totalReward += (pkg.bonusPercent || 0);
+                totalRNDStaked += (pkg.totalRND || 0);
+                totalLockedRND += ((pkg.totalRND || 0) - (pkg.releasedAmount || 0));
+                totalReleasedRND += (pkg.releasedAmount || 0);
             }
         }
         
-        // Calculate team counts from all users
-        const allUsersSnap = await get(ref(db, 'users'));
-        let directCount = 0;
-        let downlineCount = 0;
-        let teamLevels = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
+        console.log('📊 Package Summary:');
+        console.log('   - Total Stake:', totalStake);
+        console.log('   - Total RND Staked:', totalRNDStaked);
+        console.log('   - Locked RND:', totalLockedRND);
+        console.log('   - Released RND:', totalReleasedRND);
+        console.log('   - Daily Release:', totalDailyRelease);
         
-        if (allUsersSnap.exists()) {
-            const allUsers = allUsersSnap.val();
-            const referralCode = userData.referralCode || userData.username;
-            
-            for (let key in allUsers) {
-                const u = allUsers[key];
-                if (u.referredBy === referralCode) {
-                    directCount++;
-                    teamLevels.level1++;
-                    
-                    for (let k2 in allUsers) {
-                        const u2 = allUsers[k2];
-                        if (u2.referredBy === u.referralCode) {
-                            downlineCount++;
-                            teamLevels.level2++;
-                            
-                            for (let k3 in allUsers) {
-                                const u3 = allUsers[k3];
-                                if (u3.referredBy === u2.referralCode) {
-                                    teamLevels.level3++;
-                                    
-                                    for (let k4 in allUsers) {
-                                        const u4 = allUsers[k4];
-                                        if (u4.referredBy === u3.referralCode) {
-                                            teamLevels.level4++;
-                                            
-                                            for (let k5 in allUsers) {
-                                                const u5 = allUsers[k5];
-                                                if (u5.referredBy === u4.referralCode) {
-                                                    teamLevels.level5++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 🔥 IMPORTANT: Only update calculated fields, NEVER overwrite referredBy, referralCode, teamStructure
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
             totalReward: totalReward,
             rndWallet: totalRNDStaked,
-            lockedRND: lockedRND,
-            totalReferrals: directCount,
-            downline: downlineCount
+            lockedRND: totalLockedRND
         });
         
         return { 
             totalDailyRelease, 
             totalStake, 
             totalReward, 
-            totalRNDStaked, 
-            lockedRND,
-            directCount, 
-            downlineCount, 
-            teamLevels 
+            totalRNDStaked,
+            totalLockedRND,
+            totalReleasedRND
         };
     } catch (error) {
         console.error('Error updating user data:', error);
@@ -762,7 +717,7 @@ async function updateUserData(userId) {
 }
 
 // ============================================================
-// 🔥 MAIN AUTH CHECK - READ ONLY, NO PROFILE CREATION
+// 🔥 MAIN AUTH CHECK
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -775,7 +730,6 @@ onAuthStateChanged(auth, async (user) => {
         
         const userSnap = await get(ref(db, 'users/' + user.uid));
         
-        // 🔥 IMPORTANT: Dashboard NEVER creates profile
         if (!userSnap.exists()) {
             console.error('❌ User profile not found. Please register first.');
             document.getElementById('dashboardContent').innerHTML = `
@@ -798,7 +752,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // Update calculated fields only
+        // Update calculated fields
         await updateUserData(user.uid);
         
         // Get fresh data
@@ -826,23 +780,20 @@ function loadDashboard(u) {
     const rank = u.rank || 'Member';
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
-    // 🔥 READ ONLY - Never modify these
     const directReferrals = u.totalReferrals || 0;
     const downline = u.downline || 0;
     
-    // Wallets
+    // 🔥 Wallets - Read from Firebase
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
     const lockedRND = u.lockedRND || 0;
     const releaseWallet = u.releaseWallet || 0;
     
-    // Statistics
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
     const teamBusiness = u.teamBusiness || 0;
     
-    // Level Earnings - Read from Firebase
     const level1Earn = u.level1Earnings || 0;
     const level2Earn = u.level2Earnings || 0;
     const level3Earn = u.level3Earnings || 0;
@@ -850,7 +801,6 @@ function loadDashboard(u) {
     const level5Earn = u.level5Earnings || 0;
     const referralEarnings = u.referralEarnings || 0;
     
-    // Team Structure - Read from Firebase (Never overwrite)
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
@@ -860,7 +810,6 @@ function loadDashboard(u) {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = directReferrals;
     
-    // 🔥 Use referralCode from Firebase, never generate
     const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
     
@@ -933,7 +882,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== NETWORK STATISTICS ====== -->
+            <!-- ====== STATISTICS ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Statistics</h5>
                 <div class="network-stats">
