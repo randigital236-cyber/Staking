@@ -544,7 +544,23 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
+        // 🔥 FIX: Calculate referral data and then override with stored values from Firebase
         const referralData = await calculateReferralEarnings(userData);
+        
+        // 🔥 Use stored values from Firebase instead of calculated ones
+        referralData.level1Earn = userData.level1Earnings || 0;
+        referralData.level2Earn = userData.level2Earnings || 0;
+        referralData.level3Earn = userData.level3Earnings || 0;
+        referralData.level4Earn = userData.level4Earnings || 0;
+        referralData.level5Earn = userData.level5Earnings || 0;
+        
+        // 🔥 Recalculate total earnings from stored values
+        referralData.totalEarnings = 
+            referralData.level1Earn +
+            referralData.level2Earn +
+            referralData.level3Earn +
+            referralData.level4Earn +
+            referralData.level5Earn;
         
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = referralData.level1Count;
