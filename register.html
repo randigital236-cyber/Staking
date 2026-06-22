@@ -57,8 +57,6 @@
         .btn-primary-custom:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
         .text-link { color: #2ecc71; text-decoration: none; font-weight: 600; }
         .text-link:hover { text-decoration: underline; }
-        .divider { display: flex; align-items: center; color: #556688; font-size: 0.85rem; gap: 15px; margin: 20px 0; }
-        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: rgba(46,204,113,0.15); }
         .logo-text { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .logo-text span { color: #2ecc71; }
         
@@ -247,7 +245,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM - AUTOMATIC
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -278,7 +276,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             return;
         }
         
-        // 🔥 Add to direct referrals
+        // Add to direct referrals
         const directRefs = referrerData.directReferrals || {};
         directRefs[newUserUid] = {
             uid: newUserUid,
@@ -288,7 +286,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
-        // 🔥 Update Level 1 (Direct)
+        // Update Level 1 (Direct)
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
             downline: (referrerData.downline || 0) + 1,
@@ -296,7 +294,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
         });
         console.log('✅ Level 1 (Direct) updated for:', referrerUid);
         
-        // 🔥 Level 2 - 4%
+        // Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
             console.log('🔍 Level 2 referral code:', level2RefCode);
@@ -308,7 +306,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                     });
                     console.log('✅ Level 2 updated for:', key);
                     
-                    // 🔥 Level 3 - 2%
+                    // Level 3 - 2%
                     const level3RefCode = level2User.referredBy;
                     if (level3RefCode && level3RefCode !== '') {
                         for (let k3 in allUsers) {
@@ -319,7 +317,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                 });
                                 console.log('✅ Level 3 updated for:', k3);
                                 
-                                // 🔥 Level 4 - 1%
+                                // Level 4 - 1%
                                 const level4RefCode = level3User.referredBy;
                                 if (level4RefCode && level4RefCode !== '') {
                                     for (let k4 in allUsers) {
@@ -330,7 +328,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                             });
                                             console.log('✅ Level 4 updated for:', k4);
                                             
-                                            // 🔥 Level 5 - 1%
+                                            // Level 5 - 1%
                                             const level5RefCode = level4User.referredBy;
                                             if (level5RefCode && level5RefCode !== '') {
                                                 for (let k5 in allUsers) {
@@ -389,21 +387,21 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
-        // 🔥 Step 1: Create user
+        // Step 1: Create user
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         await updateProfile(auth.currentUser, { displayName: name });
         console.log('✅ User created with UID:', uid);
         
-        // 🔥 Step 2: Referral Code = FULL UID
+        // Step 2: Referral Code = FULL UID
         const referralCode = uid;
         console.log('✅ Generated Referral Code:', referralCode);
         
-        // 🔥 Step 3: Final referral code (from input or URL)
+        // Step 3: Final referral code
         const finalRefCode = refCode || referralCodeFromURL || '';
         console.log('✅✅✅ FINAL REFERRAL CODE TO SAVE:', finalRefCode);
         
-        // 🔥 Step 4: USER DATA
+        // Step 4: USER DATA
         const userData = {
             name: name,
             email: email,
@@ -444,12 +442,12 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         console.log('   - referralCode:', userData.referralCode);
         console.log('   - referredBy:', userData.referredBy);
         
-        // 🔥 Step 5: Save to database
+        // Step 5: Save to database
         await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + uid), uid);
         console.log('✅ User data saved to database!');
 
-        // 🔥 Step 6: UPDATE REFERRER (AUTOMATIC)
+        // Step 6: UPDATE REFERRER
         if (finalRefCode) {
             console.log('🔗 ===== UPDATING REFERRER =====');
             console.log('🔗 Referrer Code:', finalRefCode);
@@ -458,8 +456,14 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             console.log('ℹ️ No referral code provided - skipping referrer update');
         }
         
+        // 🔥 🔥 🔥 FIX: Wait for 1.5 seconds before redirecting
+        console.log('⏳ Waiting 1.5 seconds for data to be fully saved...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
-        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
+        
+        // 🔥 Redirect to dashboard
+        window.location.href = 'dashboard.html';
         
     } catch (err) {
         console.error('❌ Registration Error:', err);
