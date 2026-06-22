@@ -659,11 +659,10 @@ async function updateUserData(userId) {
             }
         }
         
-        // Calculate referral counts
+        // Calculate referral counts from all users
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
-        let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
         let teamLevels = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
         
         if (allUsersSnap.exists()) {
@@ -675,32 +674,27 @@ async function updateUserData(userId) {
                 if (u.referredBy === referralCode) {
                     directCount++;
                     teamLevels.level1++;
-                    level1Earn += ((u.totalStake || 0) * 0.08);
                     
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
                             downlineCount++;
                             teamLevels.level2++;
-                            level2Earn += ((u2.totalStake || 0) * 0.04);
                             
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
                                     teamLevels.level3++;
-                                    level3Earn += ((u3.totalStake || 0) * 0.02);
                                     
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
                                             teamLevels.level4++;
-                                            level4Earn += ((u4.totalStake || 0) * 0.01);
                                             
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
                                                     teamLevels.level5++;
-                                                    level5Earn += ((u5.totalStake || 0) * 0.01);
                                                 }
                                             }
                                         }
@@ -713,7 +707,9 @@ async function updateUserData(userId) {
             }
         }
         
-        const totalReferralEarnings = level1Earn + level2Earn + level3Earn + level4Earn + level5Earn;
+        // 🔥 FIX: Use stored values from Firebase, don't calculate earnings here
+        // Earnings are already stored in level1Earnings, level2Earnings etc.
+        // Just update the counts
         
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
@@ -722,16 +718,18 @@ async function updateUserData(userId) {
             rndWallet: totalRNDStaked,
             totalReferrals: directCount,
             downline: downlineCount,
-            level1Earnings: level1Earn,
-            level2Earnings: level2Earn,
-            level3Earnings: level3Earn,
-            level4Earnings: level4Earn,
-            level5Earnings: level5Earn,
-            referralEarnings: totalReferralEarnings,
             teamStructure: teamLevels
         });
         
-        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, directCount, downlineCount, totalReferralEarnings, teamLevels };
+        return { 
+            totalDailyRelease, 
+            totalStake, 
+            totalReward, 
+            totalRNDStaked, 
+            directCount, 
+            downlineCount, 
+            teamLevels 
+        };
     } catch (error) {
         console.error('Error updating user data:', error);
         return null;
@@ -832,6 +830,7 @@ function loadDashboard(u) {
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
     
+    // 🔥 FIX: Use stored values from Firebase
     const level1Earn = u.level1Earnings || 0;
     const level2Earn = u.level2Earnings || 0;
     const level3Earn = u.level3Earnings || 0;
@@ -846,7 +845,8 @@ function loadDashboard(u) {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = directReferrals;
     
-    const referralLink = `${REGISTER_URL}?ref=${username}`;
+    // 🔥 FIX: Use u.referralCode instead of username
+    const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
     
     const transferHistory = u.transferHistory || [];
@@ -1073,7 +1073,7 @@ function loadDashboard(u) {
                     </div>
                     <div class="mt-3 d-flex flex-wrap gap-2">
                         <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
-                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${username.substring(0, 20)}...</strong></span>
+                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode.substring(0, 20)}...</strong></span>
                         <span class="text-muted small"><i class="bi bi-cash-stack me-1"></i>Total Earnings: <strong style="color:#fbbf24;">$${(referralEarnings || 0).toFixed(2)}</strong></span>
                     </div>
                 </div>
