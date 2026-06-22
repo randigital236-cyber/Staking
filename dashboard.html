@@ -752,7 +752,7 @@ onAuthStateChanged(auth, async (user) => {
         
         // 🔥 FIX: If user data doesn't exist, create it
         if (!userSnap.exists()) {
-            console.log('⚠️ User data not found, creating profile...');
+            console.log('⚠️ User data not found');
             const name = user.displayName || 'User';
             
             await set(ref(db, 'users/' + user.uid), {
@@ -761,7 +761,7 @@ onAuthStateChanged(auth, async (user) => {
                 email: user.email,
                 uid: user.uid,
                 referralCode: user.uid,
-                referredBy: userData?.referredBy || '',
+                referredBy: null,
                 createdAt: Date.now(),
                 lastActive: Date.now(),
                 totalStake: 0,
@@ -836,7 +836,7 @@ onAuthStateChanged(auth, async (user) => {
                 email: user.email,
                 uid: user.uid,
                 referralCode: user.uid,
-                referredBy: userData?.referredBy || '',
+                referredBy: null,
                 createdAt: Date.now(),
                 lastActive: Date.now(),
                 totalStake: 0,
@@ -1120,7 +1120,7 @@ function loadDashboard(u) {
                             <div class="col-md-3">
                                 <select id="transferWallet" class="form-select form-control-custom">
                                     <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                                    <option value="withdrawalWallet">💳 Referral Wallet </option>
+                                    <option value="withdrawalWallet">💳 Withdrawal Wallet (RND)</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -1238,12 +1238,12 @@ async function handleTransfer() {
     
     const senderBalance = senderData[walletType] || 0;
     if (senderBalance < amount) {
-        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Referral Wallet';
+        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Withdrawal Wallet';
         showToast('❌ Insufficient balance in ' + walletLabel + '! You have ' + senderBalance.toFixed(2), 'error');
         return;
     }
     
-    const currency = walletType === 'depositWallet' ? 'USDT' : 'REFER';
+    const currency = walletType === 'depositWallet' ? 'USDT' : 'RND';
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
