@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Keeping CSS minimal - same as before */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -219,9 +218,9 @@
             margin: 0 auto 10px;
         }
         .wallet-card .wallet-icon.deposit { background: rgba(46,204,113,0.12); color: #2ecc71; }
-        .wallet-card .wallet-icon.withdraw { background: rgba(251,191,36,0.12); color: #fbbf24; }
-        .wallet-card .wallet-icon.release { background: rgba(59,130,246,0.12); color: #60a5fa; }
-        .wallet-card .wallet-icon.stake { background: rgba(139,92,246,0.12); color: #a78bfa; }
+        .wallet-card .wallet-icon.referral { background: rgba(251,191,36,0.12); color: #fbbf24; }
+        .wallet-card .wallet-icon.rnd { background: rgba(59,130,246,0.12); color: #60a5fa; }
+        .wallet-card .wallet-icon.locked { background: rgba(139,92,246,0.12); color: #a78bfa; }
         .wallet-card .wallet-number { font-size: 1.8rem; font-weight: 800; color: #fff; }
         .wallet-card .wallet-number.green { color: #2ecc71; }
         .wallet-card .wallet-number.gold { color: #fbbf24; }
@@ -256,7 +255,7 @@
         
         .network-stats {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             margin-bottom: 25px;
         }
@@ -271,7 +270,24 @@
         .network-stat-card:hover { border-color: rgba(46,204,113,0.2); transform: translateY(-2px); }
         .network-stat-card .number { font-size: 1.8rem; font-weight: 800; color: #2ecc71; }
         .network-stat-card .label { color: #8899bb; font-size: 0.75rem; font-weight: 500; margin-top: 2px; }
-        .network-stat-card .earnings { color: #fbbf24; font-size: 0.85rem; font-weight: 600; margin-top: 2px; }
+        
+        .level-stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .level-stat-card {
+            background: rgba(19,34,55,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .level-stat-card:hover { border-color: rgba(46,204,113,0.2); }
+        .level-stat-card .number { font-size: 1.5rem; font-weight: 700; color: #2ecc71; }
+        .level-stat-card .label { color: #8899bb; font-size: 0.65rem; font-weight: 500; }
         
         .card-glass {
             background: rgba(19,34,55,0.8);
@@ -415,21 +431,26 @@
             font-size: 0.85rem;
         }
         
-        .level-badge {
-            display: inline-block;
-            background: rgba(46,204,113,0.08);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 20px;
-            padding: 2px 12px;
-            font-size: 0.65rem;
-            color: #2ecc71;
+        .commission-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(251,191,36,0.05);
         }
+        .commission-row:last-child { border-bottom: none; }
+        .commission-row .level { color: #8899bb; }
+        .commission-row .earnings { color: #fbbf24; font-weight: 600; }
         
+        @media (max-width: 992px) {
+            .network-stats { grid-template-columns: repeat(2, 1fr); }
+            .level-stats { grid-template-columns: repeat(3, 1fr); }
+        }
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .welcome-section { padding: 20px; }
             .welcome-section h2 { font-size: 1.2rem; }
             .network-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .level-stats { grid-template-columns: repeat(2, 1fr); }
             .stat-card .stat-number { font-size: 1.3rem; }
             .wallet-card .wallet-number { font-size: 1.3rem; }
             .sidebar-panel { width: 280px; right: -300px; }
@@ -439,6 +460,7 @@
             .sidebar-panel { width: 100%; right: -100%; }
             .sidebar-panel.open { right: 0; }
             .network-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .level-stats { grid-template-columns: 1fr 1fr; }
             .network-stat-card .number { font-size: 1.3rem; }
         }
     </style>
@@ -530,7 +552,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, set, update } from "firebase/database";
+import { getDatabase, ref, get, update } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -599,7 +621,7 @@ async function fetchLiveRate() {
         if (snapshot.exists()) {
             rndPrice = snapshot.val();
         } else {
-            await set(settingsRef, 1.00);
+            await update(ref(db, 'settings'), { rate: 1.00 });
             rndPrice = 1.00;
         }
     } catch (error) {
@@ -635,7 +657,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE ALL USER DATA
+// 🔥 UPDATE USER DATA - ONLY READ, NO OVERWRITE
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -651,6 +673,7 @@ async function updateUserData(userId) {
         let totalStake = 0;
         let totalReward = 0;
         let totalRNDStaked = 0;
+        let lockedRND = 0;
         
         for (let key in packages) {
             const pkg = packages[key];
@@ -659,10 +682,11 @@ async function updateUserData(userId) {
                 totalStake += (pkg.usdtAmount || 0);
                 totalReward += (pkg.reward || 0);
                 totalRNDStaked += (pkg.rndAmount || 0);
+                lockedRND += (pkg.rndAmount || 0);
             }
         }
         
-        // Calculate referral counts from all users
+        // Calculate team counts from all users
         const allUsersSnap = await get(ref(db, 'users'));
         let directCount = 0;
         let downlineCount = 0;
@@ -710,14 +734,15 @@ async function updateUserData(userId) {
             }
         }
         
+        // 🔥 IMPORTANT: Only update calculated fields, NEVER overwrite referredBy, referralCode, teamStructure
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
             totalReward: totalReward,
             rndWallet: totalRNDStaked,
+            lockedRND: lockedRND,
             totalReferrals: directCount,
-            downline: downlineCount,
-            teamStructure: teamLevels
+            downline: downlineCount
         });
         
         return { 
@@ -725,6 +750,7 @@ async function updateUserData(userId) {
             totalStake, 
             totalReward, 
             totalRNDStaked, 
+            lockedRND,
             directCount, 
             downlineCount, 
             teamLevels 
@@ -736,7 +762,7 @@ async function updateUserData(userId) {
 }
 
 // ============================================================
-// 🔥 MAIN AUTH CHECK - WITH NULL CHECK
+// 🔥 MAIN AUTH CHECK - READ ONLY, NO PROFILE CREATION
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -747,77 +773,24 @@ onAuthStateChanged(auth, async (user) => {
     try {
         await fetchLiveRate();
         
-        // 🔥 FIX: Check if user data exists properly
         const userSnap = await get(ref(db, 'users/' + user.uid));
         
-        // 🔥 FIX: If user data doesn't exist, create it
+        // 🔥 IMPORTANT: Dashboard NEVER creates profile
         if (!userSnap.exists()) {
-            console.log('⚠️ User data not found');
-            const name = user.displayName || 'User';
-            
-            await set(ref(db, 'users/' + user.uid), {
-                username: user.uid,
-                name: name,
-                email: user.email,
-                uid: user.uid,
-                referralCode: user.uid,
-                referredBy: null,
-                createdAt: Date.now(),
-                lastActive: Date.now(),
-                totalStake: 0,
-                totalReward: 0,
-                availableReward: 0,
-                totalWithdrawn: 0,
-                totalReferrals: 0,
-                downline: 0,
-                level1Earnings: 0,
-                level2Earnings: 0,
-                level3Earnings: 0,
-                level4Earnings: 0,
-                level5Earnings: 0,
-                referralEarnings: 0,
-                teamBusiness: 0,
-                subscriptions: 0,
-                banned: false,
-                role: 'user',
-                rank: 'Member',
-                depositWallet: 0,
-                withdrawalWallet: 0,
-                rndWallet: 0,
-                releaseWallet: 0,
-                directReferrals: {},
-                teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-                packages: {},
-                transferHistory: []
-            });
-            await set(ref(db, 'usernames/' + user.uid), user.uid);
-            console.log('✅ User profile created!');
-            
-            // Wait for data to be saved
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Get fresh data
-            const freshSnap = await get(ref(db, 'users/' + user.uid));
-            if (freshSnap.exists()) {
-                loadDashboard(freshSnap.val());
-            } else {
-                console.error('❌ Failed to create user profile');
-                document.getElementById('dashboardContent').innerHTML = `
-                    <div class="text-center py-5">
-                        <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                        <h4>Error Creating Profile</h4>
-                        <p class="text-muted">Please try refreshing the page.</p>
-                        <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-                    </div>
-                `;
-            }
+            console.error('❌ User profile not found. Please register first.');
+            document.getElementById('dashboardContent').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                    <h4>Profile Not Found</h4>
+                    <p class="text-muted">Please register first to access your dashboard.</p>
+                    <a href="register.html" class="btn btn-primary-custom mt-3">Register Now</a>
+                </div>
+            `;
             return;
         }
         
-        // 🔥 FIX: Safe data access with null check
         const u = userSnap.val();
         
-        // 🔥 FIX: Check if user is banned safely
         if (u && u.banned === true) {
             alert('Your account has been banned.');
             await signOut(auth);
@@ -825,74 +798,13 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // 🔥 FIX: If user data exists but is corrupted, recreate it
-        if (!u || typeof u !== 'object') {
-            console.log('⚠️ User data is corrupted, recreating...');
-            const name = user.displayName || 'User';
-            
-            await set(ref(db, 'users/' + user.uid), {
-                username: user.uid,
-                name: name,
-                email: user.email,
-                uid: user.uid,
-                referralCode: user.uid,
-                referredBy: null,
-                createdAt: Date.now(),
-                lastActive: Date.now(),
-                totalStake: 0,
-                totalReward: 0,
-                availableReward: 0,
-                totalWithdrawn: 0,
-                totalReferrals: 0,
-                downline: 0,
-                level1Earnings: 0,
-                level2Earnings: 0,
-                level3Earnings: 0,
-                level4Earnings: 0,
-                level5Earnings: 0,
-                referralEarnings: 0,
-                teamBusiness: 0,
-                subscriptions: 0,
-                banned: false,
-                role: 'user',
-                rank: 'Member',
-                depositWallet: 0,
-                withdrawalWallet: 0,
-                rndWallet: 0,
-                releaseWallet: 0,
-                directReferrals: {},
-                teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-                packages: {},
-                transferHistory: []
-            });
-            await set(ref(db, 'usernames/' + user.uid), user.uid);
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const freshSnap = await get(ref(db, 'users/' + user.uid));
-            if (freshSnap.exists()) {
-                loadDashboard(freshSnap.val());
-            }
-            return;
-        }
-        
-        // Update user data
+        // Update calculated fields only
         await updateUserData(user.uid);
         
         // Get fresh data
         const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
         if (updatedSnapshot.exists()) {
             loadDashboard(updatedSnapshot.val());
-        } else {
-            console.error('❌ Failed to load user data');
-            document.getElementById('dashboardContent').innerHTML = `
-                <div class="text-center py-5">
-                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                    <h4>Error Loading Dashboard</h4>
-                    <p class="text-muted">Unable to load your profile. Please try refreshing.</p>
-                    <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-                </div>
-            `;
         }
 
     } catch (error) {
@@ -913,21 +825,32 @@ function loadDashboard(u) {
     const name = u.name || 'User';
     const rank = u.rank || 'Member';
     const isMember = rank === 'Member' || rank === 'member' || !rank;
+    
+    // 🔥 READ ONLY - Never modify these
     const directReferrals = u.totalReferrals || 0;
     const downline = u.downline || 0;
-    const referralEarnings = u.referralEarnings || 0;
+    
+    // Wallets
     const depositWallet = u.depositWallet || 0;
-    const withdrawalWallet = u.withdrawalWallet || 0;
-    const releaseWallet = u.releaseWallet || 0;
+    const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
+    const lockedRND = u.lockedRND || 0;
+    const releaseWallet = u.releaseWallet || 0;
+    
+    // Statistics
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
+    const teamBusiness = u.teamBusiness || 0;
     
+    // Level Earnings - Read from Firebase
     const level1Earn = u.level1Earnings || 0;
     const level2Earn = u.level2Earnings || 0;
     const level3Earn = u.level3Earnings || 0;
     const level4Earn = u.level4Earnings || 0;
     const level5Earn = u.level5Earnings || 0;
+    const referralEarnings = u.referralEarnings || 0;
+    
+    // Team Structure - Read from Firebase (Never overwrite)
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
@@ -937,6 +860,7 @@ function loadDashboard(u) {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = directReferrals;
     
+    // 🔥 Use referralCode from Firebase, never generate
     const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
     
@@ -971,6 +895,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== 4 WALLETS ====== -->
             <div class="col-12">
                 <div class="row g-3">
                     <div class="col-6 col-lg-3">
@@ -983,132 +908,138 @@ function loadDashboard(u) {
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
-                            <div class="wallet-icon withdraw"><i class="bi bi-coin"></i></div>
-                            <div class="wallet-number gold">${(withdrawalWallet || 0).toFixed(2)}</div>
-                            <div class="wallet-label">Withdrawal Wallet</div>
+                            <div class="wallet-icon referral"><i class="bi bi-coin"></i></div>
+                            <div class="wallet-number gold">${(referralWallet || 0).toFixed(2)}</div>
+                            <div class="wallet-label">💰 Referral Wallet</div>
                             <div class="wallet-sub">RND Balance</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
-                            <div class="wallet-icon release"><i class="bi bi-clock-history"></i></div>
-                            <div class="wallet-number blue">${(releaseWallet || 0).toFixed(4)}</div>
-                            <div class="wallet-label">Daily Release</div>
-                            <div class="wallet-sub">RND / Day</div>
+                            <div class="wallet-icon rnd"><i class="bi bi-database"></i></div>
+                            <div class="wallet-number blue">${(rndWallet || 0).toFixed(2)}</div>
+                            <div class="wallet-label">RND Wallet</div>
+                            <div class="wallet-sub">≈ $${(rndValueUSD || 0).toFixed(2)}</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
-                            <div class="wallet-icon stake"><i class="bi bi-pie-chart"></i></div>
-                            <div class="wallet-number purple">${(rndWallet || 0).toFixed(2)}</div>
-                            <div class="wallet-label">RND Staked</div>
-                            <div class="wallet-sub">≈ $${(rndValueUSD || 0).toFixed(2)}</div>
+                            <div class="wallet-icon locked"><i class="bi bi-lock"></i></div>
+                            <div class="wallet-number purple">${(lockedRND || 0).toFixed(2)}</div>
+                            <div class="wallet-label">🔒 Locked RND</div>
+                            <div class="wallet-sub">Package Locked</div>
                         </div>
                     </div>
                 </div>
             </div>
             
+            <!-- ====== NETWORK STATISTICS ====== -->
             <div class="col-12">
-                <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Network</h5>
+                <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Statistics</h5>
                 <div class="network-stats">
                     <div class="network-stat-card">
-                        <div class="number">${directReferrals}</div>
-                        <div class="label">Direct Referrals</div>
-                        <div class="earnings">💰 $${(level1Earn || 0).toFixed(2)} Earned</div>
+                        <div class="number">${(totalStake || 0).toFixed(2)}</div>
+                        <div class="label">Total Stake (USDT)</div>
                     </div>
                     <div class="network-stat-card">
-                        <div class="number">${downline}</div>
-                        <div class="label">Total Downline</div>
-                        <div class="earnings">💰 $${((level2Earn + level3Earn + level4Earn + level5Earn) || 0).toFixed(2)} Earned</div>
+                        <div class="number">${directReferrals}</div>
+                        <div class="label">Total Referrals</div>
+                    </div>
+                    <div class="network-stat-card">
+                        <div class="number">$${(teamBusiness || 0).toFixed(2)}</div>
+                        <div class="label">Team Business</div>
                     </div>
                 </div>
             </div>
             
+            <!-- ====== 5 LEVEL MEMBERS ====== -->
+            <div class="col-12">
+                <h5 class="fw-bold mb-3"><i class="bi bi-people text-success me-2"></i>Team Members by Level</h5>
+                <div class="level-stats">
+                    <div class="level-stat-card">
+                        <div class="number">${teamLevels.level1 || 0}</div>
+                        <div class="label">Level 1</div>
+                    </div>
+                    <div class="level-stat-card">
+                        <div class="number">${teamLevels.level2 || 0}</div>
+                        <div class="label">Level 2</div>
+                    </div>
+                    <div class="level-stat-card">
+                        <div class="number">${teamLevels.level3 || 0}</div>
+                        <div class="label">Level 3</div>
+                    </div>
+                    <div class="level-stat-card">
+                        <div class="number">${teamLevels.level4 || 0}</div>
+                        <div class="label">Level 4</div>
+                    </div>
+                    <div class="level-stat-card">
+                        <div class="number">${teamLevels.level5 || 0}</div>
+                        <div class="label">Level 5</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ====== 5 LEVEL COMMISSIONS ====== -->
             <div class="col-12">
                 <div class="card-glass">
-                    <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>5 Level Referral Earnings</div>
-                    <div class="row g-2">
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(46,204,113,0.05);border-radius:10px;border:1px solid rgba(46,204,113,0.1);">
-                                <small class="text-muted">Level 1 (8%)</small>
-                                <div style="color:#fbbf24;font-weight:700;">$${(level1Earn || 0).toFixed(2)}</div>
-                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level1 || 0} members</div>
+                    <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Commissions</div>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="commission-row">
+                                <span class="level">Level 1 (8%)</span>
+                                <span class="earnings">$${(level1Earn || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="commission-row">
+                                <span class="level">Level 2 (4%)</span>
+                                <span class="earnings">$${(level2Earn || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="commission-row">
+                                <span class="level">Level 3 (2%)</span>
+                                <span class="earnings">$${(level3Earn || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="commission-row">
+                                <span class="level">Level 4 (1%)</span>
+                                <span class="earnings">$${(level4Earn || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="commission-row">
+                                <span class="level">Level 5 (1%)</span>
+                                <span class="earnings">$${(level5Earn || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="commission-row" style="border-top:2px solid rgba(251,191,36,0.2);padding-top:10px;margin-top:4px;">
+                                <span class="level" style="font-weight:700;color:#fbbf24;">Total Referral Earnings</span>
+                                <span class="earnings" style="font-size:1.1rem;">$${(referralEarnings || 0).toFixed(2)}</span>
                             </div>
                         </div>
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(59,130,246,0.05);border-radius:10px;border:1px solid rgba(59,130,246,0.1);">
-                                <small class="text-muted">Level 2 (4%)</small>
-                                <div style="color:#60a5fa;font-weight:700;">$${(level2Earn || 0).toFixed(2)}</div>
-                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level2 || 0} members</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(167,139,250,0.05);border-radius:10px;border:1px solid rgba(167,139,250,0.1);">
-                                <small class="text-muted">Level 3 (2%)</small>
-                                <div style="color:#a78bfa;font-weight:700;">$${(level3Earn || 0).toFixed(2)}</div>
-                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level3 || 0} members</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(244,114,182,0.05);border-radius:10px;border:1px solid rgba(244,114,182,0.1);">
-                                <small class="text-muted">Level 4 (1%)</small>
-                                <div style="color:#f472b6;font-weight:700;">$${(level4Earn || 0).toFixed(2)}</div>
-                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level4 || 0} members</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(251,146,60,0.05);border-radius:10px;border:1px solid rgba(251,146,60,0.1);">
-                                <small class="text-muted">Level 5 (1%)</small>
-                                <div style="color:#fb923c;font-weight:700;">$${(level5Earn || 0).toFixed(2)}</div>
-                                <div style="font-size:0.6rem;color:#556688;">${teamLevels.level5 || 0} members</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2 col-6">
-                            <div class="p-2 text-center" style="background:rgba(46,204,113,0.1);border-radius:10px;border:2px solid rgba(46,204,113,0.2);">
-                                <small class="text-muted">Total Earnings</small>
-                                <div style="color:#2ecc71;font-weight:700;font-size:1.2rem;">$${(referralEarnings || 0).toFixed(2)}</div>
+                        <div class="col-md-4 text-center d-flex flex-column justify-content-center">
+                            <div style="padding:20px;background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
+                                <small class="text-muted">Daily Release</small>
+                                <h3 style="color:#60a5fa;">${(releaseWallet || 0).toFixed(4)} RND</h3>
+                                <small class="text-muted">Per Day</small>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="col-12">
-                <div class="row g-3">
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
-                            <div class="stat-number">$${(totalStake || 0).toFixed(2)}</div>
-                            <div class="stat-label">Total Stake (USDT)</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
-                            <div class="stat-number" style="color:#f1c40f;">${totalReward}%</div>
-                            <div class="stat-label">Total Reward</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
-                            <div class="stat-number" style="color:#2ecc71;">${(rndWallet || 0).toFixed(2)}</div>
-                            <div class="stat-label">RND Staked</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="bi bi-arrow-up-right"></i></div>
-                            <div class="stat-number" style="color:#60a5fa;">${(releaseWallet || 0).toFixed(4)}</div>
-                            <div class="stat-label">Daily Release (RND)</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
+            <!-- ====== REFERRAL LINK ====== -->
             <div class="col-12">
                 <div class="card-glass">
-                    <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money (USDT / RND Transfer)</div>
+                    <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
+                    <div class="referral-box">
+                        <code>${referralLink}</code>
+                        <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                    </div>
+                    <div class="mt-3 d-flex flex-wrap gap-2">
+                        <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
+                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode.substring(0, 20)}...</strong></span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ====== TRANSFER SYSTEM ====== -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money</div>
                     <form id="transferForm">
                         <div class="row g-3">
                             <div class="col-md-4">
@@ -1120,7 +1051,7 @@ function loadDashboard(u) {
                             <div class="col-md-3">
                                 <select id="transferWallet" class="form-select form-control-custom">
                                     <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                                    <option value="withdrawalWallet">💳 Withdrawal Wallet (RND)</option>
+                                    <option value="referralWallet">💳 Referral Wallet (RND)</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -1155,21 +1086,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <div class="col-12">
-                <div class="card-glass">
-                    <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
-                    <div class="referral-box">
-                        <code>${referralLink}</code>
-                        <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
-                    </div>
-                    <div class="mt-3 d-flex flex-wrap gap-2">
-                        <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
-                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode.substring(0, 20)}...</strong></span>
-                        <span class="text-muted small"><i class="bi bi-cash-stack me-1"></i>Total Earnings: <strong style="color:#fbbf24;">$${(referralEarnings || 0).toFixed(2)}</strong></span>
-                    </div>
-                </div>
-            </div>
-            
+            <!-- ====== QUICK LINKS ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-grid-3x3-gap-fill"></i>Quick Links</div>
@@ -1238,7 +1155,7 @@ async function handleTransfer() {
     
     const senderBalance = senderData[walletType] || 0;
     if (senderBalance < amount) {
-        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Withdrawal Wallet';
+        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Referral Wallet';
         showToast('❌ Insufficient balance in ' + walletLabel + '! You have ' + senderBalance.toFixed(2), 'error');
         return;
     }
