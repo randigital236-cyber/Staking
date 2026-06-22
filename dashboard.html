@@ -640,7 +640,10 @@ function getGreeting() {
 async function updateUserData(userId) {
     try {
         const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) return null;
+        if (!userSnap.exists()) {
+            console.log('⚠️ User data not found for UID:', userId);
+            return null;
+        }
         const userData = userSnap.val();
         const packages = userData.packages || {};
         
@@ -732,6 +735,9 @@ async function updateUserData(userId) {
     }
 }
 
+// ============================================================
+// 🔥 MAIN AUTH CHECK - WITH NULL CHECK
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
@@ -741,8 +747,12 @@ onAuthStateChanged(auth, async (user) => {
     try {
         await fetchLiveRate();
         
-        const snapshot = await get(ref(db, 'users/' + user.uid));
-        if (!snapshot.exists()) {
+        // 🔥 FIX: Check if user data exists properly
+        const userSnap = await get(ref(db, 'users/' + user.uid));
+        
+        // 🔥 FIX: If user data doesn't exist, create it
+        if (!userSnap.exists()) {
+            console.log('⚠️ User data not found, creating profile...');
             const name = user.displayName || 'User';
             
             await set(ref(db, 'users/' + user.uid), {
@@ -781,21 +791,108 @@ onAuthStateChanged(auth, async (user) => {
                 transferHistory: []
             });
             await set(ref(db, 'usernames/' + user.uid), user.uid);
+            console.log('✅ User profile created!');
+            
+            // Wait for data to be saved
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Get fresh data
+            const freshSnap = await get(ref(db, 'users/' + user.uid));
+            if (freshSnap.exists()) {
+                loadDashboard(freshSnap.val());
+            } else {
+                console.error('❌ Failed to create user profile');
+                document.getElementById('dashboardContent').innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                        <h4>Error Creating Profile</h4>
+                        <p class="text-muted">Please try refreshing the page.</p>
+                        <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+                    </div>
+                `;
+            }
+            return;
         }
         
-        const u = snapshot.val();
-        if (u.banned) {
+        // 🔥 FIX: Safe data access with null check
+        const u = userSnap.val();
+        
+        // 🔥 FIX: Check if user is banned safely
+        if (u && u.banned === true) {
             alert('Your account has been banned.');
             await signOut(auth);
             window.location.href = 'login.html';
             return;
         }
         
+        // 🔥 FIX: If user data exists but is corrupted, recreate it
+        if (!u || typeof u !== 'object') {
+            console.log('⚠️ User data is corrupted, recreating...');
+            const name = user.displayName || 'User';
+            
+            await set(ref(db, 'users/' + user.uid), {
+                username: user.uid,
+                name: name,
+                email: user.email,
+                uid: user.uid,
+                referralCode: user.uid,
+                referredBy: '',
+                createdAt: Date.now(),
+                lastActive: Date.now(),
+                totalStake: 0,
+                totalReward: 0,
+                availableReward: 0,
+                totalWithdrawn: 0,
+                totalReferrals: 0,
+                downline: 0,
+                level1Earnings: 0,
+                level2Earnings: 0,
+                level3Earnings: 0,
+                level4Earnings: 0,
+                level5Earnings: 0,
+                referralEarnings: 0,
+                teamBusiness: 0,
+                subscriptions: 0,
+                banned: false,
+                role: 'user',
+                rank: 'Member',
+                depositWallet: 0,
+                withdrawalWallet: 0,
+                rndWallet: 0,
+                releaseWallet: 0,
+                directReferrals: {},
+                teamStructure: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
+                packages: {},
+                transferHistory: []
+            });
+            await set(ref(db, 'usernames/' + user.uid), user.uid);
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const freshSnap = await get(ref(db, 'users/' + user.uid));
+            if (freshSnap.exists()) {
+                loadDashboard(freshSnap.val());
+            }
+            return;
+        }
+        
+        // Update user data
         await updateUserData(user.uid);
         
+        // Get fresh data
         const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
         if (updatedSnapshot.exists()) {
             loadDashboard(updatedSnapshot.val());
+        } else {
+            console.error('❌ Failed to load user data');
+            document.getElementById('dashboardContent').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                    <h4>Error Loading Dashboard</h4>
+                    <p class="text-muted">Unable to load your profile. Please try refreshing.</p>
+                    <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+                </div>
+            `;
         }
 
     } catch (error) {
