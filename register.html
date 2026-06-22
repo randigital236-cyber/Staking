@@ -238,11 +238,7 @@ document.getElementById('regRef').addEventListener('input', function() {
     }
 });
 
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        window.location.href = 'dashboard.html';
-    }
-});
+// Auto redirect disabled during registration to preserve referral flow
 
 // ============================================================
 // 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
