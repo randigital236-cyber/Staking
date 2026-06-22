@@ -235,40 +235,49 @@ function showToast(message, type = 'success') {
 // 🔥 GENERATE REFERRAL CODE = FULL UID
 // ============================================================
 function generateReferralCode(uid) {
-    // Pura UID hi referral code hai
     console.log('🔑 Generated Referral Code (Full UID):', uid);
     return uid;
 }
 
 // ============================================================
-// 🔥 GET REFERRAL CODE FROM URL
+// 🔥 GET REFERRAL CODE FROM URL - FIXED
 // ============================================================
+let referralCodeFromURL = '';
+
 function getReferralFromURL() {
     const urlParams = new URLSearchParams(window.location.search);
     const ref = urlParams.get('ref');
     console.log('🔍 URL Referral Code Found:', ref);
-    return ref || '';
+    if (ref) {
+        referralCodeFromURL = ref;
+        return ref;
+    }
+    return '';
 }
 
 // Auto-fill referral from URL
-const refCodeFromURL = getReferralFromURL();
-if (refCodeFromURL) {
-    document.getElementById('regRef').value = refCodeFromURL;
-    document.getElementById('referralNoticeText').textContent = '✅ Referral code auto-filled';
+const refFromURL = getReferralFromURL();
+if (refFromURL) {
+    document.getElementById('regRef').value = refFromURL;
+    document.getElementById('referralNoticeText').textContent = '✅ Referral code auto-filled from link!';
     document.getElementById('referralNotice').style.borderColor = 'rgba(46,204,113,0.3)';
-    console.log('✅ Referral code auto-filled:', refCodeFromURL);
+    document.getElementById('referralNotice').style.background = 'rgba(46,204,113,0.08)';
+    console.log('✅✅✅ Referral code auto-filled:', refFromURL);
 } else {
     console.log('ℹ️ No referral code in URL');
+    document.getElementById('referralNoticeText').textContent = 'Enter referrer\'s User ID if you have one';
 }
 
 document.getElementById('regRef').addEventListener('input', function() {
     const val = this.value.trim();
     if (val) {
-        document.getElementById('referralNoticeText').textContent = '📌 Referral code entered';
+        document.getElementById('referralNoticeText').textContent = '📌 Referral code entered: ' + val;
         document.getElementById('referralNotice').style.borderColor = 'rgba(46,204,113,0.3)';
+        document.getElementById('referralNotice').style.background = 'rgba(46,204,113,0.08)';
     } else {
         document.getElementById('referralNoticeText').textContent = 'Enter referrer\'s User ID if you have one';
         document.getElementById('referralNotice').style.borderColor = 'rgba(46,204,113,0.1)';
+        document.getElementById('referralNotice').style.background = 'rgba(46,204,113,0.05)';
     }
 });
 
@@ -279,7 +288,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (AUTOMATIC)
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -322,23 +331,71 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
+        // Update Level 1 (Direct)
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
             downline: (referrerData.downline || 0) + 1,
             directReferrals: directRefs
         });
         console.log('✅ Level 1 (Direct) updated for:', referrerUid);
+        console.log('   New totalReferrals:', (referrerData.totalReferrals || 0) + 1);
         
-        // Level 2
+        // Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
             console.log('🔍 Level 2 referral code:', level2RefCode);
             for (let key in allUsers) {
                 if (allUsers[key].referralCode === level2RefCode) {
+                    const level2User = allUsers[key];
                     await update(ref(db, 'users/' + key), {
-                        downline: ((allUsers[key].downline || 0) + 1)
+                        downline: ((level2User.downline || 0) + 1)
                     });
                     console.log('✅ Level 2 updated for:', key);
+                    
+                    // Level 3 - 2%
+                    const level3RefCode = level2User.referredBy;
+                    if (level3RefCode && level3RefCode !== '') {
+                        for (let k3 in allUsers) {
+                            if (allUsers[k3].referralCode === level3RefCode) {
+                                const level3User = allUsers[k3];
+                                await update(ref(db, 'users/' + k3), {
+                                    downline: ((level3User.downline || 0) + 1)
+                                });
+                                console.log('✅ Level 3 updated for:', k3);
+                                
+                                // Level 4 - 1%
+                                const level4RefCode = level3User.referredBy;
+                                if (level4RefCode && level4RefCode !== '') {
+                                    for (let k4 in allUsers) {
+                                        if (allUsers[k4].referralCode === level4RefCode) {
+                                            const level4User = allUsers[k4];
+                                            await update(ref(db, 'users/' + k4), {
+                                                downline: ((level4User.downline || 0) + 1)
+                                            });
+                                            console.log('✅ Level 4 updated for:', k4);
+                                            
+                                            // Level 5 - 1%
+                                            const level5RefCode = level4User.referredBy;
+                                            if (level5RefCode && level5RefCode !== '') {
+                                                for (let k5 in allUsers) {
+                                                    if (allUsers[k5].referralCode === level5RefCode) {
+                                                        const level5User = allUsers[k5];
+                                                        await update(ref(db, 'users/' + k5), {
+                                                            downline: ((level5User.downline || 0) + 1)
+                                                        });
+                                                        console.log('✅ Level 5 updated for:', k5);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
                     break;
                 }
             }
@@ -359,13 +416,15 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value;
-    const ref = document.getElementById('regRef').value.trim();
+    // 🔥 IMPORTANT - Get referral from input field (auto-filled from URL)
+    const refCode = document.getElementById('regRef').value.trim();
     const registerBtn = document.getElementById('registerBtn');
     
     console.log('📝 ===== REGISTRATION STARTED =====');
     console.log('📝 Name:', name);
     console.log('📝 Email:', email);
-    console.log('📝 Referral Code from input:', ref);
+    console.log('📝 Referral Code from input:', refCode);
+    console.log('📝 Referral Code from URL (saved):', referralCodeFromURL);
     
     if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
     if (!email || !email.includes('@')) { showToast('❌ Please enter a valid email address', 'error'); return; }
@@ -375,28 +434,30 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
     try {
+        // Step 1: Create user
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         const uid = cred.user.uid;
         await updateProfile(auth.currentUser, { displayName: name });
         console.log('✅ User created with UID:', uid);
         
-        // 🔥 Referral Code = Pura UID
+        // Step 2: Generate referral code = FULL UID
         const referralCode = uid;
-        console.log('✅ Referral Code (Full UID):', referralCode);
+        console.log('✅ Generated Referral Code:', referralCode);
         
-        const finalRefCode = ref || '';
-        console.log('✅ Referred By (referrer code):', finalRefCode);
+        // Step 3: Final referral code (from input or URL)
+        const finalRefCode = refCode || referralCodeFromURL || '';
+        console.log('✅✅✅ FINAL REFERRAL CODE TO SAVE:', finalRefCode);
         
         // ============================================================
-        // 🔥 USER DATA - FULL UID AS REFERRAL CODE
+        // 🔥 USER DATA
         // ============================================================
         const userData = {
             name: name,
             email: email,
             uid: uid,
-            username: uid,  // Full UID as username
-            referralCode: uid,  // 🔥 FULL UID AS REFERRAL CODE
-            referredBy: finalRefCode,
+            username: uid,
+            referralCode: uid,  // 🔥 FULL UID
+            referredBy: finalRefCode,  // 🔥 WILL SAVE PROPERLY NOW
             rank: 'Member',
             role: 'user',
             banned: false,
@@ -426,19 +487,22 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             transferHistory: []
         };
         
-        console.log('💾 Saving user data:');
+        console.log('💾 SAVING USER DATA:');
         console.log('   - referralCode:', userData.referralCode);
         console.log('   - referredBy:', userData.referredBy);
+        console.log('   - name:', userData.name);
         
+        // Step 4: Save to database
         await set(ref(db, 'users/' + uid), userData);
         await set(ref(db, 'usernames/' + uid), uid);
-        console.log('✅ User data saved!');
+        console.log('✅ User data saved to database!');
 
         // ============================================================
-        // 🔥 UPDATE REFERRER
+        // 🔥 STEP 5: UPDATE REFERRER (AUTOMATIC)
         // ============================================================
         if (finalRefCode) {
-            console.log('🔗 UPDATING REFERRER WITH CODE:', finalRefCode);
+            console.log('🔗 ===== UPDATING REFERRER =====');
+            console.log('🔗 Referrer Code:', finalRefCode);
             await update5LevelReferral(finalRefCode, uid, name, email);
         } else {
             console.log('ℹ️ No referral code provided - skipping referrer update');
@@ -478,16 +542,16 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
         
         const snapshot = await get(ref(db, 'users/' + uid));
         if (!snapshot.exists()) {
-            const ref = document.getElementById('regRef').value.trim();
-            console.log('📝 Google Registration with referral:', ref);
+            const refCode = document.getElementById('regRef').value.trim() || referralCodeFromURL || '';
+            console.log('📝 Google Registration with referral:', refCode);
             
             const userData = {
                 name: displayName,
                 email: email,
                 uid: uid,
                 username: uid,
-                referralCode: uid,  // 🔥 FULL UID
-                referredBy: ref || '',
+                referralCode: uid,
+                referredBy: refCode || '',
                 rank: 'Member',
                 role: 'user',
                 banned: false,
@@ -521,9 +585,9 @@ document.getElementById('googleRegisterBtn').addEventListener('click', async () 
             await set(ref(db, 'usernames/' + uid), uid);
             console.log('✅ Google user data saved! referralCode:', uid, 'referredBy:', userData.referredBy);
             
-            if (ref) {
-                console.log('🔗 Updating referrer for Google user:', ref);
-                await update5LevelReferral(ref, uid, displayName, email);
+            if (refCode) {
+                console.log('🔗 Updating referrer for Google user:', refCode);
+                await update5LevelReferral(refCode, uid, displayName, email);
             }
         }
         
