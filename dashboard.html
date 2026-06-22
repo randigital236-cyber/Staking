@@ -656,7 +656,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 UPDATE USER DATA - CALCULATE RND WALLET & LOCKED RND
+// 🔥 UPDATE USER DATA - CORRECT RND WALLET LOGIC
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -671,7 +671,6 @@ async function updateUserData(userId) {
         let totalDailyRelease = 0;
         let totalStake = 0;
         let totalReward = 0;
-        let totalRNDStaked = 0;
         let totalLockedRND = 0;
         let totalReleasedRND = 0;
         
@@ -681,34 +680,38 @@ async function updateUserData(userId) {
                 totalDailyRelease += (pkg.dailyRelease || 0);
                 totalStake += (pkg.usdtAmount || 0);
                 totalReward += (pkg.bonusPercent || 0);
-                totalRNDStaked += (pkg.totalRND || 0);
-                totalLockedRND += ((pkg.totalRND || 0) - (pkg.releasedAmount || 0));
+                
+                // 🔥 RND Wallet = Only Released Amount
                 totalReleasedRND += (pkg.releasedAmount || 0);
+                
+                // 🔥 Locked RND = Total - Released
+                const totalRND = pkg.totalRND || 0;
+                const released = pkg.releasedAmount || 0;
+                totalLockedRND += (totalRND - released);
             }
         }
         
         console.log('📊 Package Summary:');
         console.log('   - Total Stake:', totalStake);
-        console.log('   - Total RND Staked:', totalRNDStaked);
+        console.log('   - Released RND (RND Wallet):', totalReleasedRND);
         console.log('   - Locked RND:', totalLockedRND);
-        console.log('   - Released RND:', totalReleasedRND);
         console.log('   - Daily Release:', totalDailyRelease);
         
+        // 🔥 CORRECT: rndWallet = Only Released Amount
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
             totalReward: totalReward,
-            rndWallet: totalRNDStaked,
-            lockedRND: totalLockedRND
+            rndWallet: totalReleasedRND,    // ✅ Only released RND
+            lockedRND: totalLockedRND        // ✅ Total - Released
         });
         
         return { 
             totalDailyRelease, 
             totalStake, 
             totalReward, 
-            totalRNDStaked,
-            totalLockedRND,
-            totalReleasedRND
+            totalReleasedRND,
+            totalLockedRND
         };
     } catch (error) {
         console.error('Error updating user data:', error);
@@ -783,11 +786,11 @@ function loadDashboard(u) {
     const directReferrals = u.totalReferrals || 0;
     const downline = u.downline || 0;
     
-    // 🔥 Wallets - Read from Firebase
+    // 🔥 Wallets - CORRECT VALUES
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
-    const rndWallet = u.rndWallet || 0;
-    const lockedRND = u.lockedRND || 0;
+    const rndWallet = u.rndWallet || 0;      // ✅ Only Released RND
+    const lockedRND = u.lockedRND || 0;      // ✅ Total - Released
     const releaseWallet = u.releaseWallet || 0;
     
     const totalStake = u.totalStake || 0;
@@ -866,9 +869,9 @@ function loadDashboard(u) {
                     <div class="col-6 col-lg-3">
                         <div class="wallet-card">
                             <div class="wallet-icon rnd"><i class="bi bi-database"></i></div>
-                            <div class="wallet-number blue">${(rndWallet || 0).toFixed(2)}</div>
+                            <div class="wallet-number blue">${(rndWallet || 0).toFixed(4)}</div>
                             <div class="wallet-label">RND Wallet</div>
-                            <div class="wallet-sub">≈ $${(rndValueUSD || 0).toFixed(2)}</div>
+                            <div class="wallet-sub">🔄 Released RND</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
@@ -876,7 +879,7 @@ function loadDashboard(u) {
                             <div class="wallet-icon locked"><i class="bi bi-lock"></i></div>
                             <div class="wallet-number purple">${(lockedRND || 0).toFixed(2)}</div>
                             <div class="wallet-label">🔒 Locked RND</div>
-                            <div class="wallet-sub">Package Locked</div>
+                            <div class="wallet-sub">Total - Released</div>
                         </div>
                     </div>
                 </div>
