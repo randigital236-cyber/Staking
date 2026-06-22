@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Keeping CSS minimal - same as before */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
@@ -149,7 +150,6 @@
         .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
         
         .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        
         .welcome-section {
             background: linear-gradient(135deg, rgba(46,204,113,0.08), rgba(26,122,58,0.05));
             border-radius: 20px;
@@ -707,10 +707,6 @@ async function updateUserData(userId) {
             }
         }
         
-        // 🔥 FIX: Use stored values from Firebase, don't calculate earnings here
-        // Earnings are already stored in level1Earnings, level2Earnings etc.
-        // Just update the counts
-        
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
@@ -830,7 +826,6 @@ function loadDashboard(u) {
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
     
-    // 🔥 FIX: Use stored values from Firebase
     const level1Earn = u.level1Earnings || 0;
     const level2Earn = u.level2Earnings || 0;
     const level3Earn = u.level3Earnings || 0;
@@ -845,7 +840,6 @@ function loadDashboard(u) {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = directReferrals;
     
-    // 🔥 FIX: Use u.referralCode instead of username
     const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
     
