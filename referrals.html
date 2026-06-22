@@ -431,14 +431,10 @@ async function calculateReferralEarnings(userData) {
             const allUsers = allUsersSnapshot.val();
             const referralCode = userData.referralCode || userData.username;
             
-            console.log('🔍 User Data:', userData);
-            console.log('🔍 Referral Code to match:', referralCode);
-            
             // Level 1 - Direct Referrals
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
-                    console.log('✅ Found Direct Referral:', u.name, 'ReferredBy:', u.referredBy);
                     directReferrals.push(u);
                     teamLevels.level1++;
                     const stake = u.totalStake || 0;
@@ -497,13 +493,6 @@ async function calculateReferralEarnings(userData) {
         const uniqueLevel4 = level4Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         const uniqueLevel5 = level5Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         
-        console.log('📊 Referral Data Summary:');
-        console.log('   Level 1:', directReferrals.length, 'Earnings:', level1Earn);
-        console.log('   Level 2:', uniqueLevel2.length, 'Earnings:', level2Earn);
-        console.log('   Level 3:', uniqueLevel3.length, 'Earnings:', level3Earn);
-        console.log('   Level 4:', uniqueLevel4.length, 'Earnings:', level4Earn);
-        console.log('   Level 5:', uniqueLevel5.length, 'Earnings:', level5Earn);
-        
         return {
             directReferrals,
             level1Users: directReferrals,
@@ -552,8 +541,8 @@ onAuthStateChanged(auth, async (user) => {
         const username = userData.username || userData.referralCode || 'USER';
         const name = userData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
-        document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
-        document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
+        document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
         const referralData = await calculateReferralEarnings(userData);
         
@@ -562,7 +551,6 @@ onAuthStateChanged(auth, async (user) => {
 
         const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
         
-        // Calculate total downline
         const totalDownline = referralData.level2Count + referralData.level3Count + referralData.level4Count + referralData.level5Count;
         const totalDownlineEarnings = referralData.level2Earn + referralData.level3Earn + referralData.level4Earn + referralData.level5Earn;
 
@@ -573,7 +561,6 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
                 
-                <!-- Stats Cards -->
                 <div class="col-12">
                     <div class="stats-grid">
                         <div class="stat-item">
@@ -589,7 +576,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
                 
-                <!-- Referral Link -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -598,12 +584,11 @@ onAuthStateChanged(auth, async (user) => {
                             <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                         </div>
                         <div class="mt-2">
-                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;">${userData.referralCode}</strong></small>
+                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${userData.referralCode.substring(0, 25)}...</strong></small>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Commission Structure -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3"></i>Commission Structure</div>
@@ -618,7 +603,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
                 
-                <!-- 5 Level Earnings Summary -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Earnings</div>
@@ -668,7 +652,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
                 
-                <!-- Level 1 - Direct Referrals -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-list-ul"></i>Level 1 - Direct Referrals (${referralData.level1Count}) <span class="level-badge">8%</span></div>
@@ -708,7 +691,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
                 
-                <!-- Level 2 Referrals -->
                 ${referralData.level2Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
@@ -743,7 +725,6 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
                 ` : ''}
                 
-                <!-- Level 3 Referrals -->
                 ${referralData.level3Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
@@ -778,7 +759,6 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
                 ` : ''}
                 
-                <!-- Level 4 Referrals -->
                 ${referralData.level4Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
@@ -813,7 +793,6 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
                 ` : ''}
                 
-                <!-- Level 5 Referrals -->
                 ${referralData.level5Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
