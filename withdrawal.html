@@ -22,14 +22,6 @@
     }
     .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
     .navbar-custom .navbar-brand i { color: #2ecc71; }
-    .domain-badge {
-      background: rgba(46,204,113,0.12);
-      border: 1px solid rgba(46,204,113,0.15);
-      border-radius: 30px;
-      padding: 4px 14px;
-      font-size: 0.65rem;
-      color: #2ecc71;
-    }
     
     .sidebar-toggle {
       background: rgba(46,204,113,0.12);
@@ -170,6 +162,47 @@
     .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
     .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
     
+    .wallet-box {
+      background: rgba(19,34,55,0.6);
+      border: 1px solid rgba(46,204,113,0.08);
+      border-radius: 16px;
+      padding: 1.25rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      height: 100%;
+    }
+    .wallet-box:hover { border-color: rgba(46,204,113,0.2); transform: translateY(-3px); }
+    .wallet-box .wallet-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      margin: 0 auto 10px;
+    }
+    .wallet-box .wallet-icon.referral { background: rgba(251,191,36,0.12); color: #fbbf24; }
+    .wallet-box .wallet-icon.rnd { background: rgba(59,130,246,0.12); color: #60a5fa; }
+    .wallet-box .wallet-icon.deposit { background: rgba(46,204,113,0.05); color: #2ecc71; opacity: 0.5; }
+    .wallet-box .wallet-icon.locked { background: rgba(139,92,246,0.05); color: #a78bfa; opacity: 0.5; }
+    .wallet-box .wallet-number { font-size: 1.8rem; font-weight: 800; color: #fff; }
+    .wallet-box .wallet-number.gold { color: #fbbf24; }
+    .wallet-box .wallet-number.blue { color: #60a5fa; }
+    .wallet-box .wallet-number.green { color: #2ecc71; }
+    .wallet-box .wallet-number.disabled { color: #556688; }
+    .wallet-box .wallet-label { color: #8899bb; font-size: 0.75rem; font-weight: 500; margin-top: 4px; }
+    .wallet-box .wallet-sub { color: #556688; font-size: 0.65rem; margin-top: 2px; }
+    .wallet-box .wallet-disabled-badge {
+      font-size: 0.6rem;
+      background: rgba(239,68,68,0.1);
+      color: #f87171;
+      padding: 2px 10px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+    
     .form-control-custom {
       background: rgba(8,14,26,0.8) !important;
       border: 1px solid rgba(46,204,113,0.15) !important;
@@ -216,6 +249,15 @@
     }
     .btn-outline-custom:hover { border-color: #2ecc71; color: #2ecc71; }
     
+    .min-withdraw-badge {
+      background: rgba(46,204,113,0.08);
+      border: 1px solid rgba(46,204,113,0.1);
+      border-radius: 20px;
+      padding: 2px 12px;
+      font-size: 0.65rem;
+      color: #2ecc71;
+    }
+    
     .toast-container {
       position: fixed;
       top: 20px;
@@ -243,12 +285,35 @@
     .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     
+    .withdraw-option-card {
+      background: rgba(8,14,26,0.4);
+      border: 2px solid rgba(46,204,113,0.1);
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+    }
+    .withdraw-option-card:hover { border-color: rgba(46,204,113,0.3); }
+    .withdraw-option-card.selected {
+      border-color: #2ecc71;
+      background: rgba(46,204,113,0.08);
+    }
+    .withdraw-option-card .option-icon { font-size: 1.5rem; }
+    .withdraw-option-card .option-label { font-weight: 600; color: #fff; }
+    .withdraw-option-card .option-balance { color: #fbbf24; font-weight: 600; }
+    .withdraw-option-card .option-currency { color: #8899bb; font-size: 0.75rem; }
+    
     @media (max-width: 768px) {
       .dashboard-container { padding: 15px; }
       .sidebar-panel { width: 280px; right: -300px; }
       .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+      .wallet-box .wallet-number { font-size: 1.3rem; }
     }
-    @media (max-width: 480px) { .sidebar-panel { width: 100%; right: -100%; } .sidebar-panel.open { right: 0; } }
+    @media (max-width: 480px) { 
+      .sidebar-panel { width: 100%; right: -100%; } 
+      .sidebar-panel.open { right: 0; }
+    }
   </style>
 </head>
 <body>
@@ -260,7 +325,6 @@
   <div class="container-fluid px-3">
     <a class="navbar-brand fw-bold" href="dashboard.html">
       <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
-      <span class="domain-badge ms-2">staking.randigital.in</span>
     </a>
     <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
       <i class="bi bi-list"></i>
@@ -379,6 +443,11 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
   window.location.href = 'login.html';
 });
 
+async function getUserData(uid) {
+  const snap = await get(ref(db, 'users/' + uid));
+  return snap.exists() ? snap.val() : null;
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = 'login.html';
@@ -386,22 +455,22 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   try {
-    const userSnapshot = await get(ref(db, 'users/' + user.uid));
-    if (!userSnapshot.exists()) {
+    const userData = await getUserData(user.uid);
+    if (!userData) {
       window.location.href = 'dashboard.html';
       return;
     }
-    const userData = userSnapshot.val();
     
     const username = userData.username || userData.referralCode || 'USER';
     const name = userData.name || 'User';
     document.getElementById('sidebarName').textContent = name;
-    document.getElementById('sidebarUserId').textContent = 'ID: ' + username;
-    document.getElementById('sidebarAvatar').textContent = username.charAt(0).toUpperCase();
+    document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
+    document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
     
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = userData.totalReferrals || 0;
 
+    // Get withdrawal history
     const withdrawalsRef = ref(db, 'withdrawals');
     const withdrawalsSnap = await get(withdrawalsRef);
     let userWithdrawals = [];
@@ -415,8 +484,11 @@ onAuthStateChanged(auth, async (user) => {
       userWithdrawals.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     }
 
+    // 🔥 Read wallets from Firebase
     const depositWallet = userData.depositWallet || 0;
-    const withdrawalWallet = userData.withdrawalWallet || 0;
+    const referralWallet = userData.referralWallet || 0;
+    const rndWallet = userData.rndWallet || 0;
+    const lockedRND = userData.lockedRND || 0;
     const releaseWallet = userData.releaseWallet || 0;
 
     document.getElementById('withdrawalContent').innerHTML = `
@@ -426,52 +498,85 @@ onAuthStateChanged(auth, async (user) => {
           <hr class="border-secondary">
         </div>
 
+        <!-- ====== WALLETS SUMMARY ====== -->
         <div class="col-12">
-          <div class="card-glass">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <div class="text-center p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
-                  <small class="text-muted">Deposit Wallet (USDT)</small>
-                  <h4 class="text-success">$${depositWallet.toFixed(2)}</h4>
-                </div>
+          <div class="row g-3">
+            <div class="col-6 col-lg-3">
+              <div class="wallet-box">
+                <div class="wallet-icon deposit"><i class="bi bi-wallet2"></i></div>
+                <div class="wallet-number green">$${depositWallet.toFixed(2)}</div>
+                <div class="wallet-label">Deposit Wallet</div>
+                <div class="wallet-sub">USDT Balance</div>
+                <div class="wallet-disabled-badge">🔒 Not for Withdrawal</div>
               </div>
-              <div class="col-md-4">
-                <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
-                  <small class="text-muted">Withdrawal Wallet (RND)</small>
-                  <h4 style="color:#fbbf24;">${withdrawalWallet.toFixed(2)} RND</h4>
-                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="wallet-box">
+                <div class="wallet-icon referral"><i class="bi bi-coin"></i></div>
+                <div class="wallet-number gold">${referralWallet.toFixed(2)}</div>
+                <div class="wallet-label">💰 Referral Wallet</div>
+                <div class="wallet-sub">RND Balance</div>
+                <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
               </div>
-              <div class="col-md-4">
-                <div class="text-center p-3" style="background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);">
-                  <small class="text-muted">Release Wallet (RND)</small>
-                  <h4 style="color:#60a5fa;">${releaseWallet.toFixed(2)} RND</h4>
-                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="wallet-box">
+                <div class="wallet-icon rnd"><i class="bi bi-database"></i></div>
+                <div class="wallet-number blue">${rndWallet.toFixed(4)}</div>
+                <div class="wallet-label">RND Wallet</div>
+                <div class="wallet-sub">Released RND</div>
+                <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="wallet-box">
+                <div class="wallet-icon locked"><i class="bi bi-lock"></i></div>
+                <div class="wallet-number" style="color:#a78bfa;">${lockedRND.toFixed(2)}</div>
+                <div class="wallet-label">🔒 Locked RND</div>
+                <div class="wallet-sub">Total - Released</div>
+                <div class="wallet-disabled-badge">🔒 Not for Withdrawal</div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- ====== WITHDRAWAL FORM - ONLY 2 OPTIONS ====== -->
         <div class="col-lg-7 mx-auto">
           <div class="card-glass">
             <div class="card-title"><i class="bi bi-arrow-up-circle text-success me-2"></i>Request Withdrawal</div>
             
             <div class="alert alert-warning" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);color:#fbbf24;border-radius:12px;">
-              <small><i class="bi bi-info-circle me-1"></i> Minimum withdrawal: 10 USDT. All withdrawals are manually processed.</small>
+              <small><i class="bi bi-info-circle me-1"></i> Minimum withdrawal: <strong>20 RND</strong>. Withdrawals are manually processed.</small>
+            </div>
+
+            <!-- ====== WITHDRAWAL OPTIONS ====== -->
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <div class="withdraw-option-card selected" id="optionReferral" onclick="selectWithdrawOption('referralWallet')">
+                  <div class="option-icon">💳</div>
+                  <div class="option-label">Referral Wallet</div>
+                  <div class="option-balance">${referralWallet.toFixed(2)} RND</div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="withdraw-option-card" id="optionRND" onclick="selectWithdrawOption('rndWallet')">
+                  <div class="option-icon">📊</div>
+                  <div class="option-label">RND Wallet</div>
+                  <div class="option-balance">${rndWallet.toFixed(4)} RND</div>
+                </div>
+              </div>
             </div>
 
             <form id="withdrawForm">
               <div class="mb-3">
-                <label class="form-label">Withdraw From <span class="required">*</span></label>
-                <select id="withdrawWallet" class="form-select form-control-custom">
-                  <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                  <option value="withdrawalWallet">💳 Withdrawal Wallet (RND)</option>
-                  <option value="releaseWallet">⏳ Release Wallet (RND)</option>
-                </select>
+                <label class="form-label">Selected Wallet <span class="required">*</span></label>
+                <input type="text" id="selectedWalletDisplay" class="form-control form-control-custom" value="Referral Wallet" readonly>
+                <input type="hidden" id="selectedWallet" value="referralWallet">
               </div>
               <div class="mb-3">
-                <label class="form-label">Amount <span class="required">*</span></label>
-                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount (min 10)" min="10" step="0.01" required>
-                <small class="text-muted" style="font-size:0.7rem;">Minimum: 10 USDT / RND</small>
+                <label class="form-label">Amount (RND) <span class="required">*</span></label>
+                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount (min 20 RND)" min="20" step="0.01" required>
+                <small class="text-muted" style="font-size:0.7rem;">Minimum: 20 RND</small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Wallet Address (BEP20) <span class="required">*</span></label>
@@ -489,6 +594,7 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
 
+        <!-- ====== WITHDRAWAL HISTORY ====== -->
         <div class="col-lg-7 mx-auto">
           <div class="card-glass">
             <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Withdrawal History</div>
@@ -505,10 +611,11 @@ onAuthStateChanged(auth, async (user) => {
                   else if (w.status === 'approved') statusHtml = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Approved</span>';
                   else if (w.status === 'rejected') statusHtml = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
                   else statusHtml = '<span class="text-warning">Pending</span>';
+                  const currency = w.currency || 'RND';
                   return `
                     <div style="background:rgba(8,14,26,0.4);border-radius:12px;padding:10px 14px;border:1px solid rgba(46,204,113,0.06);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
                       <div>
-                        <span style="font-weight:700;color:#2ecc71;">${w.amount} ${w.currency || 'USDT'}</span>
+                        <span style="font-weight:700;color:#2ecc71;">${w.amount} ${currency}</span>
                         <div style="color:#556688;font-size:0.65rem;">${new Date(w.timestamp).toLocaleString('hi-IN')}</div>
                         ${w.wallet ? `<div style="font-size:0.6rem;color:#556688;font-family:monospace;">${w.wallet.substring(0,15)}...</div>` : ''}
                       </div>
@@ -523,27 +630,62 @@ onAuthStateChanged(auth, async (user) => {
       </div>
     `;
 
+    // ============================================================
+    // 🔥 SELECT WITHDRAW OPTION
+    // ============================================================
+    window.selectWithdrawOption = function(walletType) {
+      // Remove selected from all
+      document.querySelectorAll('.withdraw-option-card').forEach(el => el.classList.remove('selected'));
+      
+      // Add selected to clicked
+      if (walletType === 'referralWallet') {
+        document.getElementById('optionReferral').classList.add('selected');
+        document.getElementById('selectedWalletDisplay').value = 'Referral Wallet';
+      } else if (walletType === 'rndWallet') {
+        document.getElementById('optionRND').classList.add('selected');
+        document.getElementById('selectedWalletDisplay').value = 'RND Wallet';
+      }
+      
+      document.getElementById('selectedWallet').value = walletType;
+    };
+
+    // ============================================================
+    // 🔥 WITHDRAWAL FORM SUBMIT
+    // ============================================================
     document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
-      const walletType = document.getElementById('withdrawWallet').value;
+      const walletType = document.getElementById('selectedWallet').value;
       const amount = parseFloat(document.getElementById('withAmount').value);
       const address = document.getElementById('withAddr').value.trim();
       const btn = document.getElementById('withdrawBtn');
 
-      if (!amount || amount < 10) { showToast('❌ Minimum withdrawal is 10!', 'error'); return; }
+      // 🔥 Validation - Minimum 20 RND
+      if (!amount || amount < 20) { 
+        showToast('❌ Minimum withdrawal is 20 RND!', 'error'); 
+        return; 
+      }
       if (!address || !address.startsWith('0x') || address.length < 10) {
         showToast('❌ Please enter a valid BEP20 wallet address starting with 0x', 'error');
         return;
       }
 
+      // 🔥 Get user data
       const userSnap = await get(ref(db, 'users/' + user.uid));
+      if (!userSnap.exists()) {
+        showToast('❌ User data not found!', 'error');
+        return;
+      }
       const userData = userSnap.val();
       const balance = userData[walletType] || 0;
       
+      // 🔥 Check balance
       if (balance < amount) {
-        const label = walletType === 'depositWallet' ? 'Deposit Wallet' : walletType === 'withdrawalWallet' ? 'Withdrawal Wallet' : 'Release Wallet';
-        showToast(`❌ Insufficient balance in ${label}! You have ${balance.toFixed(2)}`, 'error');
+        const labels = {
+          'referralWallet': 'Referral Wallet',
+          'rndWallet': 'RND Wallet'
+        };
+        showToast(`❌ Insufficient balance in ${labels[walletType] || 'Wallet'}! You have ${balance.toFixed(4)} RND`, 'error');
         return;
       }
 
@@ -551,20 +693,23 @@ onAuthStateChanged(auth, async (user) => {
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
       try {
+        // 🔥 Deduct from wallet
         await update(ref(db, 'users/' + user.uid), {
           [walletType]: balance - amount
         });
 
+        // 🔥 Save withdrawal request
         await push(ref(db, 'withdrawals'), {
           uid: user.uid,
           amount: amount,
-          currency: walletType === 'depositWallet' ? 'USDT' : 'RND',
+          currency: 'RND',
+          walletType: walletType,
           wallet: address,
           status: 'pending',
           timestamp: Date.now()
         });
 
-        showToast('✅ Withdrawal request submitted successfully! Waiting for admin approval.', 'success');
+        showToast(`✅ Withdrawal request submitted successfully! ${amount} RND will be processed by admin.`, 'success');
         document.getElementById('withAmount').value = '';
         document.getElementById('withAddr').value = '';
         setTimeout(() => { window.location.reload(); }, 1500);
