@@ -162,15 +162,15 @@
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
         
-        /* ---- refined package cards ---- */
+        /* ---- refined package cards with CTA button ---- */
         .package-card {
             background: rgba(8,14,26,0.6);
             border: 1px solid rgba(46,204,113,0.12);
             border-radius: 20px;
-            padding: 1.75rem 1.25rem;
+            padding: 1.75rem 1.25rem 1.5rem;
             text-align: center;
             transition: all 0.3s ease;
-            cursor: pointer;
+            cursor: default;
             height: 100%;
             backdrop-filter: blur(4px);
             box-shadow: 0 8px 24px rgba(0,0,0,0.25);
@@ -212,6 +212,34 @@
             gap: 8px;
         }
         .package-card .features li i { color: #2ecc71; font-size: 1rem; width: 18px; }
+        
+        /* ----- new CTA button on package card ----- */
+        .package-card .plan-cta {
+            margin-top: 18px;
+            width: 100%;
+            padding: 10px 0;
+            border: none;
+            border-radius: 60px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0.3px;
+            background: linear-gradient(145deg, #f59e0b, #d97706);
+            color: #0b111e;
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.25);
+            transition: all 0.25s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .package-card .plan-cta:hover {
+            transform: scale(1.02);
+            box-shadow: 0 12px 28px rgba(245, 158, 11, 0.4);
+            background: linear-gradient(145deg, #fbbf24, #f59e0b);
+            color: #000;
+        }
+        .package-card .plan-cta i { font-size: 1.1rem; }
         
         .form-control-custom {
             background: rgba(8,14,26,0.8) !important;
@@ -313,27 +341,6 @@
             font-weight: 600;
             font-size: 0.85rem;
         }
-        
-        .summary-box {
-            background: rgba(46,204,113,0.05);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 12px;
-            padding: 12px 16px;
-            margin-top: 10px;
-        }
-        .summary-box .row-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            font-size: 0.85rem;
-            border-bottom: 1px solid rgba(46,204,113,0.05);
-        }
-        .summary-box .row-item:last-child { border-bottom: none; }
-        .summary-box .label { color: #8899bb; }
-        .summary-box .value { color: #f0f4ff; font-weight: 600; }
-        .summary-box .value.green { color: #2ecc71; }
-        .summary-box .value.gold { color: #fbbf24; }
-        .summary-box .value.blue { color: #60a5fa; }
         
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
@@ -553,14 +560,12 @@ async function getRNDPrice() {
 // ============================================================
 async function distributeReferralCommission(userUid, amount) {
     try {
-        console.log('💰 ===== DISTRIBUTING REFERRAL COMMISSION =====');
         const rates = [0.08, 0.04, 0.02, 0.01, 0.01];
         const levelNames = ['Level 1 (8%)', 'Level 2 (4%)', 'Level 3 (2%)', 'Level 4 (1%)', 'Level 5 (1%)'];
         
         const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) { console.log('❌ No users found'); return; }
+        if (!usersSnap.exists()) return;
         const users = usersSnap.val();
-        
         const currentUser = users[userUid];
         if (!currentUser) return;
         
@@ -569,7 +574,6 @@ async function distributeReferralCommission(userUid, amount) {
         
         for (let level = 0; level < 5; level++) {
             if (!currentRefCode) break;
-            
             let sponsorUid = null;
             let sponsor = null;
             for (const uid in users) {
@@ -582,8 +586,6 @@ async function distributeReferralCommission(userUid, amount) {
             if (!sponsorUid || !sponsor) break;
             
             const bonus = amount * rates[level];
-            console.log(`💰 ${levelNames[level]} → ${sponsor.name || 'User'} gets $${bonus.toFixed(2)}`);
-            
             const updates = {
                 referralEarnings: (sponsor.referralEarnings || 0) + bonus,
                 referralWallet: (sponsor.referralWallet || 0) + bonus,
@@ -595,9 +597,8 @@ async function distributeReferralCommission(userUid, amount) {
             currentRefCode = sponsor.referredBy || '';
             commissionDistributed = true;
         }
-        if (commissionDistributed) console.log('✅ Referral commission distributed');
     } catch (error) {
-        console.error('❌ Error distributing referral commission:', error);
+        console.error('Error distributing referral commission:', error);
     }
 }
 
@@ -610,7 +611,7 @@ async function updateUserData(userId) {
         if (!userSnap.exists()) return null;
         const userData = userSnap.val();
         const packages = userData.packages || {};
-        let totalDailyRelease = 0, totalStake = 0, totalReward = 0, totalRNDStaked = 0, totalLockedRND = 0, totalReleasedRND = 0;
+        let totalDailyRelease = 0, totalStake = 0, totalReward = 0, totalRNDStaked = 0, totalLockedRND = 0;
         for (let key in packages) {
             const pkg = packages[key];
             if (pkg.status === 'active') {
@@ -619,7 +620,6 @@ async function updateUserData(userId) {
                 totalReward += (pkg.bonusPercent || 0);
                 totalRNDStaked += (pkg.totalRND || 0);
                 totalLockedRND += ((pkg.totalRND || 0) - (pkg.releasedAmount || 0));
-                totalReleasedRND += (pkg.releasedAmount || 0);
             }
         }
         await update(ref(db, 'users/' + userId), {
@@ -629,7 +629,7 @@ async function updateUserData(userId) {
             rndWallet: totalRNDStaked,
             lockedRND: totalLockedRND
         });
-        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, totalLockedRND, totalReleasedRND };
+        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, totalLockedRND };
     } catch (error) { console.error('Error updating user data:', error); return null; }
 }
 
@@ -687,6 +687,7 @@ onAuthStateChanged(auth, async (user) => {
             `;
         });
 
+        // build main UI – removed old screenshot data section, added CTA buttons on cards
         document.getElementById('packageContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -697,6 +698,7 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
 
+                <!-- wallet stats -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="row g-3">
@@ -742,14 +744,14 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- refined 3 package cards -->
+                <!-- 3 package cards with CTA button -->
                 <div class="col-12">
                     <div class="row g-4">
                         ${PLANS.map((plan) => {
                             const example = calculateStaking(100, rndPrice || 1, plan);
                             return `
                             <div class="col-md-4">
-                                <div class="package-card" data-plan="${plan.id}" onclick="selectPlan('${plan.id}')">
+                                <div class="package-card" data-plan="${plan.id}">
                                     <h5 class="plan-name" style="color:${plan.color};">${plan.name}</h5>
                                     <div class="price">$${plan.id === '6months' ? '50' : plan.id === '12months' ? '100' : '200'} <span>USDT</span></div>
                                     <div class="reward">${plan.bonusText}</div>
@@ -761,6 +763,10 @@ onAuthStateChanged(auth, async (user) => {
                                         <li><i class="bi bi-check-circle"></i> ${plan.duration} Days Lock</li>
                                         <li><i class="bi bi-check-circle"></i> Daily Release</li>
                                     </div>
+                                    <!-- CTA button with distinct color -->
+                                    <button class="plan-cta" data-plan-id="${plan.id}">
+                                        <i class="bi bi-lightning-charge-fill"></i> Select ${plan.name}
+                                    </button>
                                 </div>
                             </div>
                             `;
@@ -768,6 +774,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
+                <!-- purchase form -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>Confirm Purchase</div>
@@ -806,6 +813,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
+                <!-- history -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History</div>
@@ -820,30 +828,29 @@ onAuthStateChanged(auth, async (user) => {
             </div>
         `;
 
-        // ============================================================
-        // 🔥 SELECT PLAN
-        // ============================================================
-        window.selectPlan = function(planId) {
-            const plan = PLANS.find(p => p.id === planId);
-            if (!plan) return;
-            document.querySelectorAll('.package-card').forEach(card => card.classList.remove('selected'));
-            const selectedCard = document.querySelector(`.package-card[data-plan="${planId}"]`);
-            if (selectedCard) selectedCard.classList.add('selected');
-            document.getElementById('selectedPlan').value = plan.name;
-            document.getElementById('payAmount').placeholder = `Enter USDT amount (min 10)`;
-            
-            const amount = parseFloat(document.getElementById('payAmount').value) || 100;
-            const result = calculateStaking(amount, rndPrice || 1, plan);
-            document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
-            document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
-            
-            const buyBtn = document.getElementById('buyBtn');
-            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${plan.name}`;
-        };
+        // ---- attach CTA button listeners ----
+        document.querySelectorAll('.plan-cta').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const planId = this.dataset.planId;
+                const plan = PLANS.find(p => p.id === planId);
+                if (!plan) return;
+                
+                // update selection visual
+                document.querySelectorAll('.package-card').forEach(c => c.classList.remove('selected'));
+                const parentCard = this.closest('.package-card');
+                if (parentCard) parentCard.classList.add('selected');
+                
+                document.getElementById('selectedPlan').value = plan.name;
+                const amount = parseFloat(document.getElementById('payAmount').value) || 100;
+                const result = calculateStaking(amount, rndPrice || 1, plan);
+                document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
+                document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
+                document.getElementById('buyBtn').innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${plan.name}`;
+            });
+        });
 
-        // ============================================================
-        // 🔥 PAY AMOUNT CHANGE - REAL TIME CALCULATION
-        // ============================================================
+        // ---- input realtime calculation ----
         const payAmountInput = document.getElementById('payAmount');
         if (payAmountInput) {
             payAmountInput.addEventListener('input', function() {
@@ -867,9 +874,7 @@ onAuthStateChanged(auth, async (user) => {
             });
         }
 
-        // ============================================================
-        // 🔥 BUY PLAN - WITH REFERRAL COMMISSION
-        // ============================================================
+        // ---- buy form submission ----
         const buyForm = document.getElementById('buyForm');
         if (buyForm) {
             buyForm.addEventListener('submit', async (e) => {
@@ -890,8 +895,6 @@ onAuthStateChanged(auth, async (user) => {
                 if (!userData) { showToast('❌ User data not found!', 'error'); return; }
 
                 const balance = userData[payFrom] || 0;
-                const currency = payFrom === 'depositWallet' ? 'USDT' : 'RND';
-
                 if (payFrom === 'referralWallet') {
                     const rndNeeded = payAmount / (rndPrice || 1);
                     if (balance < rndNeeded) {
@@ -906,7 +909,6 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 const result = calculateStaking(payAmount, rndPrice || 1, plan);
-                
                 buyBtn.disabled = true;
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
@@ -957,7 +959,6 @@ onAuthStateChanged(auth, async (user) => {
                     await updateUserData(auth.currentUser.uid);
 
                     showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
-                    
                     setTimeout(() => { window.location.reload(); }, 1500);
 
                 } catch (error) {
