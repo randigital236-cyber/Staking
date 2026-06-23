@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Buy Package - RND Staking</title>
+    <title>Buy Package · RND Staking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -162,32 +162,56 @@
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
         
+        /* ---- refined package cards ---- */
         .package-card {
-            background: rgba(8,14,26,0.5);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 16px;
-            padding: 1.5rem;
+            background: rgba(8,14,26,0.6);
+            border: 1px solid rgba(46,204,113,0.12);
+            border-radius: 20px;
+            padding: 1.75rem 1.25rem;
             text-align: center;
             transition: all 0.3s ease;
             cursor: pointer;
             height: 100%;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .package-card:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-5px); }
+        .package-card:hover { 
+            border-color: rgba(46,204,113,0.45); 
+            transform: translateY(-6px); 
+            box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+        }
         .package-card.selected {
             border-color: #2ecc71;
             border-width: 2px;
             background: rgba(46,204,113,0.08);
+            box-shadow: 0 0 0 1px #2ecc71, 0 12px 32px rgba(46,204,113,0.15);
         }
-        .package-card .plan-name { font-size: 1.2rem; font-weight: 700; }
-        .package-card .price { font-size: 2rem; font-weight: 800; color: #2ecc71; }
-        .package-card .price span { font-size: 1rem; color: #8899bb; }
+        .package-card .plan-name { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.3px; }
+        .package-card .price { font-size: 2.2rem; font-weight: 800; color: #2ecc71; line-height: 1.2; }
+        .package-card .price span { font-size: 1rem; color: #8899bb; font-weight: 400; }
         .package-card .duration { color: #8899bb; font-size: 0.85rem; margin-top: 4px; }
         .package-card .reward { color: #fbbf24; font-weight: 600; font-size: 1.1rem; margin-top: 8px; }
         .package-card .you-will-receive { color: #60a5fa; font-size: 0.9rem; margin-top: 4px; }
         .package-card .daily-release { color: #34d399; font-size: 0.85rem; }
-        .package-card .features { margin-top: 12px; text-align: left; color: #a0b8d0; font-size: 0.85rem; }
-        .package-card .features li { list-style: none; margin-bottom: 4px; }
-        .package-card .features li i { color: #2ecc71; margin-right: 8px; }
+        .package-card .features { 
+            margin-top: 14px; 
+            text-align: left; 
+            color: #a0b8d0; 
+            font-size: 0.85rem;
+            width: 100%;
+            padding-left: 4px;
+        }
+        .package-card .features li { 
+            list-style: none; 
+            margin-bottom: 5px; 
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .package-card .features li i { color: #2ecc71; font-size: 1rem; width: 18px; }
         
         .form-control-custom {
             background: rgba(8,14,26,0.8) !important;
@@ -221,20 +245,6 @@
         }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
         .btn-primary-custom:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
-        
-        .btn-outline-custom {
-            border: 2px solid rgba(46,204,113,0.3);
-            color: #a0b8d0;
-            padding: 10px 24px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            font-weight: 500;
-            background: transparent;
-            font-size: 0.9rem;
-        }
-        .btn-outline-custom:hover { border-color: #2ecc71; color: #2ecc71; }
         
         .package-history { margin-top: 20px; max-height: 300px; overflow-y: auto; }
         .package-history::-webkit-scrollbar { width: 4px; }
@@ -329,7 +339,8 @@
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
-            .package-card .price { font-size: 1.5rem; }
+            .package-card .price { font-size: 1.8rem; }
+            .package-card { padding: 1.25rem 1rem; }
         }
         @media (max-width: 480px) {
             .sidebar-panel { width: 100%; right: -100%; }
@@ -543,39 +554,24 @@ async function getRNDPrice() {
 async function distributeReferralCommission(userUid, amount) {
     try {
         console.log('💰 ===== DISTRIBUTING REFERRAL COMMISSION =====');
-        console.log('💰 User UID:', userUid);
-        console.log('💰 Amount:', amount);
-        
         const rates = [0.08, 0.04, 0.02, 0.01, 0.01];
         const levelNames = ['Level 1 (8%)', 'Level 2 (4%)', 'Level 3 (2%)', 'Level 4 (1%)', 'Level 5 (1%)'];
         
         const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) {
-            console.log('❌ No users found in database');
-            return;
-        }
+        if (!usersSnap.exists()) { console.log('❌ No users found'); return; }
         const users = usersSnap.val();
         
         const currentUser = users[userUid];
-        if (!currentUser) {
-            console.log('❌ Current user not found');
-            return;
-        }
+        if (!currentUser) return;
         
         let currentRefCode = currentUser.referredBy || '';
-        console.log('🔍 Starting referral chain from:', currentRefCode);
-        
         let commissionDistributed = false;
         
         for (let level = 0; level < 5; level++) {
-            if (!currentRefCode) {
-                console.log(`ℹ️ No referrer found at level ${level + 1}, stopping`);
-                break;
-            }
+            if (!currentRefCode) break;
             
             let sponsorUid = null;
             let sponsor = null;
-            
             for (const uid in users) {
                 if (users[uid].referralCode === currentRefCode) {
                     sponsorUid = uid;
@@ -583,37 +579,23 @@ async function distributeReferralCommission(userUid, amount) {
                     break;
                 }
             }
-            
-            if (!sponsorUid || !sponsor) {
-                console.log(`❌ Sponsor not found for code: ${currentRefCode}`);
-                break;
-            }
+            if (!sponsorUid || !sponsor) break;
             
             const bonus = amount * rates[level];
-            console.log(`💰 ${levelNames[level]} → ${sponsor.name || 'User'} (${sponsorUid}) gets $${bonus.toFixed(2)}`);
+            console.log(`💰 ${levelNames[level]} → ${sponsor.name || 'User'} gets $${bonus.toFixed(2)}`);
             
             const updates = {
                 referralEarnings: (sponsor.referralEarnings || 0) + bonus,
                 referralWallet: (sponsor.referralWallet || 0) + bonus,
                 teamBusiness: (sponsor.teamBusiness || 0) + amount
             };
-            
-            updates[`level${level + 1}Earnings`] =
-                (sponsor[`level${level + 1}Earnings`] || 0) + bonus;
+            updates[`level${level + 1}Earnings`] = (sponsor[`level${level + 1}Earnings`] || 0) + bonus;
             
             await update(ref(db, 'users/' + sponsorUid), updates);
-            console.log(`✅ ${levelNames[level]} updated for ${sponsor.name || 'User'}`);
-            
             currentRefCode = sponsor.referredBy || '';
             commissionDistributed = true;
         }
-        
-        if (commissionDistributed) {
-            console.log('✅ ===== REFERRAL COMMISSION DISTRIBUTED =====');
-        } else {
-            console.log('ℹ️ No referral commission distributed');
-        }
-        
+        if (commissionDistributed) console.log('✅ Referral commission distributed');
     } catch (error) {
         console.error('❌ Error distributing referral commission:', error);
     }
@@ -628,14 +610,7 @@ async function updateUserData(userId) {
         if (!userSnap.exists()) return null;
         const userData = userSnap.val();
         const packages = userData.packages || {};
-        
-        let totalDailyRelease = 0;
-        let totalStake = 0;
-        let totalReward = 0;
-        let totalRNDStaked = 0;
-        let totalLockedRND = 0;
-        let totalReleasedRND = 0;
-        
+        let totalDailyRelease = 0, totalStake = 0, totalReward = 0, totalRNDStaked = 0, totalLockedRND = 0, totalReleasedRND = 0;
         for (let key in packages) {
             const pkg = packages[key];
             if (pkg.status === 'active') {
@@ -647,7 +622,6 @@ async function updateUserData(userId) {
                 totalReleasedRND += (pkg.releasedAmount || 0);
             }
         }
-        
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
@@ -655,19 +629,8 @@ async function updateUserData(userId) {
             rndWallet: totalRNDStaked,
             lockedRND: totalLockedRND
         });
-        
-        return { 
-            totalDailyRelease, 
-            totalStake, 
-            totalReward, 
-            totalRNDStaked,
-            totalLockedRND,
-            totalReleasedRND
-        };
-    } catch (error) {
-        console.error('Error updating user data:', error);
-        return null;
-    }
+        return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, totalLockedRND, totalReleasedRND };
+    } catch (error) { console.error('Error updating user data:', error); return null; }
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -779,8 +742,9 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
+                <!-- refined 3 package cards -->
                 <div class="col-12">
-                    <div class="row g-3">
+                    <div class="row g-4">
                         ${PLANS.map((plan) => {
                             const example = calculateStaking(100, rndPrice || 1, plan);
                             return `
@@ -868,7 +832,6 @@ onAuthStateChanged(auth, async (user) => {
             document.getElementById('selectedPlan').value = plan.name;
             document.getElementById('payAmount').placeholder = `Enter USDT amount (min 10)`;
             
-            // Update on amount change
             const amount = parseFloat(document.getElementById('payAmount').value) || 100;
             const result = calculateStaking(amount, rndPrice || 1, plan);
             document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
@@ -917,33 +880,19 @@ onAuthStateChanged(auth, async (user) => {
                 const payFrom = document.getElementById('payFrom').value;
                 const buyBtn = document.getElementById('buyBtn');
 
-                if (!planName || planName === 'None') { 
-                    showToast('❌ Please select a plan first!', 'error'); 
-                    return; 
-                }
-                if (!payAmount || payAmount < 10) { 
-                    showToast('❌ Minimum investment is 10 USDT!', 'error'); 
-                    return; 
-                }
+                if (!planName || planName === 'None') { showToast('❌ Please select a plan first!', 'error'); return; }
+                if (!payAmount || payAmount < 10) { showToast('❌ Minimum investment is 10 USDT!', 'error'); return; }
 
                 const plan = PLANS.find(p => p.name === planName);
-                if (!plan) { 
-                    showToast('❌ Invalid plan selected!', 'error'); 
-                    return; 
-                }
+                if (!plan) { showToast('❌ Invalid plan selected!', 'error'); return; }
 
                 const userData = await getUserData(auth.currentUser.uid);
-                if (!userData) { 
-                    showToast('❌ User data not found!', 'error'); 
-                    return; 
-                }
+                if (!userData) { showToast('❌ User data not found!', 'error'); return; }
 
                 const balance = userData[payFrom] || 0;
                 const currency = payFrom === 'depositWallet' ? 'USDT' : 'RND';
 
-                // If paying from referral wallet, need RND balance
                 if (payFrom === 'referralWallet') {
-                    // Convert USDT to RND at current price
                     const rndNeeded = payAmount / (rndPrice || 1);
                     if (balance < rndNeeded) {
                         showToast(`❌ Insufficient RND balance in Referral Wallet! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
@@ -962,7 +911,6 @@ onAuthStateChanged(auth, async (user) => {
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
                 try {
-                    // 🔥 Deduct from wallet
                     if (payFrom === 'depositWallet') {
                         await update(ref(db, 'users/' + auth.currentUser.uid), {
                             [payFrom]: balance - payAmount
@@ -974,7 +922,6 @@ onAuthStateChanged(auth, async (user) => {
                         });
                     }
 
-                    // 🔥 Save package in user node
                     const userRef = ref(db, 'users/' + auth.currentUser.uid);
                     const userSnap = await get(userRef);
                     const currentUserData = userSnap.val();
@@ -1006,11 +953,7 @@ onAuthStateChanged(auth, async (user) => {
                         packages: packages
                     });
 
-                    // 🔥 DISTRIBUTE REFERRAL COMMISSION
-                    console.log('💰 Distributing referral commission for purchase...');
                     await distributeReferralCommission(auth.currentUser.uid, payAmount);
-
-                    // 🔥 Update user data (release wallet, locked RND, etc)
                     await updateUserData(auth.currentUser.uid);
 
                     showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
