@@ -443,6 +443,27 @@
         .commission-row .level { color: #8899bb; }
         .commission-row .earnings { color: #fbbf24; font-weight: 600; }
         
+        /* Invoice Card Styles */
+        .invoice-preview {
+            background: rgba(8,14,26,0.4);
+            border-radius: 16px;
+            padding: 1.25rem;
+            border: 1px solid rgba(46,204,113,0.06);
+        }
+        .invoice-preview .inv-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(46,204,113,0.04);
+        }
+        .invoice-preview .inv-row:last-child { border-bottom: none; }
+        .invoice-preview .inv-label { color: #8899bb; }
+        .invoice-preview .inv-value { color: #f0f4ff; font-weight: 500; }
+        .invoice-preview .inv-value.green { color: #2ecc71; }
+        .invoice-preview .inv-value.gold { color: #fbbf24; }
+        .invoice-preview .inv-value.blue { color: #60a5fa; }
+        
         @media (max-width: 992px) {
             .network-stats { grid-template-columns: repeat(2, 1fr); }
             .level-stats { grid-template-columns: repeat(3, 1fr); }
@@ -670,7 +691,6 @@ async function processDailyReleases(userId) {
         const today = new Date().toDateString();
         const lastReleaseDate = userData.lastReleaseDate || '';
         
-        // 🔥 Check if already released today
         if (lastReleaseDate === today) {
             console.log('✅ Daily release already processed today');
             return;
@@ -689,14 +709,12 @@ async function processDailyReleases(userId) {
                 const currentReleased = pkg.releasedAmount || 0;
                 const totalRND = pkg.totalRND || 0;
                 
-                // 🔥 Check if package is completed
                 if (currentReleased >= totalRND) {
                     pkg.status = 'completed';
                     updatedPackages[key] = pkg;
                     continue;
                 }
                 
-                // 🔥 Add today's release
                 const newReleased = Math.min(currentReleased + dailyRelease, totalRND);
                 pkg.releasedAmount = newReleased;
                 totalReleasedToday += dailyRelease;
@@ -704,7 +722,6 @@ async function processDailyReleases(userId) {
                 totalLockedRND += (totalRND - newReleased);
                 totalDailyRelease += dailyRelease;
                 
-                // 🔥 Check if completed after release
                 if (newReleased >= totalRND) {
                     pkg.status = 'completed';
                 }
@@ -713,7 +730,6 @@ async function processDailyReleases(userId) {
             }
         }
         
-        // 🔥 Update user data
         await update(ref(db, 'users/' + userId), {
             packages: updatedPackages,
             rndWallet: totalRNDWallet,
@@ -765,12 +781,6 @@ async function updateUserData(userId) {
                 totalLockedRND += (totalRND - released);
             }
         }
-        
-        console.log('📊 Package Summary:');
-        console.log('   - Total Stake:', totalStake);
-        console.log('   - RND Wallet (Released):', totalRNDWallet);
-        console.log('   - Locked RND:', totalLockedRND);
-        console.log('   - Daily Release:', totalDailyRelease);
         
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
@@ -866,9 +876,9 @@ function loadDashboard(u) {
     // 🔥 Wallets
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
-    const rndWallet = u.rndWallet || 0;          // ✅ Total Released RND
-    const lockedRND = u.lockedRND || 0;          // ✅ Total - Released
-    const releaseWallet = u.releaseWallet || 0;  // ✅ Daily Release Amount
+    const rndWallet = u.rndWallet || 0;
+    const lockedRND = u.lockedRND || 0;
+    const releaseWallet = u.releaseWallet || 0;
     
     const totalStake = u.totalStake || 0;
     const totalReward = u.totalReward || 0;
@@ -881,6 +891,7 @@ function loadDashboard(u) {
     const level5Earn = u.level5Earnings || 0;
     const referralEarnings = u.referralEarnings || 0;
     
+    // 🔥 FIXED: Team Members by Level - show actual counts
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
@@ -897,6 +908,17 @@ function loadDashboard(u) {
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
     
     const rndValueUSD = rndWallet * rndPrice;
+    
+    // 🔥 Get active package for invoice
+    const packages = u.packages || {};
+    let activePackage = null;
+    let packageKeys = Object.keys(packages);
+    for (let key of packageKeys) {
+        if (packages[key].status === 'active') {
+            activePackage = packages[key];
+            break;
+        }
+    }
     
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -995,7 +1017,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== 5 LEVEL MEMBERS ====== -->
+            <!-- ====== 5 LEVEL MEMBERS - FIXED ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-people text-success me-2"></i>Team Members by Level</h5>
                 <div class="level-stats">
@@ -1061,6 +1083,68 @@ function loadDashboard(u) {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            
+            <!-- ====== INVOICE SECTION ====== -->
+            <div class="col-12">
+                <div class="card-glass">
+                    <div class="card-title"><i class="bi bi-receipt text-success me-2"></i>Package Invoice</div>
+                    ${activePackage ? `
+                        <div class="invoice-preview">
+                            <div class="inv-row">
+                                <span class="inv-label">Plan</span>
+                                <span class="inv-value green">${activePackage.planName || 'Staking Plan'}</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Investment</span>
+                                <span class="inv-value">$${(activePackage.usdtAmount || 0).toFixed(2)} USDT</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Total RND</span>
+                                <span class="inv-value gold">${(activePackage.totalRND || 0).toFixed(2)} RND</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Bonus</span>
+                                <span class="inv-value gold">+${(activePackage.bonusPercent || 0)}%</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Daily Release</span>
+                                <span class="inv-value blue">${(activePackage.dailyRelease || 0).toFixed(4)} RND</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Lock Period</span>
+                                <span class="inv-value">${(activePackage.duration || 0)} Days</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">Start Date</span>
+                                <span class="inv-value">${new Date(activePackage.startDate).toLocaleString('hi-IN')}</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label">End Date</span>
+                                <span class="inv-value blue">${new Date(activePackage.endDate).toLocaleString('hi-IN')}</span>
+                            </div>
+                            <div class="inv-row" style="border-top:2px solid rgba(46,204,113,0.1);padding-top:8px;margin-top:4px;">
+                                <span class="inv-label" style="font-weight:700;">Released So Far</span>
+                                <span class="inv-value green">${(activePackage.releasedAmount || 0).toFixed(2)} RND</span>
+                            </div>
+                            <div class="inv-row">
+                                <span class="inv-label" style="font-weight:700;">Remaining Locked</span>
+                                <span class="inv-value purple">${((activePackage.totalRND || 0) - (activePackage.releasedAmount || 0)).toFixed(2)} RND</span>
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2" style="border-radius:40px;font-weight:500;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Active · Release in progress
+                                </span>
+                                <button class="btn btn-sm btn-outline-custom ms-2" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-receipt fs-1 d-block mb-2"></i>
+                            <p>No active package found. <a href="buy-package.html" class="text-success">Buy a package</a> to see your invoice.</p>
+                        </div>
+                    `}
                 </div>
             </div>
             
