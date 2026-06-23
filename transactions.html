@@ -200,6 +200,7 @@
         
         .transaction-item .info h6 { margin: 0; color: #fff; font-weight: 600; }
         .transaction-item .info small { color: #556688; font-size: 0.75rem; }
+        .transaction-item .info .extra-detail { font-size: 0.7rem; color: #60a5fa; }
         .transaction-item .amount { font-weight: 700; font-size: 1.1rem; }
         .transaction-item .amount.positive { color: #2ecc71; }
         .transaction-item .amount.negative { color: #f87171; }
@@ -381,65 +382,147 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
     window.location.href = 'login.html';
 });
 
-async function fetchTransactions(uid) {
-    const allTransactions = [];
-    
-    const depositsSnap = await get(ref(db, 'deposits'));
-    if (depositsSnap.exists()) {
-        const data = depositsSnap.val();
-        for (let key in data) {
-            if (data[key].uid === uid) {
-                allTransactions.push({
+// ---------- helper: get user name from uid ----------
+async function getUserName(uid) {
+    if (!uid) return 'Unknown';
+    try {
+        const snap = await get(ref(db, 'users/' + uid));
+        if (snap.exists()) {
+            const data = snap.val();
+            return data.name || data.username || uid.slice(0,8);
+        }
+        return uid.slice(0,8);
+    } catch {
+        return uid.slice(0,8);
+    }
+}
+
+// ---------- fetch all transactions for a user ----------
+async function fetchAllTransactions(uid) {
+    const all = [];
+    const usersSnap = await get(ref(db, 'users'));
+    const users = usersSnap.exists() ? usersSnap.val() : {};
+
+    // 1) deposits from /deposits
+    const depSnap = await get(ref(db, 'deposits'));
+    if (depSnap.exists()) {
+        const data = depSnap.val();
+        for (const key in data) {
+            const item = data[key];
+            if (item.uid === uid) {
+                all.push({
                     id: key,
                     type: 'deposit',
-                    amount: data[key].amount,
+                    amount: item.amount || 0,
                     currency: 'USDT',
-                    status: data[key].status || 'pending',
-                    timestamp: data[key].timestamp || Date.now(),
-                    txHash: data[key].txHash || '',
-                    details: `Deposit ${data[key].amount} USDT`
+                    status: item.status || 'pending',
+                    timestamp: item.timestamp || Date.now(),
+                    txHash: item.txHash || '',
+                    detail: `Deposit ${item.amount || 0} USDT`,
+                    from: item.uid,
+                    to: uid,
+                    fromName: 'You',
+                    toName: 'You'
                 });
             }
         }
     }
-    
-    const packagesSnap = await get(ref(db, 'packages'));
-    if (packagesSnap.exists()) {
-        const data = packagesSnap.val();
-        for (let key in data) {
-            if (data[key].uid === uid) {
-                allTransactions.push({
+
+    // 2) packages from /packages
+    const pkgSnap = await get(ref(db, 'packages'));
+    if (pkgSnap.exists()) {
+        const data = pkgSnap.val();
+        for (const key in data) {
+            const item = data[key];
+            if (item.uid === uid) {
+                all.push({
                     id: key,
                     type: 'package',
-                    amount: data[key].amount,
-                    currency: data[key].currency || 'USDT',
-                    status: data[key].status || 'active',
-                    timestamp: data[key].timestamp || Date.now(),
-                    details: `${data[key].packageName || 'Package'} - ${data[key].reward || 0}% ROI`
+                    amount: item.amount || 0,
+                    currency: item.currency || 'USDT',
+                    status: item.status || 'active',
+                    timestamp: item.timestamp || Date.now(),
+                    txHash: '',
+                    detail: `${item.packageName || 'Package'} ${item.reward || 0}% ROI`,
+                    from: uid,
+                    to: uid,
+                    fromName: 'You',
+                    toName: 'You'
                 });
             }
         }
     }
-    
+
+    // 3) transfers from user's own transferHistory
     const userSnap = await get(ref(db, 'users/' + uid));
+    let transferHistory = [];
     if (userSnap.exists()) {
-        const userData = userSnap.val();
-        const history = userData.transferHistory || [];
-        history.forEach((t) => {
-            allTransactions.push({
-                id: 'transfer_' + Date.now() + '_' + Math.random(),
-                type: t.type === 'sent' ? 'transfer_sent' : 'transfer_received',
-                amount: t.amount,
-                currency: t.currency || 'RND',
-                status: 'completed',
-                timestamp: t.timestamp || Date.now(),
-                details: t.type === 'sent' ? `Sent to ${t.to}` : `Received from ${t.from}`
-            });
+        const ud = userSnap.val();
+        transferHistory = ud.transferHistory || [];
+    }
+    for (const t of transferHistory) {
+        const isSent = t.type === 'sent';
+        const otherUid = isSent ? t.to : t.from;
+        let otherName = otherUid;
+        if (users[otherUid]) {
+            otherName = users[otherUid].name || users[otherUid].username || otherUid.slice(0,8);
+        } else {
+            otherName = otherUid ? otherUid.slice(0,8) : 'Unknown';
+        }
+        all.push({
+            id: 'transfer_' + Date.now() + '_' + Math.random(),
+            type: isSent ? 'transfer_sent' : 'transfer_received',
+            amount: t.amount || 0,
+            currency: t.currency || 'RND',
+            status: 'completed',
+            timestamp: t.timestamp || Date.now(),
+            txHash: '',
+            detail: isSent ? `Sent to ${otherName}` : `Received from ${otherName}`,
+            from: isSent ? uid : otherUid,
+            to: isSent ? otherUid : uid,
+            fromName: isSent ? 'You' : otherName,
+            toName: isSent ? otherName : 'You'
         });
     }
-    
-    allTransactions.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return allTransactions;
+
+    // 4) also check transfers stored in other user's history (incoming)
+    for (const otherUid in users) {
+        if (otherUid === uid) continue;
+        const otherData = users[otherUid];
+        const otherHistory = otherData.transferHistory || [];
+        for (const t of otherHistory) {
+            if (t.type === 'sent' && t.to === uid) {
+                // incoming transfer recorded in sender's history
+                const fromName = otherData.name || otherData.username || otherUid.slice(0,8);
+                // avoid duplicate: check if already added by timestamp and amount
+                const exists = all.some(x => 
+                    x.type === 'transfer_received' && 
+                    Math.abs(x.timestamp - t.timestamp) < 1000 && 
+                    x.amount === t.amount
+                );
+                if (!exists) {
+                    all.push({
+                        id: 'transfer_in_' + Date.now() + '_' + Math.random(),
+                        type: 'transfer_received',
+                        amount: t.amount || 0,
+                        currency: t.currency || 'RND',
+                        status: 'completed',
+                        timestamp: t.timestamp || Date.now(),
+                        txHash: '',
+                        detail: `Received from ${fromName}`,
+                        from: otherUid,
+                        to: uid,
+                        fromName: fromName,
+                        toName: 'You'
+                    });
+                }
+            }
+        }
+    }
+
+    // sort by timestamp descending
+    all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return all;
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -466,19 +549,18 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
         
-        const transactions = await fetchTransactions(user.uid);
-        let filteredTransactions = [...transactions];
+        const allTransactions = await fetchAllTransactions(user.uid);
         let currentFilter = 'all';
-        
+
         function renderTransactions(filter = 'all') {
             currentFilter = filter;
-            let filtered = transactions;
+            let filtered = allTransactions;
             if (filter === 'deposit') {
-                filtered = transactions.filter(t => t.type === 'deposit');
+                filtered = allTransactions.filter(t => t.type === 'deposit');
             } else if (filter === 'package') {
-                filtered = transactions.filter(t => t.type === 'package');
+                filtered = allTransactions.filter(t => t.type === 'package');
             } else if (filter === 'transfer') {
-                filtered = transactions.filter(t => t.type === 'transfer_sent' || t.type === 'transfer_received');
+                filtered = allTransactions.filter(t => t.type === 'transfer_sent' || t.type === 'transfer_received');
             }
             
             document.getElementById('transactionsContent').innerHTML = `
@@ -507,27 +589,32 @@ onAuthStateChanged(auth, async (user) => {
                                     let iconClass = 'deposit', icon = 'bi-arrow-down-circle';
                                     let amountClass = 'positive';
                                     let sign = '+';
+                                    let label = 'Deposit';
                                     
                                     if (t.type === 'deposit') {
                                         iconClass = 'deposit';
                                         icon = 'bi-arrow-down-circle';
                                         amountClass = 'positive';
                                         sign = '+';
+                                        label = 'Deposit';
                                     } else if (t.type === 'package') {
                                         iconClass = 'package';
                                         icon = 'bi-box-seam';
                                         amountClass = 'neutral';
                                         sign = '🛒 ';
+                                        label = 'Package';
                                     } else if (t.type === 'transfer_sent') {
                                         iconClass = 'transfer';
                                         icon = 'bi-arrow-up-right';
                                         amountClass = 'negative';
                                         sign = '-';
+                                        label = 'Sent';
                                     } else if (t.type === 'transfer_received') {
                                         iconClass = 'transfer';
                                         icon = 'bi-arrow-down-left';
                                         amountClass = 'positive';
                                         sign = '+';
+                                        label = 'Received';
                                     }
                                     
                                     let statusHtml = '';
@@ -537,15 +624,33 @@ onAuthStateChanged(auth, async (user) => {
                                     else if (t.status === 'rejected') statusHtml = '<span class="status-rejected"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
                                     else statusHtml = `<span class="status-approved">${t.status}</span>`;
                                     
-                                    const amountDisplay = t.type === 'package' ? `${t.details}` : `${sign}${t.amount} ${t.currency}`;
+                                    let amountDisplay = '';
+                                    if (t.type === 'package') {
+                                        amountDisplay = `${t.detail}`;
+                                    } else {
+                                        amountDisplay = `${sign}${t.amount} ${t.currency}`;
+                                    }
+                                    
+                                    // extra details: who & when
+                                    let extra = '';
+                                    if (t.type === 'transfer_sent' || t.type === 'transfer_received') {
+                                        const other = t.type === 'transfer_sent' ? t.toName : t.fromName;
+                                        const action = t.type === 'transfer_sent' ? 'To' : 'From';
+                                        extra = `<div class="extra-detail"><i class="bi bi-person"></i> ${action} ${other}</div>`;
+                                    } else if (t.type === 'deposit') {
+                                        extra = `<div class="extra-detail"><i class="bi bi-credit-card"></i> Deposit ID: ${t.id.slice(0,10)}</div>`;
+                                    } else if (t.type === 'package') {
+                                        extra = `<div class="extra-detail"><i class="bi bi-box-seam"></i> ${t.detail}</div>`;
+                                    }
                                     
                                     return `
                                         <div class="transaction-item">
                                             <div class="d-flex align-items-center gap-3">
                                                 <div class="type-icon ${iconClass}"><i class="bi ${icon}"></i></div>
                                                 <div class="info">
-                                                    <h6>${t.type === 'deposit' ? 'Deposit' : t.type === 'package' ? 'Package Purchase' : t.type === 'transfer_sent' ? 'Sent' : 'Received'}</h6>
+                                                    <h6>${label}</h6>
                                                     <small>${new Date(t.timestamp).toLocaleString('hi-IN')}</small>
+                                                    ${extra}
                                                     ${t.txHash ? `<div style="font-size:0.6rem;color:#556688;font-family:monospace;">${t.txHash.substring(0,15)}...</div>` : ''}
                                                 </div>
                                             </div>
