@@ -463,6 +463,7 @@
         .invoice-preview .inv-value.green { color: #2ecc71; }
         .invoice-preview .inv-value.gold { color: #fbbf24; }
         .invoice-preview .inv-value.blue { color: #60a5fa; }
+        .invoice-preview .inv-value.purple { color: #a78bfa; }
         
         @media (max-width: 992px) {
             .network-stats { grid-template-columns: repeat(2, 1fr); }
@@ -804,6 +805,61 @@ async function updateUserData(userId) {
 }
 
 // ============================================================
+// 🔥 RECALCULATE TEAM STRUCTURE
+// ============================================================
+async function recalculateTeamStructure(userId) {
+    try {
+        const usersSnap = await get(ref(db, 'users'));
+        if (!usersSnap.exists()) return;
+        const allUsers = usersSnap.val();
+        
+        // Find all users who have this user as referrer (direct referrals)
+        const directReferrals = [];
+        for (let uid in allUsers) {
+            if (allUsers[uid].referredBy === userId) {
+                directReferrals.push(uid);
+            }
+        }
+        
+        // Calculate team levels
+        let levelCounts = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
+        let currentLevel = [userId];
+        let levelNum = 0;
+        let visited = new Set();
+        visited.add(userId);
+        
+        while (currentLevel.length > 0 && levelNum < 5) {
+            let nextLevel = [];
+            for (let uid of currentLevel) {
+                // Find all users who have this user as referrer
+                for (let targetUid in allUsers) {
+                    if (!visited.has(targetUid) && allUsers[targetUid].referredBy === uid) {
+                        visited.add(targetUid);
+                        nextLevel.push(targetUid);
+                        if (levelNum < 5) {
+                            levelCounts[`level${levelNum + 1}`] = (levelCounts[`level${levelNum + 1}`] || 0) + 1;
+                        }
+                    }
+                }
+            }
+            currentLevel = nextLevel;
+            levelNum++;
+        }
+        
+        // Update team structure
+        await update(ref(db, 'users/' + userId), {
+            teamStructure: levelCounts,
+            totalReferrals: directReferrals.length
+        });
+        
+        return levelCounts;
+    } catch (error) {
+        console.error('Error recalculating team structure:', error);
+        return null;
+    }
+}
+
+// ============================================================
 // 🔥 MAIN AUTH CHECK
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
@@ -841,6 +897,9 @@ onAuthStateChanged(auth, async (user) => {
         
         // 🔥 Process daily releases first
         await processDailyReleases(user.uid);
+        
+        // 🔥 Recalculate team structure
+        await recalculateTeamStructure(user.uid);
         
         // Update calculated fields
         await updateUserData(user.uid);
@@ -891,7 +950,7 @@ function loadDashboard(u) {
     const level5Earn = u.level5Earnings || 0;
     const referralEarnings = u.referralEarnings || 0;
     
-    // 🔥 FIXED: Team Members by Level - show actual counts
+    // 🔥 FIXED: Team Members by Level - show actual counts from teamStructure
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
