@@ -444,7 +444,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
         <a class="navbar-brand fw-bold" href="dashboard.html">
@@ -456,10 +455,8 @@
     </div>
 </nav>
 
-<!-- ====== SIDEBAR OVERLAY ====== -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- ====== SIDEBAR PANEL ====== -->
 <div class="sidebar-panel" id="sidebarPanel">
     <div class="sidebar-header">
         <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
@@ -509,7 +506,6 @@
     </div>
 </div>
 
-<!-- ====== DASHBOARD CONTENT ====== -->
 <div class="dashboard-container" id="dashboardContent">
     <div class="text-center py-5">
         <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -649,7 +645,7 @@ async function processDailyReleases(userId) {
         
         let totalReleasedToday = 0;
         let updatedPackages = {};
-        let totalRNDWallet = 0;
+        let totalRNDWallet = userData.rndWallet || 0;
         let totalLockedRND = 0;
         let totalDailyRelease = 0;
         
@@ -667,9 +663,10 @@ async function processDailyReleases(userId) {
                 }
                 
                 const newReleased = Math.min(currentReleased + dailyRelease, totalRND);
+                const actualRelease = newReleased - currentReleased;
                 pkg.releasedAmount = newReleased;
-                totalReleasedToday += dailyRelease;
-                totalRNDWallet += newReleased;
+                totalReleasedToday += actualRelease;
+                totalRNDWallet += actualRelease;
                 totalLockedRND += (totalRND - newReleased);
                 totalDailyRelease += dailyRelease;
                 
@@ -709,7 +706,7 @@ async function updateUserData(userId) {
         let totalStake = 0;
         let totalReward = 0;
         let totalLockedRND = 0;
-        let totalRNDWallet = 0;
+        let totalRNDWallet = userData.rndWallet || 0;
         
         for (let key in packages) {
             const pkg = packages[key];
