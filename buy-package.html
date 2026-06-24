@@ -451,12 +451,13 @@ const firebaseConfig = {
     measurementId: "G-ELVJD5NQKB"
 };
 
+// 🔥 PLANS
 const PLANS = [
     { 
         id: '6months', 
         name: '6 Months Plan', 
-        duration: 180, 
-        reward: 25, 
+        days: 180, 
+        bonus: 25, 
         color: '#2ecc71',
         bonusText: '+25% Bonus',
         minAmount: 50
@@ -464,8 +465,8 @@ const PLANS = [
     { 
         id: '12months', 
         name: '12 Months Plan', 
-        duration: 365, 
-        reward: 60, 
+        days: 365, 
+        bonus: 60, 
         color: '#fbbf24',
         bonusText: '+60% Bonus',
         minAmount: 100
@@ -473,8 +474,8 @@ const PLANS = [
     { 
         id: '18months', 
         name: '18 Months Plan', 
-        duration: 540, 
-        reward: 100, 
+        days: 540, 
+        bonus: 100, 
         color: '#f472b6',
         bonusText: '+100% Bonus',
         minAmount: 200
@@ -488,19 +489,21 @@ function calculateStaking(usdtAmount, rndPrice, plan) {
             bonusRND: 0,
             totalRND: 0,
             dailyRelease: 0,
-            bonusPercent: plan ? plan.reward : 0
+            bonusPercent: plan ? plan.bonus : 0,
+            planDays: plan ? plan.days : 0
         };
     }
     const baseRND = usdtAmount / rndPrice;
-    const bonusRND = baseRND * (plan.reward / 100);
+    const bonusRND = baseRND * (plan.bonus / 100);
     const totalRND = baseRND + bonusRND;
-    const dailyRelease = totalRND / plan.duration;
+    const dailyRelease = totalRND / plan.days;
     return {
         baseRND,
         bonusRND,
         totalRND,
         dailyRelease,
-        bonusPercent: plan.reward
+        bonusPercent: plan.bonus,
+        planDays: plan.days
     };
 }
 
@@ -632,93 +635,6 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
 }
 
 // ============================================================
-// 🔥 PROCESS DAILY RELEASE - PACKAGE PURCHASE KE TIME
-// ============================================================
-async function processInitialRelease(userId) {
-    try {
-        const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) return;
-        
-        const userData = userSnap.val();
-        const packages = userData.packages || {};
-        const today = new Date().toDateString();
-        const lastReleaseDate = userData.lastReleaseDate || '';
-        
-        // Agar aaj release ho chuka hai toh skip
-        if (lastReleaseDate === today) {
-            console.log('✅ Already released today, skipping initial release');
-            return;
-        }
-        
-        let totalReleasedToday = 0;
-        let updatedPackages = {};
-        let totalRNDWallet = userData.rndWallet || 0;
-        let totalLockedRND = 0;
-        let totalDailyRelease = 0;
-        let firstPackage = null;
-        let firstPackageId = null;
-        
-        // Find the latest package (newly purchased)
-        for (let key in packages) {
-            const pkg = packages[key];
-            if (pkg.status === 'active') {
-                if (!firstPackage || (pkg.timestamp > firstPackage.timestamp)) {
-                    firstPackage = pkg;
-                    firstPackageId = key;
-                }
-            }
-        }
-        
-        if (!firstPackage) return;
-        
-        // Only release for the newly purchased package
-        const pkg = firstPackage;
-        const dailyRelease = pkg.dailyRelease || 0;
-        const currentReleased = pkg.releasedAmount || 0;
-        const totalRND = pkg.totalRND || 0;
-        
-        if (currentReleased < totalRND && dailyRelease > 0) {
-            const newReleased = Math.min(currentReleased + dailyRelease, totalRND);
-            const actualRelease = newReleased - currentReleased;
-            pkg.releasedAmount = newReleased;
-            totalReleasedToday += actualRelease;
-            totalRNDWallet += actualRelease;
-            totalLockedRND += (totalRND - newReleased);
-            totalDailyRelease = dailyRelease;
-            
-            if (newReleased >= totalRND) {
-                pkg.status = 'completed';
-            }
-            
-            updatedPackages[firstPackageId] = pkg;
-            
-            // Update other packages as they are
-            for (let key in packages) {
-                if (key !== firstPackageId) {
-                    updatedPackages[key] = packages[key];
-                }
-            }
-            
-            if (totalReleasedToday > 0) {
-                await update(ref(db, 'users/' + userId), {
-                    packages: updatedPackages,
-                    rndWallet: totalRNDWallet,
-                    lockedRND: totalLockedRND,
-                    releaseWallet: totalDailyRelease,
-                    lastReleaseDate: today
-                });
-                console.log(`✅ Initial release: ${totalReleasedToday} RND added to wallet`);
-            }
-        }
-        
-        return { totalReleasedToday, totalRNDWallet, totalLockedRND };
-    } catch (error) {
-        console.error('Error processing initial release:', error);
-        return null;
-    }
-}
-
-// ============================================================
 // 🔥 MAIN
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
@@ -755,15 +671,16 @@ onAuthStateChanged(auth, async (user) => {
         userPackages.forEach((p) => {
             const statusClass = p.status === 'active' ? 'status-active' : 'status-completed';
             const statusText = p.status === 'active' ? '🟢 Active' : '🔵 Completed';
-            const released = p.releasedAmount || 0;
-            const locked = Math.max(0, (p.totalRND || 0) - released);
-            const progress = p.totalRND > 0 ? (released / p.totalRND * 100) : 0;
+            const released = p.releasedRND || 0;
+            const remaining = p.remainingRND || 0;
+            const total = p.totalRND || 0;
+            const progress = total > 0 ? (released / total * 100) : 0;
             
             packagesHtml += `
                 <div class="package-item">
                     <div>
                         <span class="plan">${p.planName || 'Package'}</span>
-                        <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
+                        <div class="date">${new Date(p.purchaseDate || p.timestamp).toLocaleString('hi-IN')}</div>
                         ${p.rndPriceAtTime ? `<span class="rate-badge">Rate: $${p.rndPriceAtTime.toFixed(4)}/RND</span>` : ''}
                         <div class="mt-1">
                             <div class="progress"><div class="progress-bar" style="width:${Math.min(progress, 100)}%;"></div></div>
@@ -772,11 +689,12 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                     <div>
                         <span class="amount">$${(p.usdtAmount || 0).toFixed(2)}</span>
-                        <span class="total-rnd">→ ${(p.totalRND || 0).toFixed(2)} RND</span>
+                        <span class="total-rnd">→ ${(total || 0).toFixed(2)} RND</span>
                         <span class="${statusClass} ms-2">${statusText}</span>
                         ${p.dailyRelease ? `<div class="daily">📈 Daily: ${(p.dailyRelease || 0).toFixed(4)} RND</div>` : ''}
                         ${released > 0 ? `<div class="released">✅ Released: ${released.toFixed(2)} RND</div>` : ''}
-                        ${locked > 0 ? `<div class="locked">🔒 Locked: ${locked.toFixed(2)} RND</div>` : ''}
+                        ${remaining > 0 ? `<div class="locked">🔒 Remaining: ${remaining.toFixed(2)} RND</div>` : ''}
+                        ${p.planDays ? `<div class="daily">📅 ${p.planDays} Days</div>` : ''}
                     </div>
                 </div>
             `;
@@ -809,38 +727,22 @@ onAuthStateChanged(auth, async (user) => {
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);">
-                                    <small class="text-muted">RND Wallet (Total Released)</small>
+                                    <small class="text-muted">RND Wallet</small>
                                     <h3 style="color:#60a5fa;">${(rndWallet || 0).toFixed(4)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="text-center p-3" style="background:rgba(52,211,153,0.05);border-radius:12px;border:1px solid rgba(52,211,153,0.1);">
-                                    <small class="text-muted">Daily Release (RND)</small>
-                                    <h3 style="color:#34d399;">${(releaseWallet || 0).toFixed(4)} RND</h3>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Release Info Box -->
-                        <div class="release-info-box mt-3">
-                            <span class="label"><i class="bi bi-info-circle me-1"></i> Daily release is automatically added to your RND Wallet every day.</span>
-                            <span class="label">Today's Release:</span>
-                            <span class="value">${(releaseWallet || 0).toFixed(4)} RND</span>
-                        </div>
-                        
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-6">
                                 <div class="text-center p-3" style="background:rgba(139,92,246,0.05);border-radius:12px;border:1px solid rgba(139,92,246,0.1);">
                                     <small class="text-muted">Locked RND</small>
                                     <h3 style="color:#a78bfa;">${(lockedRND || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
-                                    <small class="text-muted">Total Staked (USDT)</small>
-                                    <h3 style="color:#fbbf24;">$${(finalUserData.totalStake || 0).toFixed(2)}</h3>
-                                </div>
-                            </div>
+                        </div>
+                        
+                        <div class="release-info-box mt-3">
+                            <span class="label"><i class="bi bi-info-circle me-1"></i> Package buy karte hi RND Locked wallet mein add ho jayega. Release next day se start hoga.</span>
+                            <span class="label">Today's Release:</span>
+                            <span class="value">${(releaseWallet || 0).toFixed(4)} RND</span>
                         </div>
                     </div>
                 </div>
@@ -848,20 +750,20 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="col-12">
                     <div class="row g-4">
                         ${PLANS.map((plan) => {
-                            const example = calculateStaking(100, rndPrice || 1, plan);
+                            const example = calculateStaking(plan.minAmount, rndPrice || 1, plan);
                             return `
                             <div class="col-md-4">
                                 <div class="package-card" data-plan="${plan.id}">
                                     <h5 class="plan-name" style="color:${plan.color};">${plan.name}</h5>
                                     <div class="price">$${plan.minAmount} <span>USDT</span></div>
                                     <div class="reward">${plan.bonusText}</div>
-                                    <div class="duration">⏱ ${plan.duration} Days Lock</div>
+                                    <div class="duration">⏱ ${plan.days} Days</div>
                                     <div class="you-will-receive">📊 You Will Receive: ${example.totalRND.toFixed(2)} RND</div>
-                                    <div class="daily-release">📈 Daily Release: ${example.dailyRelease.toFixed(4)} RND</div>
+                                    <div class="daily-release">📈 Daily: ${example.dailyRelease.toFixed(4)} RND</div>
                                     <div class="features">
-                                        <li><i class="bi bi-check-circle"></i> ${plan.reward}% Bonus</li>
-                                        <li><i class="bi bi-check-circle"></i> ${plan.duration} Days Lock</li>
-                                        <li><i class="bi bi-check-circle"></i> Daily Release</li>
+                                        <li><i class="bi bi-check-circle"></i> ${plan.bonus}% Bonus</li>
+                                        <li><i class="bi bi-check-circle"></i> Fixed Daily Release</li>
+                                        <li><i class="bi bi-check-circle"></i> ${plan.days} Days Lock</li>
                                         <li><i class="bi bi-check-circle"></i> Min: $${plan.minAmount}</li>
                                     </div>
                                     <button class="plan-cta" data-plan-id="${plan.id}">
@@ -1010,7 +912,9 @@ onAuthStateChanged(auth, async (user) => {
                     }
                 }
 
+                // 🔥 Calculate RND with fixed daily release
                 const result = calculateStaking(payAmount, rndPrice || 1, plan);
+                
                 buyBtn.disabled = true;
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
@@ -1027,93 +931,66 @@ onAuthStateChanged(auth, async (user) => {
                         });
                     }
 
-                    // Step 2: Create package
+                    // Step 2: Get fresh user data
                     const userRef = ref(db, 'users/' + auth.currentUser.uid);
                     const userSnap = await get(userRef);
                     const currentUserData2 = userSnap.val();
                     const packages = currentUserData2.packages || {};
                     
                     const packageId = 'pkg_' + Date.now();
-                    const startDate = Date.now();
-                    const endDate = startDate + (plan.duration * 24 * 60 * 60 * 1000);
+                    const purchaseDate = Date.now();
                     
-                    // 🔥 Important: Daily release amount
-                    const dailyReleaseAmount = result.dailyRelease;
-                    
+                    // 🔥 Step 3: Package save - NO RELEASE AT PURCHASE
                     packages[packageId] = {
                         planId: plan.id,
                         planName: plan.name,
                         usdtAmount: payAmount,
-                        baseRND: result.baseRND,
-                        bonusRND: result.bonusRND,
                         totalRND: result.totalRND,
-                        bonusPercent: plan.reward,
-                        duration: plan.duration,
-                        dailyRelease: dailyReleaseAmount,
-                        releasedAmount: 0,
-                        startDate: startDate,
-                        endDate: endDate,
-                        lastReleaseDate: startDate,
+                        remainingRND: result.totalRND,
+                        releasedRND: 0,
+                        dailyRelease: result.dailyRelease,
+                        planDays: plan.days,
+                        bonusPercent: plan.bonus,
                         status: 'active',
+                        purchaseDate: purchaseDate,
                         rndPriceAtTime: rndPrice || 1,
                         timestamp: Date.now()
                     };
                     
+                    // 🔥 Step 4: Locked wallet update
+                    const currentLocked = currentUserData2.lockedRND || 0;
+                    const newLocked = currentLocked + result.totalRND;
+                    
+                    // 🔥 Step 5: RND wallet - NO CHANGE
+                    
                     await update(ref(db, 'users/' + auth.currentUser.uid), {
                         packages: packages,
+                        lockedRND: newLocked,
                         totalStake: (currentUserData2.totalStake || 0) + payAmount
                     });
 
-                    // Step 3: 🔥 FIX - Sirf ek baar daily release add karo (agar aaj release nahi hua hai)
-                    const today = new Date().toDateString();
-                    const lastReleaseDate = currentUserData2.lastReleaseDate || '';
-                    
-                    let currentRND = currentUserData2.rndWallet || 0;
-                    let releaseAdded = 0;
-                    
-                    // Agar aaj release nahi hua hai toh hi add karo
-                    if (lastReleaseDate !== today) {
-                        // Pehle din ka release add karo
-                        releaseAdded = dailyReleaseAmount;
-                        currentRND = currentRND + releaseAdded;
-                        
-                        // Update RND wallet
-                        await update(ref(db, 'users/' + auth.currentUser.uid), {
-                            rndWallet: currentRND,
-                            releaseWallet: dailyReleaseAmount,
-                            lockedRND: (currentUserData2.lockedRND || 0) + (result.totalRND - dailyReleaseAmount),
-                            lastReleaseDate: today
-                        });
+                    // 🔥 Step 6: Transaction history
+                    const transactionRef = ref(db, `users/${auth.currentUser.uid}/transactions`);
+                    const transSnap = await get(transactionRef);
+                    const transactions = transSnap.exists() ? transSnap.val() : {};
+                    const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    transactions[txId] = {
+                        type: 'package_purchase',
+                        amount: payAmount,
+                        currency: 'USDT',
+                        rndReceived: result.totalRND,
+                        planName: plan.name,
+                        dailyRelease: result.dailyRelease,
+                        planDays: plan.days,
+                        timestamp: Date.now(),
+                        description: `Purchased ${plan.name} - ${result.totalRND.toFixed(2)} RND locked`
+                    };
+                    await set(transactionRef, transactions);
 
-                        // Transaction history mein add karo
-                        const transactionRef = ref(db, `users/${auth.currentUser.uid}/transactions`);
-                        const transSnap = await get(transactionRef);
-                        const transactions = transSnap.exists() ? transSnap.val() : {};
-                        const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-                        transactions[txId] = {
-                            type: 'daily_release',
-                            amount: releaseAdded,
-                            timestamp: Date.now(),
-                            description: `Day 1 release - ${releaseAdded.toFixed(4)} RND`
-                        };
-                        await set(transactionRef, transactions);
-                    } else {
-                        // Aaj release ho chuka hai toh sirf package save karo, release mat add karo
-                        await update(ref(db, 'users/' + auth.currentUser.uid), {
-                            releaseWallet: dailyReleaseAmount
-                        });
-                        console.log('⚠️ Today release already done, skipping initial release');
-                    }
-
-                    // Step 4: Distribute referral commission
+                    // Step 7: Distribute referral commission
                     await distributeReferralCommission(auth.currentUser.uid, payAmount, rndPrice || 1);
 
-                    // Step 5: Show success message
-                    const releaseMsg = releaseAdded > 0 ? 
-                        ` Daily release ${releaseAdded.toFixed(4)} RND added to your RND Wallet!` : 
-                        ` (Today's release already processed, will add tomorrow)`;
-                    
-                    showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked.${releaseMsg}`, 'success');
+                    showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND locked. Daily release: ${result.dailyRelease.toFixed(4)} RND from tomorrow.`, 'success');
                     setTimeout(() => { window.location.reload(); }, 2500);
 
                 } catch (error) {
