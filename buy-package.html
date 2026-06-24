@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>पैकेज खरीदें · RND Staking</title>
+    <title>Buy Package · RND Staking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -390,28 +390,28 @@
 <!-- ====== SIDEBAR PANEL ====== -->
 <div class="sidebar-panel" id="sidebarPanel">
     <div class="sidebar-header">
-        <h5><i class="bi bi-grid-1x2-fill me-2"></i>मेनू</h5>
+        <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
         <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
     </div>
     <div class="user-profile-sidebar">
         <div class="d-flex align-items-center gap-3">
             <div class="avatar" id="sidebarAvatar">U</div>
             <div>
-                <div class="user-name" id="sidebarName">उपयोगकर्ता</div>
-                <div class="user-id" id="sidebarUserId">आईडी: ---</div>
+                <div class="user-name" id="sidebarName">User</div>
+                <div class="user-id" id="sidebarUserId">ID: ---</div>
             </div>
         </div>
     </div>
-    <a href="dashboard.html" class="nav-item"><i class="bi bi-speedometer2"></i> डैशबोर्ड</a>
-    <a href="deposit.html" class="nav-item"><i class="bi bi-arrow-down-circle"></i> जमा करें</a>
-    <a href="withdrawal.html" class="nav-item"><i class="bi bi-arrow-up-circle"></i> निकासी</a>
-    <a href="referrals.html" class="nav-item"><i class="bi bi-people"></i> रेफरल <span class="badge" id="referralBadge">0</span></a>
-    <a href="buy-package.html" class="nav-item active"><i class="bi bi-box-seam"></i> पैकेज खरीदें</a>
-    <a href="invoice.html" class="nav-item" id="viewInvoicesBtn"><i class="bi bi-receipt"></i> मेरे इनवॉइस <span class="badge" id="invoiceBadge">0</span></a>
-    <a href="transactions.html" class="nav-item"><i class="bi bi-receipt"></i> लेन-देन</a>
-    <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> प्रोफ़ाइल</a>
+    <a href="dashboard.html" class="nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a href="deposit.html" class="nav-item"><i class="bi bi-arrow-down-circle"></i> Deposit</a>
+    <a href="withdrawal.html" class="nav-item"><i class="bi bi-arrow-up-circle"></i> Withdraw</a>
+    <a href="referrals.html" class="nav-item"><i class="bi bi-people"></i> Referrals <span class="badge" id="referralBadge">0</span></a>
+    <a href="buy-package.html" class="nav-item active"><i class="bi bi-box-seam"></i> Buy Package</a>
+    <a href="invoice.html" class="nav-item"><i class="bi bi-receipt"></i> My Invoices <span class="badge" id="invoiceBadge">0</span></a>
+    <a href="transactions.html" class="nav-item"><i class="bi bi-receipt"></i> Transactions</a>
+    <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
     <div class="sidebar-footer">
-        <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> लॉगआउट</a>
+        <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
     </div>
 </div>
 
@@ -419,7 +419,7 @@
 <div class="dashboard-container" id="packageContent">
     <div class="text-center py-5">
         <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
-        <p class="text-muted mt-3">पैकेज लोड हो रहे हैं...</p>
+        <p class="text-muted mt-3">Loading packages...</p>
     </div>
 </div>
 
@@ -450,40 +450,40 @@ const firebaseConfig = {
 };
 
 // ============================================================
-// 🔥 स्टेकिंग प्लान
+// STAKING PLANS
 // ============================================================
 const PLANS = [
     { 
         id: '6months', 
-        name: '6 महीने का प्लान', 
+        name: '6 Months Plan', 
         duration: 180, 
         reward: 25, 
         color: '#2ecc71',
-        bonusText: '+25% बोनस',
+        bonusText: '+25% Bonus',
         minAmount: 50
     },
     { 
         id: '12months', 
-        name: '12 महीने का प्लान', 
+        name: '12 Months Plan', 
         duration: 365, 
         reward: 60, 
         color: '#fbbf24',
-        bonusText: '+60% बोनस',
+        bonusText: '+60% Bonus',
         minAmount: 100
     },
     { 
         id: '18months', 
-        name: '18 महीने का प्लान', 
+        name: '18 Months Plan', 
         duration: 540, 
         reward: 100, 
         color: '#f472b6',
-        bonusText: '+100% बोनस',
+        bonusText: '+100% Bonus',
         minAmount: 200
     }
 ];
 
 // ============================================================
-// 🔥 स्टेकिंग कैलकुलेशन
+// CALCULATE STAKING
 // ============================================================
 function calculateStaking(usdtAmount, rndPrice, plan) {
     if (!usdtAmount || usdtAmount <= 0 || !rndPrice || rndPrice <= 0) {
@@ -567,12 +567,12 @@ async function getRNDPrice() {
             await set(ref(db, 'settings/rate'), 1.00);
             rndPrice = 1.00;
         }
-    } catch (error) { console.error('RND मूल्य प्राप्त करने में त्रुटि:', error); rndPrice = 1.00; }
+    } catch (error) { console.error('Error fetching RND price:', error); rndPrice = 1.00; }
     return rndPrice;
 }
 
 // ============================================================
-// 🔥 रेफरल कमीशन वितरित करें - 5 स्तर
+// DISTRIBUTE REFERRAL COMMISSION - 5 LEVELS
 // ============================================================
 async function distributeReferralCommission(userUid, amount) {
     try {
@@ -609,12 +609,12 @@ async function distributeReferralCommission(userUid, amount) {
             currentRefCode = sponsor.referredBy || '';
         }
     } catch (error) {
-        console.error('रेफरल कमीशन वितरित करने में त्रुटि:', error);
+        console.error('Error distributing referral commission:', error);
     }
 }
 
 // ============================================================
-// 🔥 उपयोगकर्ता डेटा अपडेट करें
+// UPDATE USER DATA
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -641,11 +641,11 @@ async function updateUserData(userId) {
             lockedRND: totalLockedRND
         });
         return { totalDailyRelease, totalStake, totalReward, totalRNDStaked, totalLockedRND };
-    } catch (error) { console.error('उपयोगकर्ता डेटा अपडेट करने में त्रुटि:', error); return null; }
+    } catch (error) { console.error('Error updating user data:', error); return null; }
 }
 
 // ============================================================
-// 🔥 मुख्य रेंडर
+// MAIN RENDER
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
@@ -656,9 +656,9 @@ onAuthStateChanged(auth, async (user) => {
         if (!userData) { window.location.href = 'dashboard.html'; return; }
 
         const username = userData.username || userData.referralCode || 'USER';
-        const name = userData.name || 'उपयोगकर्ता';
+        const name = userData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
-        document.getElementById('sidebarUserId').textContent = 'आईडी: ' + username.substring(0, 20) + '...';
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
 
         const packages = userData.packages || {};
@@ -677,24 +677,24 @@ onAuthStateChanged(auth, async (user) => {
         let packagesHtml = '';
         userPackages.forEach((p) => {
             const statusClass = p.status === 'active' ? 'status-active' : 'status-completed';
-            const statusText = p.status === 'active' ? '🟢 सक्रिय' : '🔵 पूर्ण';
+            const statusText = p.status === 'active' ? '🟢 Active' : '🔵 Completed';
             const released = p.releasedAmount || 0;
             const locked = (p.totalRND || 0) - released;
             packagesHtml += `
                 <div class="package-item" onclick="window.location.href='invoice.html?id=${p.id}'">
                     <div>
-                        <span class="plan">${p.planName || 'पैकेज'}</span>
-                        <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
-                        ${p.rndPriceAtTime ? `<span class="rate-badge">दर: $${p.rndPriceAtTime.toFixed(4)}/RND</span>` : ''}
+                        <span class="plan">${p.planName || 'Package'}</span>
+                        <div class="date">${new Date(p.timestamp).toLocaleString('en-IN')}</div>
+                        ${p.rndPriceAtTime ? `<span class="rate-badge">Rate: $${p.rndPriceAtTime.toFixed(4)}/RND</span>` : ''}
                     </div>
                     <div>
                         <span class="amount">$${(p.usdtAmount || 0).toFixed(2)}</span>
                         <span class="total-rnd">→ ${(p.totalRND || 0).toFixed(2)} RND</span>
                         <span class="${statusClass} ms-2">${statusText}</span>
-                        ${p.dailyRelease ? `<div class="daily">📈 दैनिक: ${(p.dailyRelease || 0).toFixed(4)} RND</div>` : ''}
-                        ${released > 0 ? `<div class="released">✅ जारी: ${released.toFixed(2)} RND</div>` : ''}
-                        ${locked > 0 ? `<div class="locked">🔒 लॉक: ${locked.toFixed(2)} RND</div>` : ''}
-                        <span class="view-invoice"><i class="bi bi-receipt me-1"></i>इनवॉइस देखें</span>
+                        ${p.dailyRelease ? `<div class="daily">📈 Daily: ${(p.dailyRelease || 0).toFixed(4)} RND</div>` : ''}
+                        ${released > 0 ? `<div class="released">✅ Released: ${released.toFixed(2)} RND</div>` : ''}
+                        ${locked > 0 ? `<div class="locked">🔒 Locked: ${locked.toFixed(2)} RND</div>` : ''}
+                        <span class="view-invoice"><i class="bi bi-receipt me-1"></i>View Invoice</span>
                     </div>
                 </div>
             `;
@@ -704,37 +704,37 @@ onAuthStateChanged(auth, async (user) => {
             <div class="row g-4">
                 <div class="col-12">
                     <div class="d-flex flex-wrap justify-content-between align-items-center">
-                        <h4 class="fw-bold"><i class="bi bi-box-seam text-success me-2"></i>पैकेज खरीदें</h4>
+                        <h4 class="fw-bold"><i class="bi bi-box-seam text-success me-2"></i>Buy Package</h4>
                         <span class="rnd-price-badge"><i class="bi bi-currency-dollar"></i> 1 RND = $${(rndPrice || 1).toFixed(4)}</span>
                     </div>
                     <hr class="border-secondary">
                 </div>
 
-                <!-- वॉलेट स्टैट्स -->
+                <!-- Wallet Stats -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(46,204,113,0.05);border-radius:12px;border:1px solid rgba(46,204,113,0.1);">
-                                    <small class="text-muted">डिपॉजिट वॉलेट (USDT)</small>
+                                    <small class="text-muted">Deposit Wallet (USDT)</small>
                                     <h3 class="text-success">$${(depositWallet || 0).toFixed(2)}</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
-                                    <small class="text-muted">रेफरल वॉलेट (RND)</small>
+                                    <small class="text-muted">Referral Wallet (RND)</small>
                                     <h3 style="color:#fbbf24;">${(referralWallet || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(59,130,246,0.05);border-radius:12px;border:1px solid rgba(59,130,246,0.1);">
-                                    <small class="text-muted">स्टेक किया गया RND</small>
+                                    <small class="text-muted">RND Staked</small>
                                     <h3 style="color:#60a5fa;">${(rndWallet || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(52,211,153,0.05);border-radius:12px;border:1px solid rgba(52,211,153,0.1);">
-                                    <small class="text-muted">दैनिक रिलीज़ (RND)</small>
+                                    <small class="text-muted">Daily Release (RND)</small>
                                     <h3 style="color:#34d399;">${(releaseWallet || 0).toFixed(4)} RND</h3>
                                 </div>
                             </div>
@@ -742,13 +742,13 @@ onAuthStateChanged(auth, async (user) => {
                         <div class="row g-3 mt-2">
                             <div class="col-md-6">
                                 <div class="text-center p-3" style="background:rgba(139,92,246,0.05);border-radius:12px;border:1px solid rgba(139,92,246,0.1);">
-                                    <small class="text-muted">लॉक किया गया RND</small>
+                                    <small class="text-muted">Locked RND</small>
                                     <h3 style="color:#a78bfa;">${(lockedRND || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
-                                    <small class="text-muted">कुल स्टेक (USDT)</small>
+                                    <small class="text-muted">Total Staked (USDT)</small>
                                     <h3 style="color:#fbbf24;">$${(userData.totalStake || 0).toFixed(2)}</h3>
                                 </div>
                             </div>
@@ -756,7 +756,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- 3 पैकेज कार्ड -->
+                <!-- 3 Package Cards -->
                 <div class="col-12">
                     <div class="row g-4">
                         ${PLANS.map((plan) => {
@@ -767,16 +767,16 @@ onAuthStateChanged(auth, async (user) => {
                                     <h5 class="plan-name" style="color:${plan.color};">${plan.name}</h5>
                                     <div class="price">$${plan.minAmount} <span>USDT</span></div>
                                     <div class="reward">${plan.bonusText}</div>
-                                    <div class="duration">⏱ ${plan.duration} दिन लॉक</div>
-                                    <div class="you-will-receive">📊 आपको मिलेगा: ${example.totalRND.toFixed(2)} RND</div>
-                                    <div class="daily-release">📈 दैनिक रिलीज़: ${example.dailyRelease.toFixed(4)} RND</div>
+                                    <div class="duration">⏱ ${plan.duration} Days Lock</div>
+                                    <div class="you-will-receive">📊 You Will Receive: ${example.totalRND.toFixed(2)} RND</div>
+                                    <div class="daily-release">📈 Daily Release: ${example.dailyRelease.toFixed(4)} RND</div>
                                     <div class="features">
-                                        <li><i class="bi bi-check-circle"></i> ${plan.reward}% बोनस</li>
-                                        <li><i class="bi bi-check-circle"></i> ${plan.duration} दिन लॉक</li>
-                                        <li><i class="bi bi-check-circle"></i> दैनिक रिलीज़</li>
+                                        <li><i class="bi bi-check-circle"></i> ${plan.reward}% Bonus</li>
+                                        <li><i class="bi bi-check-circle"></i> ${plan.duration} Days Lock</li>
+                                        <li><i class="bi bi-check-circle"></i> Daily Release</li>
                                     </div>
                                     <button class="plan-cta" data-plan-id="${plan.id}">
-                                        <i class="bi bi-lightning-charge-fill"></i> ${plan.name} चुनें
+                                        <i class="bi bi-lightning-charge-fill"></i> Select ${plan.name}
                                     </button>
                                 </div>
                             </div>
@@ -785,53 +785,53 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- खरीद फॉर्म -->
+                <!-- Purchase Form -->
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>खरीद की पुष्टि करें</div>
+                        <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>Confirm Purchase</div>
                         <form id="buyForm">
                             <div class="row g-3">
                                 <div class="col-md-3">
-                                    <label class="form-label">चुना गया प्लान</label>
-                                    <input type="text" id="selectedPlan" class="form-control form-control-custom" value="कोई नहीं" readonly>
+                                    <label class="form-label">Selected Plan</label>
+                                    <input type="text" id="selectedPlan" class="form-control form-control-custom" value="None" readonly>
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label">राशि (USDT)</label>
-                                    <input type="number" id="payAmount" class="form-control form-control-custom" placeholder="राशि दर्ज करें" min="10" step="1" required>
+                                    <label class="form-label">Amount (USDT)</label>
+                                    <input type="number" id="payAmount" class="form-control form-control-custom" placeholder="Enter amount" min="10" step="1" required>
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label">आपको मिलेगा</label>
+                                    <label class="form-label">You Will Receive</label>
                                     <input type="text" id="totalRNDDisplay" class="form-control form-control-custom" value="0 RND" readonly>
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label">दैनिक रिलीज़</label>
+                                    <label class="form-label">Daily Release</label>
                                     <input type="text" id="dailyReleaseDisplay" class="form-control form-control-custom" value="0 RND" readonly>
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">भुगतान स्रोत</label>
+                                    <label class="form-label">Pay From</label>
                                     <select id="payFrom" class="form-select form-control-custom">
-                                        <option value="depositWallet">💰 डिपॉजिट वॉलेट (USDT)</option>
-                                        <option value="referralWallet">💳 रेफरल वॉलेट (RND)</option>
+                                        <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
+                                        <option value="referralWallet">💳 Referral Wallet (RND)</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="row mt-3">
                                 <div class="col-12">
-                                    <button type="submit" class="btn-primary-custom" id="buyBtn"><i class="bi bi-check-circle me-1"></i>अभी खरीदें</button>
+                                    <button type="submit" class="btn-primary-custom" id="buyBtn"><i class="bi bi-check-circle me-1"></i>Buy Now</button>
                                 </div>
                             </div>
                         </form>
                     </div>
                 </div>
 
-                <!-- इतिहास -->
+                <!-- History -->
                 <div class="col-12" id="historySection">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>पैकेज इतिहास <span class="badge bg-success bg-opacity-10 text-success ms-2">${userPackages.length} इनवॉइस</span></div>
+                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History <span class="badge bg-success bg-opacity-10 text-success ms-2">${userPackages.length} invoices</span></div>
                         ${userPackages.length === 0 ? `
                             <div class="text-center text-muted py-4">
                                 <i class="bi bi-box-seam fs-1 d-block mb-2"></i>
-                                <p>अभी तक कोई पैकेज नहीं खरीदा गया।</p>
+                                <p>No packages purchased yet.</p>
                             </div>
                         ` : `<div class="package-history">${packagesHtml}</div>`}
                     </div>
@@ -839,7 +839,7 @@ onAuthStateChanged(auth, async (user) => {
             </div>
         `;
 
-        // ---- CTA बटन लिसनर ----
+        // Attach CTA button listeners
         document.querySelectorAll('.plan-cta').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -856,16 +856,16 @@ onAuthStateChanged(auth, async (user) => {
                 const result = calculateStaking(plan.minAmount, rndPrice || 1, plan);
                 document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
                 document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
-                document.getElementById('buyBtn').innerHTML = `<i class="bi bi-check-circle me-1"></i>${plan.name} खरीदें`;
+                document.getElementById('buyBtn').innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${plan.name}`;
             });
         });
 
-        // ---- इनपुट रियल-टाइम कैलकुलेशन ----
+        // Input realtime calculation
         const payAmountInput = document.getElementById('payAmount');
         if (payAmountInput) {
             payAmountInput.addEventListener('input', function() {
                 const planName = document.getElementById('selectedPlan').value;
-                if (planName === 'कोई नहीं') {
+                if (planName === 'None') {
                     document.getElementById('totalRNDDisplay').value = '0 RND';
                     document.getElementById('dailyReleaseDisplay').value = '0 RND';
                     return;
@@ -884,7 +884,7 @@ onAuthStateChanged(auth, async (user) => {
             });
         }
 
-        // ---- खरीद फॉर्म सबमिशन ----
+        // Buy form submission
         const buyForm = document.getElementById('buyForm');
         if (buyForm) {
             buyForm.addEventListener('submit', async (e) => {
@@ -895,37 +895,37 @@ onAuthStateChanged(auth, async (user) => {
                 const payFrom = document.getElementById('payFrom').value;
                 const buyBtn = document.getElementById('buyBtn');
 
-                if (!planName || planName === 'कोई नहीं') { showToast('❌ कृपया पहले एक प्लान चुनें!', 'error'); return; }
-                if (!payAmount || payAmount < 10) { showToast('❌ न्यूनतम निवेश 10 USDT है!', 'error'); return; }
+                if (!planName || planName === 'None') { showToast('❌ Please select a plan first!', 'error'); return; }
+                if (!payAmount || payAmount < 10) { showToast('❌ Minimum investment is 10 USDT!', 'error'); return; }
 
                 const plan = PLANS.find(p => p.name === planName);
-                if (!plan) { showToast('❌ अमान्य प्लान चुना गया!', 'error'); return; }
+                if (!plan) { showToast('❌ Invalid plan selected!', 'error'); return; }
 
                 if (payAmount < plan.minAmount) {
-                    showToast(`❌ ${plan.name} के लिए न्यूनतम राशि $${plan.minAmount} USDT है!`, 'error');
+                    showToast(`❌ Minimum amount for ${plan.name} is $${plan.minAmount} USDT!`, 'error');
                     return;
                 }
 
                 const userData = await getUserData(auth.currentUser.uid);
-                if (!userData) { showToast('❌ उपयोगकर्ता डेटा नहीं मिला!', 'error'); return; }
+                if (!userData) { showToast('❌ User data not found!', 'error'); return; }
 
                 const balance = userData[payFrom] || 0;
                 if (payFrom === 'referralWallet') {
                     const rndNeeded = payAmount / (rndPrice || 1);
                     if (balance < rndNeeded) {
-                        showToast(`❌ रेफरल वॉलेट में पर्याप्त RND नहीं है! आपके पास ${balance.toFixed(2)} RND है, ${rndNeeded.toFixed(2)} RND चाहिए`, 'error');
+                        showToast(`❌ Insufficient RND balance in Referral Wallet! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
                         return;
                     }
                 } else {
                     if (balance < payAmount) {
-                        showToast(`❌ डिपॉजिट वॉलेट में पर्याप्त बैलेंस नहीं है! आपके पास $${balance.toFixed(2)} है`, 'error');
+                        showToast(`❌ Insufficient balance in Deposit Wallet! You have $${balance.toFixed(2)}`, 'error');
                         return;
                     }
                 }
 
                 const result = calculateStaking(payAmount, rndPrice || 1, plan);
                 buyBtn.disabled = true;
-                buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>प्रोसेसिंग...';
+                buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
                 try {
                     if (payFrom === 'depositWallet') {
@@ -973,31 +973,31 @@ onAuthStateChanged(auth, async (user) => {
                     await distributeReferralCommission(auth.currentUser.uid, payAmount);
                     await updateUserData(auth.currentUser.uid);
 
-                    showToast(`✅ ${plan.name} खरीदा गया! ${result.totalRND.toFixed(2)} RND स्टेक किया गया $${(rndPrice || 1).toFixed(4)}/RND पर। दैनिक: ${result.dailyRelease.toFixed(4)} RND`, 'success');
+                    showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
                     
-                    // इनवॉइस पेज पर रीडायरेक्ट करें
+                    // Redirect to invoice page
                     setTimeout(() => {
                         window.location.href = `invoice.html?id=${packageId}`;
                     }, 1500);
 
                 } catch (error) {
-                    console.error('खरीद त्रुटि:', error);
-                    showToast('❌ पैकेज खरीदने में त्रुटि। कृपया पुनः प्रयास करें।', 'error');
+                    console.error('Purchase error:', error);
+                    showToast('❌ Error purchasing plan. Please try again.', 'error');
                 }
 
                 buyBtn.disabled = false;
-                buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${planName} खरीदें`;
+                buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
             });
         }
 
     } catch (error) {
-        console.error('पैकेज लोड करने में त्रुटि:', error);
+        console.error('Error loading packages:', error);
         document.getElementById('packageContent').innerHTML = `
             <div class="text-center py-5">
                 <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>पेज लोड करने में त्रुटि</h4>
-                <p class="text-muted">${error.message || 'कृपया अपने इंटरनेट कनेक्शन की जाँच करें।'}</p>
-                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">रीफ्रेश करें</button>
+                <h4>Error Loading Page</h4>
+                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
+                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
             </div>
         `;
     }
