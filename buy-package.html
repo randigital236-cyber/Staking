@@ -299,6 +299,8 @@
         .package-item .released { color: #fbbf24; font-size: 0.7rem; }
         .package-item .rate-badge { background: rgba(46,204,113,0.1); color: #2ecc71; padding: 2px 10px; border-radius: 12px; font-size: 0.6rem; }
         .package-item .locked { color: #a78bfa; font-size: 0.7rem; }
+        .package-item .progress { background: rgba(46,204,113,0.1); border-radius: 4px; height: 4px; width: 120px; }
+        .package-item .progress-bar { background: #2ecc71; border-radius: 4px; height: 4px; }
         
         .toast-container {
             position: fixed;
@@ -421,7 +423,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update, set } from "firebase/database";
+import { getDatabase, ref, get, update, set, runTransaction } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -571,7 +573,6 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
         if (!currentUser) return;
         
         let currentRefCode = currentUser.referredBy || '';
-        let commissionDistributed = false;
         let totalCommission = 0;
         
         for (let level = 0; level < 5; level++) {
@@ -587,24 +588,17 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
             }
             if (!sponsorUid || !sponsor) break;
             
-            // Calculate commission in USDT
             const commissionUSDT = amount * rates[level];
-            // Convert to RND at current price
             const commissionRND = commissionUSDT / rndPriceAtTime;
             totalCommission += commissionRND;
             
-            // Update sponsor's wallets immediately
-            const updates = {
+            await update(ref(db, 'users/' + sponsorUid), {
                 referralEarnings: (sponsor.referralEarnings || 0) + commissionUSDT,
                 referralWallet: (sponsor.referralWallet || 0) + commissionRND,
                 teamBusiness: (sponsor.teamBusiness || 0) + amount,
                 totalReferralCommission: (sponsor.totalReferralCommission || 0) + commissionRND
-            };
-            updates[`level${level + 1}Earnings`] = (sponsor[`level${level + 1}Earnings`] || 0) + commissionRND;
+            });
             
-            await update(ref(db, 'users/' + sponsorUid), updates);
-            
-            // Log transaction for sponsor
             const transactionRef = ref(db, `users/${sponsorUid}/transactions`);
             const transSnap = await get(transactionRef);
             const transactions = transSnap.exists() ? transSnap.val() : {};
@@ -615,7 +609,6 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
                 amount: commissionRND,
                 amountUSDT: commissionUSDT,
                 fromUser: currentUser.username || userUid,
-                fromUid: userUid,
                 rate: rndPriceAtTime,
                 timestamp: Date.now(),
                 description: `${levelNames[level]} commission from package purchase`
@@ -623,11 +616,6 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
             await set(transactionRef, transactions);
             
             currentRefCode = sponsor.referredBy || '';
-            commissionDistributed = true;
-        }
-        
-        if (commissionDistributed) {
-            console.log(`Total referral commission distributed: ${totalCommission.toFixed(2)} RND`);
         }
         return totalCommission;
     } catch (error) {
@@ -637,7 +625,7 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
 }
 
 // ============================================================
-// 🔥 PROCESS DAILY RELEASE
+// 🔥 PROCESS DAILY RELEASE - IMMEDIATE RND WALLET CREDIT
 // ============================================================
 async function processDailyRelease(uid, userData) {
     try {
@@ -655,23 +643,28 @@ async function processDailyRelease(uid, userData) {
                 continue;
             }
             
-            // Check if package is completed
+            // Check if package is completed by time
             if (now >= pkg.endDate) {
                 pkg.status = 'completed';
+                const remainingLocked = pkg.totalRND - (pkg.releasedAmount || 0);
+                if (remainingLocked > 0) {
+                    pkg.releasedAmount = pkg.totalRND;
+                    totalReleaseToday += remainingLocked;
+                    anyReleased = true;
+                }
                 updatedPackages[key] = pkg;
                 continue;
             }
             
             // Check if already released today
-            const lastReleaseDate = pkg.lastReleaseDate || 0;
+            const lastReleaseDate = pkg.lastReleaseDate || pkg.startDate || 0;
             const lastReleaseDay = new Date(lastReleaseDate).setHours(0, 0, 0, 0);
             
             if (lastReleaseDay < today) {
-                // Calculate days to release
-                const daysSinceLastRelease = Math.max(1, Math.floor((now - lastReleaseDate) / (24 * 60 * 60 * 1000)));
-                const releaseAmount = pkg.dailyRelease * daysSinceLastRelease;
+                const daysDiff = Math.floor((now - lastReleaseDate) / (24 * 60 * 60 * 1000));
+                const daysToRelease = Math.max(1, daysDiff);
                 
-                // Check if we have enough locked RND to release
+                const releaseAmount = pkg.dailyRelease * daysToRelease;
                 const lockedAmount = pkg.totalRND - (pkg.releasedAmount || 0);
                 const actualRelease = Math.min(releaseAmount, lockedAmount);
                 
@@ -682,7 +675,6 @@ async function processDailyRelease(uid, userData) {
                     anyReleased = true;
                 }
                 
-                // Check if package is now completed
                 if (pkg.releasedAmount >= pkg.totalRND) {
                     pkg.status = 'completed';
                     pkg.releasedAmount = pkg.totalRND;
@@ -693,14 +685,13 @@ async function processDailyRelease(uid, userData) {
         }
         
         if (anyReleased && totalReleaseToday > 0) {
-            // Add to user's RND wallet
             const currentRNDWallet = userData.rndWallet || 0;
+            
             await update(ref(db, 'users/' + uid), {
                 packages: updatedPackages,
                 rndWallet: currentRNDWallet + totalReleaseToday
             });
             
-            // Log release transaction
             const transactionRef = ref(db, `users/${uid}/transactions`);
             const transSnap = await get(transactionRef);
             const transactions = transSnap.exists() ? transSnap.val() : {};
@@ -723,7 +714,7 @@ async function processDailyRelease(uid, userData) {
 }
 
 // ============================================================
-// 🔥 UPDATE USER DATA
+// 🔥 UPDATE USER DATA - RECALCULATE ALL STATS
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -731,15 +722,15 @@ async function updateUserData(userId) {
         if (!userSnap.exists()) return null;
         const userData = userSnap.val();
         
-        // Process daily releases first
         await processDailyRelease(userId, userData);
         
-        // Re-fetch updated data
         const updatedSnap = await get(ref(db, 'users/' + userId));
-        const updatedData = updatedSnap.val();
+        const updatedData = updatedSnap.exists() ? updatedSnap.val() : userData;
         
         const packages = updatedData.packages || {};
-        let totalDailyRelease = 0, totalStake = 0, totalReward = 0, totalRNDStaked = 0, totalLockedRND = 0;
+        let totalDailyRelease = 0;
+        let totalStake = 0;
+        let totalLockedRND = 0;
         let activePackages = 0;
         
         for (let key in packages) {
@@ -747,8 +738,6 @@ async function updateUserData(userId) {
             if (pkg.status === 'active') {
                 totalDailyRelease += (pkg.dailyRelease || 0);
                 totalStake += (pkg.usdtAmount || 0);
-                totalReward += (pkg.bonusPercent || 0);
-                totalRNDStaked += (pkg.totalRND || 0);
                 const locked = (pkg.totalRND || 0) - (pkg.releasedAmount || 0);
                 totalLockedRND += Math.max(0, locked);
                 activePackages++;
@@ -758,7 +747,6 @@ async function updateUserData(userId) {
         await update(ref(db, 'users/' + userId), {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
-            totalReward: totalReward,
             rndWallet: updatedData.rndWallet || 0,
             lockedRND: totalLockedRND,
             activePackages: activePackages
@@ -767,11 +755,9 @@ async function updateUserData(userId) {
         return { 
             totalDailyRelease, 
             totalStake, 
-            totalReward, 
-            totalRNDStaked: updatedData.rndWallet || 0,
+            rndWallet: updatedData.rndWallet || 0,
             totalLockedRND: totalLockedRND,
-            activePackages,
-            rndWallet: updatedData.rndWallet || 0
+            activePackages
         };
     } catch (error) { 
         console.error('Error updating user data:', error); 
@@ -779,35 +765,32 @@ async function updateUserData(userId) {
     }
 }
 
+// ============================================================
+// 🔥 MAIN PAGE LOAD
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
 
     try {
         await getRNDPrice();
-        const userData = await getUserData(user.uid);
+        let userData = await getUserData(user.uid);
         if (!userData) { window.location.href = 'dashboard.html'; return; }
 
-        // Process daily release on page load
-        await processDailyRelease(user.uid, userData);
+        // Process daily releases on page load
+        await updateUserData(user.uid);
 
-        const username = userData.username || userData.referralCode || 'USER';
-        const name = userData.name || 'User';
+        // Get fresh data
+        const finalSnap = await get(ref(db, 'users/' + user.uid));
+        const finalUserData = finalSnap.exists() ? finalSnap.val() : userData;
+
+        const username = finalUserData.username || finalUserData.referralCode || 'USER';
+        const name = finalUserData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
 
         const badge = document.getElementById('referralBadge');
-        if (badge) badge.textContent = userData.totalReferrals || 0;
-
-        // Re-fetch updated data after daily release
-        const updatedUserData = await getUserData(user.uid);
-        const finalData = updatedUserData || userData;
-        
-        await updateUserData(user.uid);
-        
-        // Get final updated data
-        const finalSnap = await get(ref(db, 'users/' + user.uid));
-        const finalUserData = finalSnap.exists() ? finalSnap.val() : finalData;
+        if (badge) badge.textContent = finalUserData.totalReferrals || 0;
 
         const packages = finalUserData.packages || {};
         const userPackages = Object.keys(packages).map(key => ({ id: key, ...packages[key] }));
@@ -815,9 +798,9 @@ onAuthStateChanged(auth, async (user) => {
 
         const depositWallet = finalUserData.depositWallet || 0;
         const referralWallet = finalUserData.referralWallet || 0;
-        const releaseWallet = finalUserData.releaseWallet || 0;
         const rndWallet = finalUserData.rndWallet || 0;
         const lockedRND = finalUserData.lockedRND || 0;
+        const releaseWallet = finalUserData.releaseWallet || 0;
 
         let packagesHtml = '';
         userPackages.forEach((p) => {
@@ -834,9 +817,7 @@ onAuthStateChanged(auth, async (user) => {
                         <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
                         ${p.rndPriceAtTime ? `<span class="rate-badge">Rate: $${p.rndPriceAtTime.toFixed(4)}/RND</span>` : ''}
                         <div class="mt-1">
-                            <div class="progress" style="height:4px;width:120px;background:rgba(46,204,113,0.1);border-radius:4px;">
-                                <div class="progress-bar bg-success" style="width:${Math.min(progress, 100)}%;height:4px;border-radius:4px;"></div>
-                            </div>
+                            <div class="progress"><div class="progress-bar" style="width:${Math.min(progress, 100)}%;"></div></div>
                             <small class="text-muted">${progress.toFixed(1)}% Released</small>
                         </div>
                     </div>
@@ -852,7 +833,6 @@ onAuthStateChanged(auth, async (user) => {
             `;
         });
 
-        // build main UI
         document.getElementById('packageContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -863,7 +843,6 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
 
-                <!-- wallet stats -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="row g-3">
@@ -909,7 +888,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- 3 package cards with CTA button -->
                 <div class="col-12">
                     <div class="row g-4">
                         ${PLANS.map((plan) => {
@@ -939,7 +917,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- purchase form -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>Confirm Purchase</div>
@@ -978,7 +955,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- history -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History</div>
@@ -1001,23 +977,17 @@ onAuthStateChanged(auth, async (user) => {
                 const plan = PLANS.find(p => p.id === planId);
                 if (!plan) return;
                 
-                // update selection visual
                 document.querySelectorAll('.package-card').forEach(c => c.classList.remove('selected'));
                 const parentCard = this.closest('.package-card');
                 if (parentCard) parentCard.classList.add('selected');
                 
                 document.getElementById('selectedPlan').value = plan.name;
-                const amount = parseFloat(document.getElementById('payAmount').value) || plan.minAmount;
-                document.getElementById('payAmount').value = amount;
-                const result = calculateStaking(amount, rndPrice || 1, plan);
+                document.getElementById('payAmount').value = plan.minAmount;
+                document.getElementById('payAmount').min = plan.minAmount;
+                const result = calculateStaking(plan.minAmount, rndPrice || 1, plan);
                 document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
                 document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
                 document.getElementById('buyBtn').innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${plan.name}`;
-                
-                // Set min amount
-                document.getElementById('payAmount').min = plan.minAmount;
-                document.getElementById('payAmount').value = plan.minAmount;
-                document.getElementById('payAmount').dispatchEvent(new Event('input'));
             });
         });
 
@@ -1073,12 +1043,12 @@ onAuthStateChanged(auth, async (user) => {
                 if (payFrom === 'referralWallet') {
                     const rndNeeded = payAmount / (rndPrice || 1);
                     if (balance < rndNeeded) {
-                        showToast(`❌ Insufficient RND balance in Referral Wallet! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
+                        showToast(`❌ Insufficient RND balance! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
                         return;
                     }
                 } else {
                     if (balance < payAmount) {
-                        showToast(`❌ Insufficient balance in Deposit Wallet! You have $${balance.toFixed(2)}`, 'error');
+                        showToast(`❌ Insufficient balance! You have $${balance.toFixed(2)}`, 'error');
                         return;
                     }
                 }
@@ -1088,7 +1058,6 @@ onAuthStateChanged(auth, async (user) => {
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
                 try {
-                    // Deduct payment
                     if (payFrom === 'depositWallet') {
                         await update(ref(db, 'users/' + auth.currentUser.uid), {
                             [payFrom]: balance - payAmount
@@ -1100,7 +1069,6 @@ onAuthStateChanged(auth, async (user) => {
                         });
                     }
 
-                    // Create package
                     const userRef = ref(db, 'users/' + auth.currentUser.uid);
                     const userSnap = await get(userRef);
                     const currentUserData2 = userSnap.val();
@@ -1133,13 +1101,9 @@ onAuthStateChanged(auth, async (user) => {
                         packages: packages
                     });
 
-                    // Distribute referral commission immediately
                     await distributeReferralCommission(auth.currentUser.uid, payAmount, rndPrice || 1);
-                    
-                    // Update user stats
                     await updateUserData(auth.currentUser.uid);
 
-                    // Log purchase transaction
                     const transactionRef = ref(db, `users/${auth.currentUser.uid}/transactions`);
                     const transSnap = await get(transactionRef);
                     const transactions = transSnap.exists() ? transSnap.val() : {};
@@ -1155,9 +1119,7 @@ onAuthStateChanged(auth, async (user) => {
                     };
                     await set(transactionRef, transactions);
 
-                    showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
-                    
-                    // Refresh page after short delay to show updated data
+                    showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
                     setTimeout(() => { window.location.reload(); }, 2000);
 
                 } catch (error) {
