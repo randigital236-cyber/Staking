@@ -231,30 +231,6 @@
         .wallet-card .wallet-label { color: #8899bb; font-size: 0.75rem; font-weight: 500; margin-top: 4px; }
         .wallet-card .wallet-sub { color: #556688; font-size: 0.65rem; margin-top: 2px; }
         
-        .stat-card {
-            background: rgba(19,34,55,0.6);
-            border: 1px solid rgba(46,204,113,0.08);
-            border-radius: 16px;
-            padding: 1.25rem;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-        .stat-card:hover { border-color: rgba(46,204,113,0.2); transform: translateY(-3px); }
-        .stat-card .stat-icon {
-            width: 44px;
-            height: 44px;
-            background: rgba(46,204,113,0.12);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            color: #2ecc71;
-            margin: 0 auto 10px;
-        }
-        .stat-card .stat-number { font-size: 1.8rem; font-weight: 800; color: #fff; }
-        .stat-card .stat-label { color: #8899bb; font-size: 0.8rem; font-weight: 500; margin-top: 4px; }
-        
         .network-stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -453,8 +429,6 @@
             .welcome-section h2 { font-size: 1.2rem; }
             .network-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
             .level-stats { grid-template-columns: repeat(2, 1fr); }
-            .stat-card .stat-number { font-size: 1.3rem; }
-            .wallet-card .wallet-number { font-size: 1.3rem; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
         }
@@ -636,7 +610,6 @@ async function fetchLiveRate() {
 
 async function getUserByUsername(username) {
     try {
-        // First try to find by username field in users
         const usersSnap = await get(ref(db, 'users'));
         if (usersSnap.exists()) {
             const users = usersSnap.val();
@@ -660,9 +633,6 @@ function getGreeting() {
     return 'Evening';
 }
 
-// ============================================================
-// 🔥 CALCULATE DAILY RELEASE - AUTO EVERY DAY
-// ============================================================
 async function processDailyReleases(userId) {
     try {
         const userSnap = await get(ref(db, 'users/' + userId));
@@ -674,7 +644,6 @@ async function processDailyReleases(userId) {
         const lastReleaseDate = userData.lastReleaseDate || '';
         
         if (lastReleaseDate === today) {
-            console.log('✅ Daily release already processed today');
             return;
         }
         
@@ -712,16 +681,14 @@ async function processDailyReleases(userId) {
             }
         }
         
-        await update(ref(db, 'users/' + userId), {
-            packages: updatedPackages,
-            rndWallet: totalRNDWallet,
-            lockedRND: totalLockedRND,
-            releaseWallet: totalDailyRelease,
-            lastReleaseDate: today
-        });
-        
         if (totalReleasedToday > 0) {
-            console.log(`✅ Daily release processed: ${totalReleasedToday} RND released today`);
+            await update(ref(db, 'users/' + userId), {
+                packages: updatedPackages,
+                rndWallet: totalRNDWallet,
+                lockedRND: totalLockedRND,
+                releaseWallet: totalDailyRelease,
+                lastReleaseDate: today
+            });
         }
         
         return { totalReleasedToday, totalRNDWallet, totalLockedRND };
@@ -731,16 +698,10 @@ async function processDailyReleases(userId) {
     }
 }
 
-// ============================================================
-// 🔥 UPDATE USER DATA
-// ============================================================
 async function updateUserData(userId) {
     try {
         const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) {
-            console.log('⚠️ User data not found for UID:', userId);
-            return null;
-        }
+        if (!userSnap.exists()) return null;
         const userData = userSnap.val();
         const packages = userData.packages || {};
         
@@ -772,49 +733,26 @@ async function updateUserData(userId) {
             lockedRND: totalLockedRND
         });
         
-        return { 
-            totalDailyRelease, 
-            totalStake, 
-            totalReward, 
-            totalRNDWallet,
-            totalLockedRND
-        };
+        return { totalDailyRelease, totalStake, totalReward, totalRNDWallet, totalLockedRND };
     } catch (error) {
         console.error('Error updating user data:', error);
         return null;
     }
 }
 
-// ============================================================
-// 🔥 RECALCULATE TEAM STRUCTURE - FIXED
-// ============================================================
 async function recalculateTeamStructure(userId) {
     try {
         const usersSnap = await get(ref(db, 'users'));
         if (!usersSnap.exists()) return null;
         const allUsers = usersSnap.val();
         
-        // Get current user's referral code
         const currentUser = allUsers[userId];
         if (!currentUser) return null;
         
         const userRefCode = currentUser.referralCode;
         
-        // Level 1: Direct referrals (users who have referredBy = this user's referralCode)
-        let level1 = [];
-        let level2 = [];
-        let level3 = [];
-        let level4 = [];
-        let level5 = [];
+        let level1 = [], level2 = [], level3 = [], level4 = [], level5 = [];
         
-        // Map to quickly find users by referral code
-        const userMap = {};
-        for (let uid in allUsers) {
-            const u = allUsers[uid];
-            userMap[u.referralCode] = { uid, data: u };
-        }
-        
-        // Find Level 1 (Direct referrals)
         for (let uid in allUsers) {
             const u = allUsers[uid];
             if (u.referredBy === userRefCode) {
@@ -822,7 +760,6 @@ async function recalculateTeamStructure(userId) {
             }
         }
         
-        // Find Level 2-5 using referral chain
         let currentLevel = level1;
         let levelNum = 2;
         
@@ -850,7 +787,6 @@ async function recalculateTeamStructure(userId) {
             levelNum++;
         }
         
-        // Remove duplicates from each level
         const uniqueLevel1 = level1.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         const uniqueLevel2 = level2.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
         const uniqueLevel3 = level3.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
@@ -865,7 +801,6 @@ async function recalculateTeamStructure(userId) {
             level5: uniqueLevel5.length
         };
         
-        // Update team structure
         await update(ref(db, 'users/' + userId), {
             teamStructure: teamLevels,
             totalReferrals: uniqueLevel1.length,
@@ -879,9 +814,6 @@ async function recalculateTeamStructure(userId) {
     }
 }
 
-// ============================================================
-// 🔥 MAIN AUTH CHECK
-// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
@@ -894,7 +826,6 @@ onAuthStateChanged(auth, async (user) => {
         const userSnap = await get(ref(db, 'users/' + user.uid));
         
         if (!userSnap.exists()) {
-            console.error('❌ User profile not found. Please register first.');
             document.getElementById('dashboardContent').innerHTML = `
                 <div class="text-center py-5">
                     <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
@@ -915,16 +846,10 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // 🔥 Process daily releases first
         await processDailyReleases(user.uid);
-        
-        // 🔥 Recalculate team structure
         await recalculateTeamStructure(user.uid);
-        
-        // Update calculated fields
         await updateUserData(user.uid);
         
-        // Get fresh data
         const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
         if (updatedSnapshot.exists()) {
             loadDashboard(updatedSnapshot.val());
@@ -950,9 +875,7 @@ function loadDashboard(u) {
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
     const directReferrals = u.totalReferrals || 0;
-    const downline = u.downline || 0;
     
-    // 🔥 Wallets
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
@@ -960,7 +883,6 @@ function loadDashboard(u) {
     const releaseWallet = u.releaseWallet || 0;
     
     const totalStake = u.totalStake || 0;
-    const totalReward = u.totalReward || 0;
     const teamBusiness = u.teamBusiness || 0;
     
     const level1Earn = u.level1Earnings || 0;
@@ -970,7 +892,6 @@ function loadDashboard(u) {
     const level5Earn = u.level5Earnings || 0;
     const referralEarnings = u.referralEarnings || 0;
     
-    // 🔥 Team Members by Level - from teamStructure
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
@@ -985,9 +906,7 @@ function loadDashboard(u) {
     
     const transferHistory = u.transferHistory || [];
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
-    
-    const rndValueUSD = rndWallet * rndPrice;
-    
+
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
             <div class="col-12">
@@ -1014,7 +933,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== 4 WALLETS ====== -->
             <div class="col-12">
                 <div class="row g-3">
                     <div class="col-6 col-lg-3">
@@ -1052,7 +970,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== DAILY RELEASE ====== -->
             <div class="col-12">
                 <div class="row">
                     <div class="col-md-6 mx-auto">
@@ -1066,7 +983,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== STATISTICS ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Statistics</h5>
                 <div class="network-stats">
@@ -1085,7 +1001,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== 5 LEVEL MEMBERS - FIXED ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-people text-success me-2"></i>Team Members by Level</h5>
                 <div class="level-stats">
@@ -1112,7 +1027,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== 5 LEVEL COMMISSIONS ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Commissions</div>
@@ -1154,7 +1068,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== REFERRAL LINK ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -1164,12 +1077,11 @@ function loadDashboard(u) {
                     </div>
                     <div class="mt-3 d-flex flex-wrap gap-2">
                         <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
-                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode.substring(0, 20)}...</strong></span>
+                        <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode}</strong></span>
                     </div>
                 </div>
             </div>
             
-            <!-- ====== TRANSFER SYSTEM ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money</div>
@@ -1219,7 +1131,6 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== QUICK LINKS ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-grid-3x3-gap-fill"></i>Quick Links</div>
