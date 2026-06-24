@@ -10,7 +10,6 @@
     <style>
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
-        
         .navbar-custom {
             background: rgba(8,14,26,0.95);
             backdrop-filter: blur(20px);
@@ -22,7 +21,6 @@
         }
         .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
         .navbar-custom .navbar-brand i { color: #2ecc71; }
-        
         .sidebar-toggle {
             background: rgba(46,204,113,0.12);
             border: 1px solid rgba(46,204,113,0.2);
@@ -34,7 +32,6 @@
             font-size: 1.2rem;
         }
         .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
-        
         .sidebar-overlay {
             position: fixed;
             top: 0;
@@ -49,7 +46,6 @@
             transition: opacity 0.3s ease;
         }
         .sidebar-overlay.active { display: block; opacity: 1; }
-        
         .sidebar-panel {
             position: fixed;
             top: 0;
@@ -67,7 +63,6 @@
             flex-direction: column;
         }
         .sidebar-panel.open { right: 0; }
-        
         .sidebar-panel .sidebar-header {
             display: flex;
             justify-content: space-between;
@@ -93,7 +88,6 @@
             font-size: 1.2rem;
         }
         .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
-        
         .sidebar-panel .nav-item {
             display: flex;
             align-items: center;
@@ -119,7 +113,6 @@
             padding: 2px 10px;
             border-radius: 20px;
         }
-        
         .sidebar-panel .sidebar-footer {
             margin-top: auto;
             padding: 20px;
@@ -127,7 +120,6 @@
         }
         .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
         .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
-        
         .user-profile-sidebar {
             padding: 10px 20px 20px;
             border-bottom: 1px solid rgba(46,204,113,0.08);
@@ -147,9 +139,7 @@
         }
         .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
         .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
-        
         .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        
         .card-glass {
             background: rgba(19,34,55,0.8);
             backdrop-filter: blur(10px);
@@ -161,7 +151,6 @@
         .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
-        
         .referral-box {
             background: rgba(8,14,26,0.6);
             border-radius: 12px;
@@ -185,11 +174,9 @@
             font-size: 0.8rem;
         }
         .copy-btn:hover { background: rgba(46,204,113,0.1); color: #2ecc71; }
-        
         .table-custom { color: #f0f4ff; border-color: #1f334f; }
         .table-custom th { border-bottom: 2px solid #2a3a5a; color: #a0b8d0; }
         .table-custom td { border-color: #1f334f; }
-        
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -203,7 +190,6 @@
             font-size: 0.9rem;
         }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
-        
         .toast-container {
             position: fixed;
             top: 20px;
@@ -230,7 +216,6 @@
         .toast-custom i { font-size: 1.5rem; }
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        
         .earnings-box {
             background: rgba(251,191,36,0.05);
             border: 1px solid rgba(251,191,36,0.15);
@@ -244,7 +229,6 @@
         }
         .earnings-box .label { color: #8899bb; font-size: 0.85rem; }
         .earnings-box .value { color: #fbbf24; font-weight: 700; font-size: 1.1rem; }
-        
         .level-badge {
             display: inline-block;
             background: rgba(46,204,113,0.08);
@@ -254,7 +238,6 @@
             font-size: 0.65rem;
             color: #2ecc71;
         }
-        
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -271,7 +254,6 @@
         .stats-grid .stat-item .number { font-size: 1.8rem; font-weight: 800; color: #2ecc71; }
         .stats-grid .stat-item .label { color: #8899bb; font-size: 0.75rem; font-weight: 500; }
         .stats-grid .stat-item .earnings { color: #fbbf24; font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
-        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
@@ -290,7 +272,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
         <a class="navbar-brand fw-bold" href="dashboard.html">
@@ -302,16 +283,13 @@
     </div>
 </nav>
 
-<!-- ====== SIDEBAR OVERLAY ====== -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- ====== SIDEBAR PANEL ====== -->
 <div class="sidebar-panel" id="sidebarPanel">
     <div class="sidebar-header">
         <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
         <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
     </div>
-    
     <div class="user-profile-sidebar">
         <div class="d-flex align-items-center gap-3">
             <div class="avatar" id="sidebarAvatar">U</div>
@@ -321,7 +299,6 @@
             </div>
         </div>
     </div>
-    
     <a href="dashboard.html" class="nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
     <a href="deposit.html" class="nav-item"><i class="bi bi-arrow-down-circle"></i> Deposit</a>
     <a href="withdrawal.html" class="nav-item"><i class="bi bi-arrow-up-circle"></i> Withdraw</a>
@@ -329,13 +306,11 @@
     <a href="buy-package.html" class="nav-item"><i class="bi bi-box-seam"></i> Buy Package</a>
     <a href="transactions.html" class="nav-item"><i class="bi bi-receipt"></i> Transactions</a>
     <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
-    
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
     </div>
 </div>
 
-<!-- ====== REFERRAL CONTENT ====== -->
 <div class="dashboard-container" id="referralContent">
     <div class="text-center py-5">
         <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -416,9 +391,6 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
     window.location.href = 'login.html';
 });
 
-// ============================================================
-// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS - FIXED
-// ============================================================
 async function calculateReferralEarnings(userData) {
     try {
         const allUsersSnapshot = await get(ref(db, 'users'));
@@ -431,7 +403,6 @@ async function calculateReferralEarnings(userData) {
             const allUsers = allUsersSnapshot.val();
             const referralCode = userData.referralCode || userData.username;
             
-            // Level 1 - Direct Referrals
             for (let key in allUsers) {
                 const u = allUsers[key];
                 if (u.referredBy === referralCode) {
@@ -440,7 +411,6 @@ async function calculateReferralEarnings(userData) {
                     const stake = u.totalStake || 0;
                     level1Earn += (stake * 0.08);
                     
-                    // Level 2
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
@@ -452,7 +422,6 @@ async function calculateReferralEarnings(userData) {
                                 level2Earn += (stake2 * 0.04);
                             }
                             
-                            // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
@@ -464,7 +433,6 @@ async function calculateReferralEarnings(userData) {
                                         level3Earn += (stake3 * 0.02);
                                     }
                                     
-                                    // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
@@ -476,7 +444,6 @@ async function calculateReferralEarnings(userData) {
                                                 level4Earn += (stake4 * 0.01);
                                             }
                                             
-                                            // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
@@ -550,10 +517,8 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
-        // Calculate referral data
         const referralData = await calculateReferralEarnings(userData);
         
-        // Use stored values from Firebase for earnings
         referralData.level1Earn = userData.level1Earnings || 0;
         referralData.level2Earn = userData.level2Earnings || 0;
         referralData.level3Earn = userData.level3Earnings || 0;
