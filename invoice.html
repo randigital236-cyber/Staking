@@ -232,12 +232,12 @@
         .detail-row {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
+            padding: 8px 0;
             border-bottom: 1px solid rgba(46,204,113,0.05);
         }
         .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #8899bb; font-weight: 500; font-size: 0.9rem; }
-        .detail-value { color: #f0f4ff; font-weight: 600; font-size: 0.95rem; }
+        .detail-label { color: #8899bb; font-weight: 500; font-size: 0.85rem; }
+        .detail-value { color: #f0f4ff; font-weight: 600; font-size: 0.9rem; }
         .detail-value.highlight { color: #2ecc71; }
         .detail-value.gold { color: #fbbf24; }
         .detail-value.blue { color: #60a5fa; }
@@ -367,7 +367,7 @@
         }
         .package-list .package-item .pkg-details {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 10px;
             margin-top: 12px;
         }
@@ -398,6 +398,47 @@
         }
         .empty-state h4 { color: #fff; }
         .empty-state p { color: #8899bb; }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
+        
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
@@ -588,7 +629,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 FORMAT DATE
+// 🔥 HELPERS
 // ============================================================
 function formatDate(timestamp) {
     if (!timestamp) return 'N/A';
@@ -612,6 +653,11 @@ function formatDateShort(timestamp) {
     });
 }
 
+function calculateEndDate(startDate, planDays) {
+    if (!startDate || !planDays) return null;
+    return startDate + (planDays * 24 * 60 * 60 * 1000);
+}
+
 function getDaysRemaining(endDate) {
     if (!endDate) return 0;
     const now = Date.now();
@@ -620,21 +666,29 @@ function getDaysRemaining(endDate) {
     return Math.ceil(diff / (24 * 60 * 60 * 1000));
 }
 
+function getDaysPassed(startDate) {
+    if (!startDate) return 0;
+    const diff = Date.now() - startDate;
+    if (diff <= 0) return 0;
+    return Math.floor(diff / (24 * 60 * 60 * 1000));
+}
+
 function getProgress(released, total) {
     if (!total || total === 0) return 0;
     return Math.min((released / total) * 100, 100);
 }
 
-function getStatus(pkg) {
-    if (pkg.status === 'completed') return 'completed';
-    const now = Date.now();
-    if (pkg.endDate && now >= pkg.endDate) return 'completed';
-    if (pkg.releasedAmount >= pkg.totalRND) return 'completed';
-    return 'active';
+function getPlanColor(planName) {
+    const colors = {
+        '6 Months Plan': '#2ecc71',
+        '12 Months Plan': '#fbbf24',
+        '18 Months Plan': '#f472b6'
+    };
+    return colors[planName] || '#2ecc71';
 }
 
 // ============================================================
-// 🔥 MAIN PAGE LOAD
+// 🔥 MAIN
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -660,7 +714,7 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
 
-        // Get packages
+        // 🔥 Get packages
         const packages = userData.packages || {};
         const packageKeys = Object.keys(packages);
         
@@ -682,7 +736,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
 
-        // Calculate totals
+        // 🔥 Calculate totals
         let totalInvested = 0;
         let totalRNDReceived = 0;
         let totalReleased = 0;
@@ -695,41 +749,44 @@ onAuthStateChanged(auth, async (user) => {
             if (pkg.status === 'active' || pkg.status === 'completed') {
                 totalInvested += (pkg.usdtAmount || 0);
                 totalRNDReceived += (pkg.totalRND || 0);
-                totalReleased += (pkg.releasedAmount || 0);
-                const locked = (pkg.totalRND || 0) - (pkg.releasedAmount || 0);
+                totalReleased += (pkg.releasedRND || 0);
+                const locked = (pkg.totalRND || 0) - (pkg.releasedRND || 0);
                 totalLocked += Math.max(0, locked);
                 if (pkg.status === 'active') activePackages++;
                 else completedPackages++;
             }
         });
 
-        // Build package list HTML
+        // 🔥 Build package list HTML
         let packagesHtml = '';
-        packageKeys.forEach((key, index) => {
+        packageKeys.forEach((key) => {
             const pkg = packages[key];
-            const status = getStatus(pkg);
-            const isActive = status === 'active';
-            const progress = getProgress(pkg.releasedAmount || 0, pkg.totalRND || 0);
-            const daysRemaining = getDaysRemaining(pkg.endDate);
-            const locked = Math.max(0, (pkg.totalRND || 0) - (pkg.releasedAmount || 0));
-            const planColors = {
-                '6 Months Plan': '#2ecc71',
-                '12 Months Plan': '#fbbf24',
-                '18 Months Plan': '#f472b6'
-            };
-            const planColor = planColors[pkg.planName] || '#2ecc71';
             
-            // Format timeline
+            // 🔥 Calculate package details
+            const isActive = pkg.status === 'active';
+            const totalRND = pkg.totalRND || 0;
+            const releasedRND = pkg.releasedRND || 0;
+            const remainingRND = pkg.remainingRND || 0;
+            const dailyRelease = pkg.dailyRelease || 0;
+            const planDays = pkg.planDays || 0;
+            const purchaseDate = pkg.purchaseDate || pkg.timestamp || Date.now();
+            const endDate = calculateEndDate(purchaseDate, planDays);
+            const daysRemaining = isActive ? getDaysRemaining(endDate) : 0;
+            const daysPassed = getDaysPassed(purchaseDate);
+            const progress = getProgress(releasedRND, totalRND);
+            const planColor = getPlanColor(pkg.planName);
+            
+            // 🔥 Timeline
             let timelineHtml = '';
             if (isActive) {
                 const progressPercent = progress / 100;
                 const lockPercent = 1 - progressPercent;
                 timelineHtml = `
                     <div class="timeline-bar">
-                        <div class="segment lock" style="flex:${lockPercent * 10};">
+                        <div class="segment lock" style="flex:${Math.max(lockPercent * 10, 0.5)};">
                             🔒 ${daysRemaining > 0 ? daysRemaining + ' days left' : 'Almost done'}
                         </div>
-                        <div class="segment release" style="flex:${progressPercent * 10};">
+                        <div class="segment release" style="flex:${Math.max(progressPercent * 10, 0.5)};">
                             📈 ${progress.toFixed(1)}% Released
                         </div>
                     </div>
@@ -758,7 +815,7 @@ onAuthStateChanged(auth, async (user) => {
                             </span>
                         </div>
                         <div>
-                            <span style="font-size:0.7rem;color:#556688;">Invoice #${key.substring(0, 8)}</span>
+                            <span style="font-size:0.7rem;color:#556688;">#${key.substring(0, 8)}</span>
                         </div>
                     </div>
                     
@@ -768,19 +825,19 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="lbl">Investment (USDT)</div>
                         </div>
                         <div class="detail">
-                            <div class="val" style="color:#60a5fa;">${(pkg.totalRND || 0).toFixed(2)}</div>
-                            <div class="lbl">Total RND Received</div>
+                            <div class="val" style="color:#60a5fa;">${totalRND.toFixed(2)}</div>
+                            <div class="lbl">Total RND</div>
                         </div>
                         <div class="detail">
-                            <div class="val" style="color:#fbbf24;">${(pkg.releasedAmount || 0).toFixed(2)}</div>
+                            <div class="val" style="color:#fbbf24;">${releasedRND.toFixed(2)}</div>
                             <div class="lbl">Released RND</div>
                         </div>
                         <div class="detail">
-                            <div class="val" style="color:#a78bfa;">${(locked || 0).toFixed(2)}</div>
-                            <div class="lbl">Locked RND</div>
+                            <div class="val" style="color:#a78bfa;">${remainingRND.toFixed(2)}</div>
+                            <div class="lbl">Remaining RND</div>
                         </div>
                         <div class="detail">
-                            <div class="val" style="color:#34d399;">${(pkg.dailyRelease || 0).toFixed(4)}</div>
+                            <div class="val" style="color:#34d399;">${dailyRelease.toFixed(4)}</div>
                             <div class="lbl">Daily Release</div>
                         </div>
                         <div class="detail">
@@ -788,23 +845,36 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="lbl">Bonus</div>
                         </div>
                         <div class="detail">
-                            <div class="val" style="color:#8899bb;font-size:0.8rem;">${formatDateShort(pkg.startDate)}</div>
+                            <div class="val" style="color:#8899bb;font-size:0.8rem;">${formatDateShort(purchaseDate)}</div>
                             <div class="lbl">Start Date</div>
                         </div>
                         <div class="detail">
                             <div class="val" style="color:${isActive ? '#fbbf24' : '#60a5fa'};font-size:0.8rem;">
-                                ${isActive ? formatDateShort(pkg.endDate) : 'Completed'}
+                                ${isActive ? formatDateShort(endDate) : 'Completed'}
                             </div>
-                            <div class="lbl">${isActive ? 'End Date (Unlock)' : 'Completion Date'}</div>
+                            <div class="lbl">${isActive ? 'End Date' : 'Completion Date'}</div>
+                        </div>
+                        <div class="detail">
+                            <div class="val" style="color:#34d399;font-size:0.8rem;">
+                                ${isActive ? daysPassed + ' days' : 'Done'}
+                            </div>
+                            <div class="lbl">Days Passed</div>
+                        </div>
+                        <div class="detail">
+                            <div class="val" style="color:#fbbf24;font-size:0.8rem;">
+                                ${isActive ? daysRemaining + ' days' : '0'}
+                            </div>
+                            <div class="lbl">Days Remaining</div>
                         </div>
                     </div>
                     
                     ${timelineHtml}
                     
-                    <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#556688;margin-top:4px;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#556688;margin-top:4px;flex-wrap:wrap;gap:4px;">
                         <span>📊 ${progress.toFixed(1)}% Released</span>
                         <span>${isActive ? '⏳ ' + daysRemaining + ' days remaining' : '✅ All released'}</span>
                         <span>💰 RND Rate: $${(pkg.rndPriceAtTime || 1).toFixed(4)}</span>
+                        <span>📅 ${planDays} Days Plan</span>
                     </div>
                 </div>
             `;
@@ -831,12 +901,32 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="invoice-sub">Complete history of all your staking packages</div>
                         </div>
                         <div class="text-end">
-                            <span style="font-size:0.7rem;color:#556688;">
+                            <span style="font-size:0.85rem;color:#fff;font-weight:600;">
                                 <i class="bi bi-person me-1"></i> ${name}
                             </span>
                             <div style="font-size:0.7rem;color:#556688;margin-top:2px;">
                                 <i class="bi bi-calendar me-1"></i> Generated: ${formatDate(Date.now())}
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- USER INFO -->
+                    <div style="background:rgba(8,14,26,0.3);border-radius:12px;padding:12px 16px;margin-bottom:15px;">
+                        <div class="detail-row">
+                            <span class="detail-label">User Name</span>
+                            <span class="detail-value highlight">${name}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">User ID</span>
+                            <span class="detail-value" style="font-family:monospace;color:#60a5fa;">${username}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email</span>
+                            <span class="detail-value">${userData.email || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Member Since</span>
+                            <span class="detail-value">${formatDate(userData.createdAt)}</span>
                         </div>
                     </div>
 
@@ -852,7 +942,7 @@ onAuthStateChanged(auth, async (user) => {
                         </div>
                         <div class="summary-item">
                             <div class="num blue">${totalRNDReceived.toFixed(2)}</div>
-                            <div class="label">Total RND Received</div>
+                            <div class="label">Total RND</div>
                         </div>
                         <div class="summary-item">
                             <div class="num purple">${totalReleased.toFixed(2)}</div>
@@ -874,12 +964,16 @@ onAuthStateChanged(auth, async (user) => {
                             <div style="font-size:1.2rem;font-weight:700;color:#a78bfa;">${totalLocked.toFixed(2)}</div>
                             <div style="font-size:0.6rem;color:#8899bb;">🔒 Still Locked</div>
                         </div>
+                        <div style="background:rgba(8,14,26,0.3);border-radius:10px;padding:10px;text-align:center;">
+                            <div style="font-size:1.2rem;font-weight:700;color:#34d399;">${(totalLocked > 0 ? (totalLocked / (totalRNDReceived || 1) * 100) : 0).toFixed(1)}%</div>
+                            <div style="font-size:0.6rem;color:#8899bb;">Released %</div>
+                        </div>
                     </div>
 
                     <!-- PACKAGE LIST -->
                     <div class="package-list">
                         <h6 style="font-weight:700;color:#fff;margin-bottom:15px;">
-                            <i class="bi bi-box-seam text-success me-2"></i>Package Details
+                            <i class="bi bi-box-seam text-success me-2"></i>Package Details (${packageKeys.length} packages)
                         </h6>
                         ${packagesHtml}
                     </div>
@@ -904,7 +998,8 @@ onAuthStateChanged(auth, async (user) => {
                     <div class="footer-note">
                         <i class="bi bi-info-circle me-1"></i> 
                         This is a system-generated statement of all your staking packages. 
-                        All release amounts are calculated based on the RND price at the time of purchase.
+                        Each package releases a fixed amount daily (totalRND / planDays).
+                        Release starts from the day after purchase.
                         For any queries, please contact support.
                     </div>
                 </div>
