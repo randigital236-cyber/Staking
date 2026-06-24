@@ -419,7 +419,7 @@
         .commission-row .level { color: #8899bb; }
         .commission-row .earnings { color: #fbbf24; font-weight: 600; }
         
-        /* FIX: Alert box for release info */
+        /* Release info box */
         .release-info-box {
             background: rgba(52,211,153,0.08);
             border: 1px solid rgba(52,211,153,0.15);
@@ -435,6 +435,16 @@
         .release-info-box .label { color: #8899bb; font-size: 0.75rem; }
         .release-info-box .value { color: #34d399; font-weight: 700; font-size: 0.95rem; }
         .release-info-box .note { color: #556688; font-size: 0.65rem; }
+        
+        /* Day counter */
+        .day-counter {
+            background: rgba(251,191,36,0.05);
+            border: 1px solid rgba(251,191,36,0.1);
+            border-radius: 8px;
+            padding: 4px 12px;
+            font-size: 0.65rem;
+            color: #fbbf24;
+        }
         
         @media (max-width: 992px) {
             .network-stats { grid-template-columns: repeat(2, 1fr); }
@@ -455,6 +465,13 @@
             .network-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
             .level-stats { grid-template-columns: 1fr 1fr; }
             .release-info-box { flex-direction: column; text-align: center; }
+        }
+        @media print {
+            .navbar-custom, .sidebar-toggle, .sidebar-panel, .sidebar-overlay { display: none !important; }
+            body { background: #fff; }
+            .wallet-card { background: #f8f8f8; border-color: #ddd; }
+            .welcome-section { background: #f0f0f0; }
+            .wallet-card .wallet-number { color: #000 !important; }
         }
     </style>
 </head>
@@ -647,7 +664,7 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 PROCESS DAILY RELEASES - FIXED: RND WALLET MEIN ADD HOGA
+// 🔥 PROCESS DAILY RELEASES - FIXED: Sirf ek baar add hoga
 // ============================================================
 async function processDailyReleases(userId) {
     try {
@@ -659,7 +676,9 @@ async function processDailyReleases(userId) {
         const today = new Date().toDateString();
         const lastReleaseDate = userData.lastReleaseDate || '';
         
+        // Agar aaj release ho chuka hai toh skip karo
         if (lastReleaseDate === today) {
+            console.log('✅ Daily release already processed today');
             return;
         }
         
@@ -706,6 +725,7 @@ async function processDailyReleases(userId) {
                 releaseWallet: totalDailyRelease,
                 lastReleaseDate: today
             });
+            console.log(`✅ Daily release processed: ${totalReleasedToday} RND released today`);
         }
         
         return { totalReleasedToday, totalRNDWallet, totalLockedRND };
@@ -734,13 +754,12 @@ async function updateUserData(userId) {
         for (let key in packages) {
             const pkg = packages[key];
             if (pkg.status === 'active') {
-                totalDailyRelease += (pkg.dailyRelease || 0);
+                totalDailyRelease = Math.max(totalDailyRelease, (pkg.dailyRelease || 0));
                 totalStake += (pkg.usdtAmount || 0);
                 totalReward += (pkg.bonusPercent || 0);
                 
                 const totalRND = pkg.totalRND || 0;
                 const released = pkg.releasedAmount || 0;
-                totalRNDWallet = Math.max(totalRNDWallet, released);
                 totalLockedRND += (totalRND - released);
             }
         }
@@ -749,7 +768,6 @@ async function updateUserData(userId) {
             releaseWallet: totalDailyRelease,
             totalStake: totalStake,
             totalReward: totalReward,
-            rndWallet: totalRNDWallet,
             lockedRND: totalLockedRND
         });
         
@@ -872,7 +890,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // 🔥 Process daily releases
+        // 🔥 Process daily releases - sirf ek baar per day
         await processDailyReleases(user.uid);
         await recalculateTeamStructure(user.uid);
         await updateUserData(user.uid);
@@ -906,12 +924,12 @@ function loadDashboard(u) {
     
     const directReferrals = u.totalReferrals || 0;
     
-    // 🔥 WALLETS - Properly defined
+    // 🔥 WALLETS
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
-    const rndWallet = u.rndWallet || 0; // Total released RND
+    const rndWallet = u.rndWallet || 0; // Total released RND (accumulated)
     const lockedRND = u.lockedRND || 0;
-    const releaseWallet = u.releaseWallet || 0; // Daily release amount
+    const releaseWallet = u.releaseWallet || 0; // Daily release amount (per day)
     
     const totalStake = u.totalStake || 0;
     const teamBusiness = u.teamBusiness || 0;
@@ -925,6 +943,22 @@ function loadDashboard(u) {
     
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
+    // 🔥 Calculate days since first package
+    let daysActive = 0;
+    const packages = u.packages || {};
+    let firstPackageDate = null;
+    for (let key in packages) {
+        const pkg = packages[key];
+        if (pkg.timestamp) {
+            if (!firstPackageDate || pkg.timestamp < firstPackageDate) {
+                firstPackageDate = pkg.timestamp;
+            }
+        }
+    }
+    if (firstPackageDate) {
+        daysActive = Math.floor((Date.now() - firstPackageDate) / (24 * 60 * 60 * 1000)) + 1;
+    }
+    
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
     document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
@@ -937,9 +971,6 @@ function loadDashboard(u) {
     
     const transferHistory = u.transferHistory || [];
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
-
-    // 🔥 Check if release wallet and RND wallet are different
-    const isReleaseDifferent = releaseWallet > 0 && rndWallet > 0;
 
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -957,6 +988,7 @@ function loadDashboard(u) {
                                 <span class="rnd-price-badge">
                                     <i class="bi bi-currency-dollar"></i> 1 RND = $${(rndPrice || 1).toFixed(4)}
                                 </span>
+                                ${daysActive > 0 ? `<span class="day-counter"><i class="bi bi-calendar"></i> Day ${daysActive}</span>` : ''}
                             </div>
                         </div>
                         <div>
@@ -1019,11 +1051,11 @@ function loadDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== RELEASE INFO BOX - FIX: Shows RND Wallet = Release Wallet Total ====== -->
+            <!-- ====== RELEASE INFO BOX ====== -->
             <div class="col-12">
                 <div class="release-info-box">
                     <div>
-                        <span class="label"><i class="bi bi-info-circle me-1"></i> Your daily release amount is automatically added to your RND Wallet every day.</span>
+                        <span class="label"><i class="bi bi-info-circle me-1"></i> Daily release is automatically added to your RND Wallet every day.</span>
                     </div>
                     <div>
                         <span class="label">Total RND Released:</span>
@@ -1034,7 +1066,7 @@ function loadDashboard(u) {
                         <span class="value">${(releaseWallet || 0).toFixed(4)} RND</span>
                     </div>
                     <div>
-                        <span class="note"><i class="bi bi-arrow-right"></i> RND Wallet = Total Released</span>
+                        <span class="note"><i class="bi bi-arrow-right"></i> Day ${daysActive} · ${(rndWallet / (releaseWallet || 1)).toFixed(1)}x daily</span>
                     </div>
                 </div>
             </div>
