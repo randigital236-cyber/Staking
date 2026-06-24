@@ -419,6 +419,23 @@
         .commission-row .level { color: #8899bb; }
         .commission-row .earnings { color: #fbbf24; font-weight: 600; }
         
+        /* FIX: Alert box for release info */
+        .release-info-box {
+            background: rgba(52,211,153,0.08);
+            border: 1px solid rgba(52,211,153,0.15);
+            border-radius: 12px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .release-info-box .label { color: #8899bb; font-size: 0.75rem; }
+        .release-info-box .value { color: #34d399; font-weight: 700; font-size: 0.95rem; }
+        .release-info-box .note { color: #556688; font-size: 0.65rem; }
+        
         @media (max-width: 992px) {
             .network-stats { grid-template-columns: repeat(2, 1fr); }
             .level-stats { grid-template-columns: repeat(3, 1fr); }
@@ -437,6 +454,7 @@
             .sidebar-panel.open { right: 0; }
             .network-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
             .level-stats { grid-template-columns: 1fr 1fr; }
+            .release-info-box { flex-direction: column; text-align: center; }
         }
     </style>
 </head>
@@ -444,6 +462,7 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
         <a class="navbar-brand fw-bold" href="dashboard.html">
@@ -455,14 +474,13 @@
     </div>
 </nav>
 
+<!-- ====== SIDEBAR ====== -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
 <div class="sidebar-panel" id="sidebarPanel">
     <div class="sidebar-header">
         <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
         <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
     </div>
-    
     <div class="user-profile-sidebar">
         <div class="d-flex align-items-center gap-3">
             <div class="avatar" id="sidebarAvatar">U</div>
@@ -472,7 +490,6 @@
             </div>
         </div>
     </div>
-    
     <a href="dashboard.html" class="nav-item active">
         <i class="bi bi-speedometer2"></i> Dashboard
     </a>
@@ -498,7 +515,6 @@
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
     </a>
-    
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
             <i class="bi bi-box-arrow-right"></i> Logout
@@ -506,6 +522,7 @@
     </div>
 </div>
 
+<!-- ====== DASHBOARD CONTENT ====== -->
 <div class="dashboard-container" id="dashboardContent">
     <div class="text-center py-5">
         <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -629,6 +646,9 @@ function getGreeting() {
     return 'Evening';
 }
 
+// ============================================================
+// 🔥 PROCESS DAILY RELEASES - FIXED: RND WALLET MEIN ADD HOGA
+// ============================================================
 async function processDailyReleases(userId) {
     try {
         const userSnap = await get(ref(db, 'users/' + userId));
@@ -668,7 +688,7 @@ async function processDailyReleases(userId) {
                 totalReleasedToday += actualRelease;
                 totalRNDWallet += actualRelease;
                 totalLockedRND += (totalRND - newReleased);
-                totalDailyRelease += dailyRelease;
+                totalDailyRelease = dailyRelease;
                 
                 if (newReleased >= totalRND) {
                     pkg.status = 'completed';
@@ -695,6 +715,9 @@ async function processDailyReleases(userId) {
     }
 }
 
+// ============================================================
+// 🔥 UPDATE USER DATA
+// ============================================================
 async function updateUserData(userId) {
     try {
         const userSnap = await get(ref(db, 'users/' + userId));
@@ -717,7 +740,7 @@ async function updateUserData(userId) {
                 
                 const totalRND = pkg.totalRND || 0;
                 const released = pkg.releasedAmount || 0;
-                totalRNDWallet += released;
+                totalRNDWallet = Math.max(totalRNDWallet, released);
                 totalLockedRND += (totalRND - released);
             }
         }
@@ -737,6 +760,9 @@ async function updateUserData(userId) {
     }
 }
 
+// ============================================================
+// 🔥 RECALCULATE TEAM STRUCTURE
+// ============================================================
 async function recalculateTeamStructure(userId) {
     try {
         const usersSnap = await get(ref(db, 'users'));
@@ -811,6 +837,9 @@ async function recalculateTeamStructure(userId) {
     }
 }
 
+// ============================================================
+// 🔥 MAIN
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
@@ -843,6 +872,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
+        // 🔥 Process daily releases
         await processDailyReleases(user.uid);
         await recalculateTeamStructure(user.uid);
         await updateUserData(user.uid);
@@ -865,6 +895,9 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// ============================================================
+// 🔥 LOAD DASHBOARD
+// ============================================================
 function loadDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
     const name = u.name || 'User';
@@ -873,11 +906,12 @@ function loadDashboard(u) {
     
     const directReferrals = u.totalReferrals || 0;
     
+    // 🔥 WALLETS - Properly defined
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
-    const rndWallet = u.rndWallet || 0;
+    const rndWallet = u.rndWallet || 0; // Total released RND
     const lockedRND = u.lockedRND || 0;
-    const releaseWallet = u.releaseWallet || 0;
+    const releaseWallet = u.releaseWallet || 0; // Daily release amount
     
     const totalStake = u.totalStake || 0;
     const teamBusiness = u.teamBusiness || 0;
@@ -903,6 +937,9 @@ function loadDashboard(u) {
     
     const transferHistory = u.transferHistory || [];
     const sortedHistory = [...transferHistory].reverse().slice(0, 5);
+
+    // 🔥 Check if release wallet and RND wallet are different
+    const isReleaseDifferent = releaseWallet > 0 && rndWallet > 0;
 
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -930,6 +967,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== 4 WALLETS ====== -->
             <div class="col-12">
                 <div class="row g-3">
                     <div class="col-6 col-lg-3">
@@ -967,6 +1005,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== DAILY RELEASE ====== -->
             <div class="col-12">
                 <div class="row">
                     <div class="col-md-6 mx-auto">
@@ -980,6 +1019,27 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== RELEASE INFO BOX - FIX: Shows RND Wallet = Release Wallet Total ====== -->
+            <div class="col-12">
+                <div class="release-info-box">
+                    <div>
+                        <span class="label"><i class="bi bi-info-circle me-1"></i> Your daily release amount is automatically added to your RND Wallet every day.</span>
+                    </div>
+                    <div>
+                        <span class="label">Total RND Released:</span>
+                        <span class="value">${(rndWallet || 0).toFixed(4)} RND</span>
+                    </div>
+                    <div>
+                        <span class="label">Daily Release:</span>
+                        <span class="value">${(releaseWallet || 0).toFixed(4)} RND</span>
+                    </div>
+                    <div>
+                        <span class="note"><i class="bi bi-arrow-right"></i> RND Wallet = Total Released</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ====== STATISTICS ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 text-success me-2"></i>Statistics</h5>
                 <div class="network-stats">
@@ -998,6 +1058,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== 5 LEVEL MEMBERS ====== -->
             <div class="col-12">
                 <h5 class="fw-bold mb-3"><i class="bi bi-people text-success me-2"></i>Team Members by Level</h5>
                 <div class="level-stats">
@@ -1024,6 +1085,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== 5 LEVEL COMMISSIONS ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Commissions</div>
@@ -1065,6 +1127,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== REFERRAL LINK ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -1079,6 +1142,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== TRANSFER SYSTEM ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money</div>
@@ -1094,6 +1158,7 @@ function loadDashboard(u) {
                                 <select id="transferWallet" class="form-select form-control-custom">
                                     <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
                                     <option value="referralWallet">💳 Referral Wallet (RND)</option>
+                                    <option value="rndWallet">📊 RND Wallet (RND)</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -1128,6 +1193,7 @@ function loadDashboard(u) {
                 </div>
             </div>
             
+            <!-- ====== QUICK LINKS ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-grid-3x3-gap-fill"></i>Quick Links</div>
@@ -1196,8 +1262,12 @@ async function handleTransfer() {
     
     const senderBalance = senderData[walletType] || 0;
     if (senderBalance < amount) {
-        const walletLabel = walletType === 'depositWallet' ? 'Deposit Wallet' : 'Referral Wallet';
-        showToast('❌ Insufficient balance in ' + walletLabel + '! You have ' + senderBalance.toFixed(2), 'error');
+        const walletLabels = {
+            'depositWallet': 'Deposit Wallet (USDT)',
+            'referralWallet': 'Referral Wallet (RND)',
+            'rndWallet': 'RND Wallet (RND)'
+        };
+        showToast(`❌ Insufficient balance in ${walletLabels[walletType] || 'Wallet'}! You have ${senderBalance.toFixed(4)}`, 'error');
         return;
     }
     
