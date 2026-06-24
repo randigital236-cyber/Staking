@@ -417,7 +417,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS
+// 🔥 CALCULATE 5 LEVEL REFERRAL EARNINGS - FIXED
 // ============================================================
 async function calculateReferralEarnings(userData) {
     try {
@@ -444,37 +444,49 @@ async function calculateReferralEarnings(userData) {
                     for (let k2 in allUsers) {
                         const u2 = allUsers[k2];
                         if (u2.referredBy === u.referralCode) {
-                            level2Users.push(u2);
-                            teamLevels.level2++;
-                            const stake2 = u2.totalStake || 0;
-                            level2Earn += (stake2 * 0.04);
+                            const exists = level2Users.some(x => x.uid === u2.uid);
+                            if (!exists) {
+                                level2Users.push(u2);
+                                teamLevels.level2++;
+                                const stake2 = u2.totalStake || 0;
+                                level2Earn += (stake2 * 0.04);
+                            }
                             
                             // Level 3
                             for (let k3 in allUsers) {
                                 const u3 = allUsers[k3];
                                 if (u3.referredBy === u2.referralCode) {
-                                    level3Users.push(u3);
-                                    teamLevels.level3++;
-                                    const stake3 = u3.totalStake || 0;
-                                    level3Earn += (stake3 * 0.02);
+                                    const exists3 = level3Users.some(x => x.uid === u3.uid);
+                                    if (!exists3) {
+                                        level3Users.push(u3);
+                                        teamLevels.level3++;
+                                        const stake3 = u3.totalStake || 0;
+                                        level3Earn += (stake3 * 0.02);
+                                    }
                                     
                                     // Level 4
                                     for (let k4 in allUsers) {
                                         const u4 = allUsers[k4];
                                         if (u4.referredBy === u3.referralCode) {
-                                            level4Users.push(u4);
-                                            teamLevels.level4++;
-                                            const stake4 = u4.totalStake || 0;
-                                            level4Earn += (stake4 * 0.01);
+                                            const exists4 = level4Users.some(x => x.uid === u4.uid);
+                                            if (!exists4) {
+                                                level4Users.push(u4);
+                                                teamLevels.level4++;
+                                                const stake4 = u4.totalStake || 0;
+                                                level4Earn += (stake4 * 0.01);
+                                            }
                                             
                                             // Level 5
                                             for (let k5 in allUsers) {
                                                 const u5 = allUsers[k5];
                                                 if (u5.referredBy === u4.referralCode) {
-                                                    level5Users.push(u5);
-                                                    teamLevels.level5++;
-                                                    const stake5 = u5.totalStake || 0;
-                                                    level5Earn += (stake5 * 0.01);
+                                                    const exists5 = level5Users.some(x => x.uid === u5.uid);
+                                                    if (!exists5) {
+                                                        level5Users.push(u5);
+                                                        teamLevels.level5++;
+                                                        const stake5 = u5.totalStake || 0;
+                                                        level5Earn += (stake5 * 0.01);
+                                                    }
                                                 }
                                             }
                                         }
@@ -487,31 +499,25 @@ async function calculateReferralEarnings(userData) {
             }
         }
         
-        // Remove duplicates
-        const uniqueLevel2 = level2Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel3 = level3Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel4 = level4Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel5 = level5Users.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        
         return {
             directReferrals,
             level1Users: directReferrals,
-            level2Users: uniqueLevel2,
-            level3Users: uniqueLevel3,
-            level4Users: uniqueLevel4,
-            level5Users: uniqueLevel5,
+            level2Users,
+            level3Users,
+            level4Users,
+            level5Users,
             level1Count: directReferrals.length,
-            level2Count: uniqueLevel2.length,
-            level3Count: uniqueLevel3.length,
-            level4Count: uniqueLevel4.length,
-            level5Count: uniqueLevel5.length,
-            level1Earn: level1Earn,
-            level2Earn: level2Earn,
-            level3Earn: level3Earn,
-            level4Earn: level4Earn,
-            level5Earn: level5Earn,
+            level2Count: level2Users.length,
+            level3Count: level3Users.length,
+            level4Count: level4Users.length,
+            level5Count: level5Users.length,
+            level1Earn,
+            level2Earn,
+            level3Earn,
+            level4Earn,
+            level5Earn,
             totalEarnings: level1Earn + level2Earn + level3Earn + level4Earn + level5Earn,
-            teamLevels: teamLevels
+            teamLevels
         };
     } catch (error) {
         console.error('Error calculating referral earnings:', error);
@@ -544,17 +550,15 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
-        // 🔥 FIX: Calculate referral data and then override with stored values from Firebase
+        // Calculate referral data
         const referralData = await calculateReferralEarnings(userData);
         
-        // 🔥 Use stored values from Firebase instead of calculated ones
+        // Use stored values from Firebase for earnings
         referralData.level1Earn = userData.level1Earnings || 0;
         referralData.level2Earn = userData.level2Earnings || 0;
         referralData.level3Earn = userData.level3Earnings || 0;
         referralData.level4Earn = userData.level4Earnings || 0;
         referralData.level5Earn = userData.level5Earnings || 0;
-        
-        // 🔥 Recalculate total earnings from stored values
         referralData.totalEarnings = 
             referralData.level1Earn +
             referralData.level2Earn +
@@ -600,7 +604,7 @@ onAuthStateChanged(auth, async (user) => {
                             <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                         </div>
                         <div class="mt-2">
-                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${userData.referralCode.substring(0, 25)}...</strong></small>
+                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${userData.referralCode}</strong></small>
                         </div>
                     </div>
                 </div>
