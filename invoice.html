@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>इनवॉइस · RND Staking</title>
+    <title>Invoice · RND Staking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -209,7 +209,7 @@
             <div id="invoiceContent">
                 <div class="loading-spinner">
                     <div class="spinner-border text-success" role="status" style="width: 4rem; height: 4rem;"></div>
-                    <p class="text-muted mt-3">इनवॉइस लोड हो रहा है...</p>
+                    <p class="text-muted mt-3">Loading invoice...</p>
                 </div>
             </div>
         </div>
@@ -246,9 +246,9 @@
     const db = getDatabase(app);
 
     const PLANS = [
-        { id: '6months', name: '6 महीने का प्लान', duration: 180, reward: 25 },
-        { id: '12months', name: '12 महीने का प्लान', duration: 365, reward: 60 },
-        { id: '18months', name: '18 महीने का प्लान', duration: 540, reward: 100 }
+        { id: '6months', name: '6 Months Plan', duration: 180, reward: 25 },
+        { id: '12months', name: '12 Months Plan', duration: 365, reward: 60 },
+        { id: '18months', name: '18 Months Plan', duration: 540, reward: 100 }
     ];
 
     function getPlanById(id) {
@@ -272,7 +272,7 @@
         const released = pkg.releasedAmount || 0;
         const remaining = totalRND - released;
         const status = pkg.status || 'active';
-        const userName = userData?.name || userData?.username || 'उपयोगकर्ता';
+        const userName = userData?.name || userData?.username || 'User';
         const userCode = userData?.referralCode || '---';
         
         return `
@@ -280,7 +280,7 @@
             <div class="invoice-header">
                 <div>
                     <div class="brand"><i class="bi bi-currency-bitcoin"></i>RND Staking</div>
-                    <div class="invoice-number">इनवॉइस #${invoiceNum}</div>
+                    <div class="invoice-number">INVOICE #${invoiceNum}</div>
                 </div>
                 <div>
                     <span class="badge-domain"><i class="bi bi-check-circle-fill me-1"></i> staking.randigital.in</span>
@@ -290,12 +290,12 @@
             <!-- TITLE -->
             <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
                 <div>
-                    <div class="invoice-title">पैकेज रसीद</div>
-                    <div class="invoice-sub">स्टेकिंग प्लान की पुष्टि और रिलीज़ शेड्यूल</div>
+                    <div class="invoice-title">Package Receipt</div>
+                    <div class="invoice-sub">Staking plan confirmation & release schedule</div>
                 </div>
                 <div class="text-end">
                     <span class="plan-badge"><i class="bi bi-box-seam me-1"></i> ${pkg.planName}</span>
-                    <div style="font-size:0.7rem; color:#556688; margin-top:4px;">जारी: ${startDate.toLocaleString('hi-IN')}</div>
+                    <div style="font-size:0.7rem; color:#556688; margin-top:4px;">Issued: ${startDate.toLocaleString('en-IN')}</div>
                 </div>
             </div>
 
@@ -303,70 +303,70 @@
             <div class="summary-grid">
                 <div class="summary-item">
                     <div class="num green">$${usdtAmount.toFixed(2)}</div>
-                    <div class="label">निवेश (USDT)</div>
+                    <div class="label">Investment (USDT)</div>
                 </div>
                 <div class="summary-item">
                     <div class="num gold">${totalRND.toFixed(2)} RND</div>
-                    <div class="label">कुल प्राप्त (+${bonusPercent}% बोनस)</div>
+                    <div class="label">Total Received (+${bonusPercent}% Bonus)</div>
                 </div>
                 <div class="summary-item">
                     <div class="num blue">${dailyRelease.toFixed(4)} RND</div>
-                    <div class="label">दैनिक रिलीज़</div>
+                    <div class="label">Daily Release</div>
                 </div>
             </div>
 
             <!-- DETAILS -->
             <div style="background: rgba(8,14,26,0.3); border-radius: 16px; padding: 12px 16px; margin: 10px 0 6px;">
                 <div class="detail-row">
-                    <span class="detail-label">प्लान</span>
-                    <span class="detail-value highlight">${pkg.planName} · +${bonusPercent}% बोनस</span>
+                    <span class="detail-label">Plan</span>
+                    <span class="detail-value highlight">${pkg.planName} · +${bonusPercent}% Bonus</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">लॉक अवधि</span>
-                    <span class="detail-value gold">${pkg.duration} दिन</span>
+                    <span class="detail-label">Lock Period</span>
+                    <span class="detail-value gold">${pkg.duration} Days</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">प्रारंभ तिथि</span>
-                    <span class="detail-value">${startDate.toLocaleString('hi-IN')}</span>
+                    <span class="detail-label">Start Date</span>
+                    <span class="detail-value">${startDate.toLocaleString('en-IN')}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">समाप्ति तिथि (अनलॉक)</span>
-                    <span class="detail-value blue">${endDate.toLocaleString('hi-IN')}</span>
+                    <span class="detail-label">End Date (Unlock)</span>
+                    <span class="detail-value blue">${endDate.toLocaleString('en-IN')}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">रिलीज़ अवधि</span>
-                    <span class="detail-value">${pkg.duration} दिन (दैनिक रिलीज़)</span>
+                    <span class="detail-label">Release Duration</span>
+                    <span class="detail-value">${pkg.duration} days (daily release)</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">खरीद के समय RND मूल्य</span>
+                    <span class="detail-label">RND Price at Purchase</span>
                     <span class="detail-value">$${(pkg.rndPriceAtTime || 1).toFixed(4)} / RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">बेस RND</span>
+                    <span class="detail-label">Base RND</span>
                     <span class="detail-value">${baseRND.toFixed(2)} RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">बोनस RND (${bonusPercent}%)</span>
+                    <span class="detail-label">Bonus RND (${bonusPercent}%)</span>
                     <span class="detail-value gold">+${bonusRND.toFixed(2)} RND</span>
                 </div>
                 <div class="detail-row" style="border-bottom: 2px solid rgba(46,204,113,0.15); padding-bottom: 14px;">
-                    <span class="detail-label" style="font-weight:700; color:#f0f4ff;">कुल स्टेक</span>
+                    <span class="detail-label" style="font-weight:700; color:#f0f4ff;">Total Staked</span>
                     <span class="detail-value highlight" style="font-size:1.1rem;">${totalRND.toFixed(2)} RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">दैनिक रिलीज़ राशि</span>
+                    <span class="detail-label">Daily Release Amount</span>
                     <span class="detail-value blue">${dailyRelease.toFixed(4)} RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">अब तक जारी</span>
+                    <span class="detail-label">Released So Far</span>
                     <span class="detail-value gold">${released.toFixed(2)} RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">शेष लॉक</span>
+                    <span class="detail-label">Remaining Locked</span>
                     <span class="detail-value" style="color:#a78bfa;">${remaining.toFixed(2)} RND</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">${pkg.duration} दिनों में कुल रिलीज़</span>
+                    <span class="detail-label">Total Release over ${pkg.duration} days</span>
                     <span class="detail-value highlight">${totalRND.toFixed(2)} RND</span>
                 </div>
             </div>
@@ -374,31 +374,31 @@
             <!-- TIMELINE BAR -->
             <div style="margin: 18px 0 8px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#556688; padding:0 4px;">
-                    <span>लॉक: ${pkg.duration} दिन</span>
-                    <span>दैनिक रिलीज़ तुरंत शुरू</span>
+                    <span>Locked: ${pkg.duration} days</span>
+                    <span>Daily release starts immediately</span>
                 </div>
                 <div class="timeline-bar">
-                    <div class="segment lock" style="flex:2;">🔒 लॉक</div>
-                    <div class="segment release" style="flex:8;">📈 रिलीज़ (${pkg.duration} दिन)</div>
+                    <div class="segment lock" style="flex:2;">🔒 Lock</div>
+                    <div class="segment release" style="flex:8;">📈 Release (${pkg.duration} days)</div>
                 </div>
                 <div style="display:flex; justify-content:space-between; font-size:0.6rem; color:#556688; padding:0 4px;">
-                    <span>${startDate.toLocaleDateString('hi-IN')}</span>
-                    <span>${endDate.toLocaleDateString('hi-IN')}</span>
+                    <span>${startDate.toLocaleDateString('en-IN')}</span>
+                    <span>${endDate.toLocaleDateString('en-IN')}</span>
                 </div>
             </div>
 
             <!-- RECEIVER INFO -->
             <div style="background: rgba(8,14,26,0.2); border-radius: 16px; padding: 12px 16px; margin: 12px 0 6px;">
                 <div class="detail-row">
-                    <span class="detail-label">खरीदार</span>
+                    <span class="detail-label">Purchaser</span>
                     <span class="detail-value">${userName}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">उपयोगकर्ता आईडी</span>
+                    <span class="detail-label">User ID</span>
                     <span class="detail-value" style="font-family:monospace; color:#60a5fa;">${userCode}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">पैकेज आईडी</span>
+                    <span class="detail-label">Package ID</span>
                     <span class="detail-value" style="font-family:monospace; font-size:0.8rem; color:#a78bfa;">${packageId}</span>
                 </div>
             </div>
@@ -407,18 +407,18 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 no-print">
                 <div>
                     <span class="badge ${status === 'active' ? 'bg-success' : 'bg-info'} bg-opacity-10 px-3 py-2" style="border-radius:40px; font-weight:500; color:${status === 'active' ? '#2ecc71' : '#60a5fa'};">
-                        <i class="bi bi-${status === 'active' ? 'check-circle-fill' : 'clock-history'} me-1"></i> ${status === 'active' ? 'सक्रिय · रिलीज़ जारी' : 'पूर्ण'}
+                        <i class="bi bi-${status === 'active' ? 'check-circle-fill' : 'clock-history'} me-1"></i> ${status === 'active' ? 'Active · Release in progress' : 'Completed'}
                     </span>
                 </div>
                 <div>
-                    <button class="btn-print" onclick="window.print()"><i class="bi bi-printer"></i> प्रिंट करें</button>
-                    <button class="btn-outline-print ms-2" onclick="window.location.href='buy-package.html'"><i class="bi bi-arrow-left"></i> वापस</button>
+                    <button class="btn-print" onclick="window.print()"><i class="bi bi-printer"></i> Print Invoice</button>
+                    <button class="btn-outline-print ms-2" onclick="window.location.href='buy-package.html'"><i class="bi bi-arrow-left"></i> Back</button>
                 </div>
             </div>
 
             <div class="footer-note">
-                <i class="bi bi-shield-check me-1"></i> यह आपके स्टेकिंग पैकेज के लिए सिस्टम-जनित रसीद है।
-                सभी रिलीज़ राशियाँ खरीद के समय RND मूल्य के आधार पर गणना की जाती हैं।
+                <i class="bi bi-shield-check me-1"></i> This is a system-generated receipt for your staking package.
+                All release amounts are calculated based on the RND price at the time of purchase.
             </div>
         `;
     }
@@ -430,7 +430,7 @@
         }
 
         try {
-            // URL से package ID प्राप्त करें
+            // Get package ID from URL
             const urlParams = new URLSearchParams(window.location.search);
             const packageId = urlParams.get('id');
 
@@ -438,21 +438,21 @@
                 document.getElementById('invoiceContent').innerHTML = `
                     <div class="text-center py-5">
                         <i class="bi bi-exclamation-triangle text-warning fs-1 d-block mb-3"></i>
-                        <h4>कोई पैकेज नहीं चुना गया</h4>
-                        <p class="text-muted">कृपया पैकेज इतिहास से एक इनवॉइस चुनें।</p>
-                        <a href="buy-package.html" class="btn btn-primary-custom mt-3">पैकेज खरीदें पर जाएँ</a>
+                        <h4>No Package Selected</h4>
+                        <p class="text-muted">Please select an invoice from your package history.</p>
+                        <a href="buy-package.html" class="btn btn-primary-custom mt-3">Go to Buy Package</a>
                     </div>
                 `;
                 return;
             }
 
-            // उपयोगकर्ता डेटा प्राप्त करें
+            // Get user data
             const userSnap = await get(ref(db, 'users/' + user.uid));
             if (!userSnap.exists()) {
                 document.getElementById('invoiceContent').innerHTML = `
                     <div class="text-center py-5">
                         <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                        <h4>उपयोगकर्ता डेटा नहीं मिला</h4>
+                        <h4>User data not found</h4>
                     </div>
                 `;
                 return;
@@ -466,9 +466,9 @@
                 document.getElementById('invoiceContent').innerHTML = `
                     <div class="text-center py-5">
                         <i class="bi bi-exclamation-triangle text-warning fs-1 d-block mb-3"></i>
-                        <h4>पैकेज नहीं मिला</h4>
-                        <p class="text-muted">यह पैकेज मौजूद नहीं है या आपके पास इसकी पहुँच नहीं है।</p>
-                        <a href="buy-package.html" class="btn btn-primary-custom mt-3">पैकेज खरीदें पर जाएँ</a>
+                        <h4>Package not found</h4>
+                        <p class="text-muted">This package does not exist or you don't have access to it.</p>
+                        <a href="buy-package.html" class="btn btn-primary-custom mt-3">Go to Buy Package</a>
                     </div>
                 `;
                 return;
@@ -479,13 +479,13 @@
             document.getElementById('invoiceContent').innerHTML = invoiceHTML;
 
         } catch (error) {
-            console.error('इनवॉइस लोड करने में त्रुटि:', error);
+            console.error('Error loading invoice:', error);
             document.getElementById('invoiceContent').innerHTML = `
                 <div class="text-center py-5">
                     <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                    <h4>इनवॉइस लोड करने में त्रुटि</h4>
-                    <p class="text-muted">${error.message || 'कृपया पुनः प्रयास करें।'}</p>
-                    <button class="btn btn-primary-custom mt-3" onclick="location.reload()">पुनः प्रयास करें</button>
+                    <h4>Error Loading Invoice</h4>
+                    <p class="text-muted">${error.message || 'Please try again.'}</p>
+                    <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Retry</button>
                 </div>
             `;
         }
