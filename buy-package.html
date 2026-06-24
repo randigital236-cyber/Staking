@@ -158,10 +158,11 @@
             padding: 1.5rem;
             transition: all 0.3s ease;
         }
-        .card-glass:hover { border-color: rgba(46,204,113,0.3); }
+        .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
         
+        /* ---- refined package cards with CTA button ---- */
         .package-card {
             background: rgba(8,14,26,0.6);
             border: 1px solid rgba(46,204,113,0.12);
@@ -212,6 +213,7 @@
         }
         .package-card .features li i { color: #2ecc71; font-size: 1rem; width: 18px; }
         
+        /* ----- new CTA button on package card ----- */
         .package-card .plan-cta {
             margin-top: 18px;
             width: 100%;
@@ -288,10 +290,7 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
         }
-        .package-item:hover { border-color: rgba(46,204,113,0.2); background: rgba(46,204,113,0.05); }
         .package-item .amount { font-weight: 700; color: #2ecc71; }
         .package-item .total-rnd { font-weight: 600; color: #60a5fa; font-size: 0.85rem; }
         .package-item .status-active { color: #2ecc71; font-size: 0.8rem; }
@@ -302,17 +301,6 @@
         .package-item .released { color: #fbbf24; font-size: 0.7rem; }
         .package-item .rate-badge { background: rgba(46,204,113,0.1); color: #2ecc71; padding: 2px 10px; border-radius: 12px; font-size: 0.6rem; }
         .package-item .locked { color: #a78bfa; font-size: 0.7rem; }
-        .package-item .view-invoice {
-            background: rgba(46,204,113,0.1);
-            border: 1px solid rgba(46,204,113,0.15);
-            color: #2ecc71;
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .package-item .view-invoice:hover { background: rgba(46,204,113,0.2); }
         
         .toast-container {
             position: fixed;
@@ -375,7 +363,7 @@
 <!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold" href="#">
+        <a class="navbar-brand fw-bold" href="dashboard.html">
             <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
         </a>
         <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
@@ -407,7 +395,6 @@
     <a href="withdrawal.html" class="nav-item"><i class="bi bi-arrow-up-circle"></i> Withdraw</a>
     <a href="referrals.html" class="nav-item"><i class="bi bi-people"></i> Referrals <span class="badge" id="referralBadge">0</span></a>
     <a href="buy-package.html" class="nav-item active"><i class="bi bi-box-seam"></i> Buy Package</a>
-    <a href="invoice.html" class="nav-item"><i class="bi bi-receipt"></i> My Invoices <span class="badge" id="invoiceBadge">0</span></a>
     <a href="transactions.html" class="nav-item"><i class="bi bi-receipt"></i> Transactions</a>
     <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
     <div class="sidebar-footer">
@@ -450,7 +437,7 @@ const firebaseConfig = {
 };
 
 // ============================================================
-// STAKING PLANS
+// 🔥 STAKING PLANS
 // ============================================================
 const PLANS = [
     { 
@@ -459,8 +446,7 @@ const PLANS = [
         duration: 180, 
         reward: 25, 
         color: '#2ecc71',
-        bonusText: '+25% Bonus',
-        minAmount: 50
+        bonusText: '+25% Bonus'
     },
     { 
         id: '12months', 
@@ -468,8 +454,7 @@ const PLANS = [
         duration: 365, 
         reward: 60, 
         color: '#fbbf24',
-        bonusText: '+60% Bonus',
-        minAmount: 100
+        bonusText: '+60% Bonus'
     },
     { 
         id: '18months', 
@@ -477,13 +462,12 @@ const PLANS = [
         duration: 540, 
         reward: 100, 
         color: '#f472b6',
-        bonusText: '+100% Bonus',
-        minAmount: 200
+        bonusText: '+100% Bonus'
     }
 ];
 
 // ============================================================
-// CALCULATE STAKING
+// 🔥 CALCULATE STAKING
 // ============================================================
 function calculateStaking(usdtAmount, rndPrice, plan) {
     if (!usdtAmount || usdtAmount <= 0 || !rndPrice || rndPrice <= 0) {
@@ -572,11 +556,13 @@ async function getRNDPrice() {
 }
 
 // ============================================================
-// DISTRIBUTE REFERRAL COMMISSION - 5 LEVELS
+// 🔥 DISTRIBUTE REFERRAL COMMISSION - 5 LEVELS
 // ============================================================
 async function distributeReferralCommission(userUid, amount) {
     try {
         const rates = [0.08, 0.04, 0.02, 0.01, 0.01];
+        const levelNames = ['Level 1 (8%)', 'Level 2 (4%)', 'Level 3 (2%)', 'Level 4 (1%)', 'Level 5 (1%)'];
+        
         const usersSnap = await get(ref(db, 'users'));
         if (!usersSnap.exists()) return;
         const users = usersSnap.val();
@@ -584,6 +570,8 @@ async function distributeReferralCommission(userUid, amount) {
         if (!currentUser) return;
         
         let currentRefCode = currentUser.referredBy || '';
+        let commissionDistributed = false;
+        
         for (let level = 0; level < 5; level++) {
             if (!currentRefCode) break;
             let sponsorUid = null;
@@ -607,6 +595,7 @@ async function distributeReferralCommission(userUid, amount) {
             
             await update(ref(db, 'users/' + sponsorUid), updates);
             currentRefCode = sponsor.referredBy || '';
+            commissionDistributed = true;
         }
     } catch (error) {
         console.error('Error distributing referral commission:', error);
@@ -614,7 +603,7 @@ async function distributeReferralCommission(userUid, amount) {
 }
 
 // ============================================================
-// UPDATE USER DATA
+// 🔥 UPDATE USER DATA
 // ============================================================
 async function updateUserData(userId) {
     try {
@@ -644,9 +633,6 @@ async function updateUserData(userId) {
     } catch (error) { console.error('Error updating user data:', error); return null; }
 }
 
-// ============================================================
-// MAIN RENDER
-// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
 
@@ -661,12 +647,14 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
 
+        const badge = document.getElementById('referralBadge');
+        if (badge) badge.textContent = userData.totalReferrals || 0;
+
+        await updateUserData(user.uid);
+
         const packages = userData.packages || {};
         const userPackages = Object.keys(packages).map(key => ({ id: key, ...packages[key] }));
         userPackages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        const badge = document.getElementById('invoiceBadge');
-        if (badge) badge.textContent = userPackages.length;
 
         const depositWallet = userData.depositWallet || 0;
         const referralWallet = userData.referralWallet || 0;
@@ -681,10 +669,10 @@ onAuthStateChanged(auth, async (user) => {
             const released = p.releasedAmount || 0;
             const locked = (p.totalRND || 0) - released;
             packagesHtml += `
-                <div class="package-item" onclick="window.location.href='invoice.html?id=${p.id}'">
+                <div class="package-item">
                     <div>
                         <span class="plan">${p.planName || 'Package'}</span>
-                        <div class="date">${new Date(p.timestamp).toLocaleString('en-IN')}</div>
+                        <div class="date">${new Date(p.timestamp).toLocaleString('hi-IN')}</div>
                         ${p.rndPriceAtTime ? `<span class="rate-badge">Rate: $${p.rndPriceAtTime.toFixed(4)}/RND</span>` : ''}
                     </div>
                     <div>
@@ -694,12 +682,12 @@ onAuthStateChanged(auth, async (user) => {
                         ${p.dailyRelease ? `<div class="daily">📈 Daily: ${(p.dailyRelease || 0).toFixed(4)} RND</div>` : ''}
                         ${released > 0 ? `<div class="released">✅ Released: ${released.toFixed(2)} RND</div>` : ''}
                         ${locked > 0 ? `<div class="locked">🔒 Locked: ${locked.toFixed(2)} RND</div>` : ''}
-                        <span class="view-invoice"><i class="bi bi-receipt me-1"></i>View Invoice</span>
                     </div>
                 </div>
             `;
         });
 
+        // build main UI – removed old screenshot data section, added CTA buttons on cards
         document.getElementById('packageContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -710,7 +698,7 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
 
-                <!-- Wallet Stats -->
+                <!-- wallet stats -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="row g-3">
@@ -756,7 +744,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- 3 Package Cards -->
+                <!-- 3 package cards with CTA button -->
                 <div class="col-12">
                     <div class="row g-4">
                         ${PLANS.map((plan) => {
@@ -765,7 +753,7 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="col-md-4">
                                 <div class="package-card" data-plan="${plan.id}">
                                     <h5 class="plan-name" style="color:${plan.color};">${plan.name}</h5>
-                                    <div class="price">$${plan.minAmount} <span>USDT</span></div>
+                                    <div class="price">$${plan.id === '6months' ? '50' : plan.id === '12months' ? '100' : '200'} <span>USDT</span></div>
                                     <div class="reward">${plan.bonusText}</div>
                                     <div class="duration">⏱ ${plan.duration} Days Lock</div>
                                     <div class="you-will-receive">📊 You Will Receive: ${example.totalRND.toFixed(2)} RND</div>
@@ -775,6 +763,7 @@ onAuthStateChanged(auth, async (user) => {
                                         <li><i class="bi bi-check-circle"></i> ${plan.duration} Days Lock</li>
                                         <li><i class="bi bi-check-circle"></i> Daily Release</li>
                                     </div>
+                                    <!-- CTA button with distinct color -->
                                     <button class="plan-cta" data-plan-id="${plan.id}">
                                         <i class="bi bi-lightning-charge-fill"></i> Select ${plan.name}
                                     </button>
@@ -785,7 +774,7 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- Purchase Form -->
+                <!-- purchase form -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-cart-check text-success me-2"></i>Confirm Purchase</div>
@@ -824,10 +813,10 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- History -->
-                <div class="col-12" id="historySection">
+                <!-- history -->
+                <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History <span class="badge bg-success bg-opacity-10 text-success ms-2">${userPackages.length} invoices</span></div>
+                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Package History</div>
                         ${userPackages.length === 0 ? `
                             <div class="text-center text-muted py-4">
                                 <i class="bi bi-box-seam fs-1 d-block mb-2"></i>
@@ -839,7 +828,7 @@ onAuthStateChanged(auth, async (user) => {
             </div>
         `;
 
-        // Attach CTA button listeners
+        // ---- attach CTA button listeners ----
         document.querySelectorAll('.plan-cta').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -847,20 +836,21 @@ onAuthStateChanged(auth, async (user) => {
                 const plan = PLANS.find(p => p.id === planId);
                 if (!plan) return;
                 
+                // update selection visual
                 document.querySelectorAll('.package-card').forEach(c => c.classList.remove('selected'));
                 const parentCard = this.closest('.package-card');
                 if (parentCard) parentCard.classList.add('selected');
                 
                 document.getElementById('selectedPlan').value = plan.name;
-                document.getElementById('payAmount').value = plan.minAmount;
-                const result = calculateStaking(plan.minAmount, rndPrice || 1, plan);
+                const amount = parseFloat(document.getElementById('payAmount').value) || 100;
+                const result = calculateStaking(amount, rndPrice || 1, plan);
                 document.getElementById('totalRNDDisplay').value = result.totalRND.toFixed(2) + ' RND';
                 document.getElementById('dailyReleaseDisplay').value = result.dailyRelease.toFixed(4) + ' RND';
                 document.getElementById('buyBtn').innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${plan.name}`;
             });
         });
 
-        // Input realtime calculation
+        // ---- input realtime calculation ----
         const payAmountInput = document.getElementById('payAmount');
         if (payAmountInput) {
             payAmountInput.addEventListener('input', function() {
@@ -884,7 +874,7 @@ onAuthStateChanged(auth, async (user) => {
             });
         }
 
-        // Buy form submission
+        // ---- buy form submission ----
         const buyForm = document.getElementById('buyForm');
         if (buyForm) {
             buyForm.addEventListener('submit', async (e) => {
@@ -900,11 +890,6 @@ onAuthStateChanged(auth, async (user) => {
 
                 const plan = PLANS.find(p => p.name === planName);
                 if (!plan) { showToast('❌ Invalid plan selected!', 'error'); return; }
-
-                if (payAmount < plan.minAmount) {
-                    showToast(`❌ Minimum amount for ${plan.name} is $${plan.minAmount} USDT!`, 'error');
-                    return;
-                }
 
                 const userData = await getUserData(auth.currentUser.uid);
                 if (!userData) { showToast('❌ User data not found!', 'error'); return; }
@@ -974,11 +959,7 @@ onAuthStateChanged(auth, async (user) => {
                     await updateUserData(auth.currentUser.uid);
 
                     showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND staked at $${(rndPrice || 1).toFixed(4)}/RND. Daily: ${result.dailyRelease.toFixed(4)} RND`, 'success');
-                    
-                    // Redirect to invoice page
-                    setTimeout(() => {
-                        window.location.href = `invoice.html?id=${packageId}`;
-                    }, 1500);
+                    setTimeout(() => { window.location.reload(); }, 1500);
 
                 } catch (error) {
                     console.error('Purchase error:', error);
