@@ -636,14 +636,14 @@ async function fetchLiveRate() {
 
 async function getUserByUsername(username) {
     try {
-        const usernameRef = ref(db, 'usernames/' + username);
-        const snapshot = await get(usernameRef);
-        if (snapshot.exists()) {
-            const uid = snapshot.val();
-            const userRef = ref(db, 'users/' + uid);
-            const userSnap = await get(userRef);
-            if (userSnap.exists()) {
-                return { uid: uid, data: userSnap.val() };
+        // First try to find by username field in users
+        const usersSnap = await get(ref(db, 'users'));
+        if (usersSnap.exists()) {
+            const users = usersSnap.val();
+            for (let uid in users) {
+                if (users[uid].username === username || users[uid].referralCode === username) {
+                    return { uid: uid, data: users[uid] };
+                }
             }
         }
         return null;
@@ -786,54 +786,93 @@ async function updateUserData(userId) {
 }
 
 // ============================================================
-// 🔥 RECALCULATE TEAM STRUCTURE
+// 🔥 RECALCULATE TEAM STRUCTURE - FIXED
 // ============================================================
 async function recalculateTeamStructure(userId) {
     try {
         const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) return;
+        if (!usersSnap.exists()) return null;
         const allUsers = usersSnap.val();
         
-        // Find all users who have this user as referrer (direct referrals)
-        const directReferrals = [];
+        // Get current user's referral code
+        const currentUser = allUsers[userId];
+        if (!currentUser) return null;
+        
+        const userRefCode = currentUser.referralCode;
+        
+        // Level 1: Direct referrals (users who have referredBy = this user's referralCode)
+        let level1 = [];
+        let level2 = [];
+        let level3 = [];
+        let level4 = [];
+        let level5 = [];
+        
+        // Map to quickly find users by referral code
+        const userMap = {};
         for (let uid in allUsers) {
-            if (allUsers[uid].referredBy === userId) {
-                directReferrals.push(uid);
+            const u = allUsers[uid];
+            userMap[u.referralCode] = { uid, data: u };
+        }
+        
+        // Find Level 1 (Direct referrals)
+        for (let uid in allUsers) {
+            const u = allUsers[uid];
+            if (u.referredBy === userRefCode) {
+                level1.push({ uid, data: u });
             }
         }
         
-        // Calculate team levels
-        let levelCounts = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
-        let currentLevel = [userId];
-        let levelNum = 0;
-        let visited = new Set();
-        visited.add(userId);
+        // Find Level 2-5 using referral chain
+        let currentLevel = level1;
+        let levelNum = 2;
         
-        while (currentLevel.length > 0 && levelNum < 5) {
+        while (currentLevel.length > 0 && levelNum <= 5) {
             let nextLevel = [];
-            for (let uid of currentLevel) {
-                // Find all users who have this user as referrer
-                for (let targetUid in allUsers) {
-                    if (!visited.has(targetUid) && allUsers[targetUid].referredBy === uid) {
-                        visited.add(targetUid);
-                        nextLevel.push(targetUid);
-                        if (levelNum < 5) {
-                            levelCounts[`level${levelNum + 1}`] = (levelCounts[`level${levelNum + 1}`] || 0) + 1;
+            for (let item of currentLevel) {
+                const refCode = item.data.referralCode;
+                for (let uid in allUsers) {
+                    const u = allUsers[uid];
+                    if (u.referredBy === refCode) {
+                        const exists = nextLevel.some(x => x.uid === uid);
+                        if (!exists) {
+                            nextLevel.push({ uid, data: u });
                         }
                     }
                 }
             }
+            
+            if (levelNum === 2) level2 = nextLevel;
+            else if (levelNum === 3) level3 = nextLevel;
+            else if (levelNum === 4) level4 = nextLevel;
+            else if (levelNum === 5) level5 = nextLevel;
+            
             currentLevel = nextLevel;
             levelNum++;
         }
         
+        // Remove duplicates from each level
+        const uniqueLevel1 = level1.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+        const uniqueLevel2 = level2.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+        const uniqueLevel3 = level3.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+        const uniqueLevel4 = level4.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+        const uniqueLevel5 = level5.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
+        
+        const teamLevels = {
+            level1: uniqueLevel1.length,
+            level2: uniqueLevel2.length,
+            level3: uniqueLevel3.length,
+            level4: uniqueLevel4.length,
+            level5: uniqueLevel5.length
+        };
+        
         // Update team structure
         await update(ref(db, 'users/' + userId), {
-            teamStructure: levelCounts,
-            totalReferrals: directReferrals.length
+            teamStructure: teamLevels,
+            totalReferrals: uniqueLevel1.length,
+            downline: uniqueLevel1.length + uniqueLevel2.length + uniqueLevel3.length + uniqueLevel4.length + uniqueLevel5.length
         });
         
-        return levelCounts;
+        return teamLevels;
     } catch (error) {
         console.error('Error recalculating team structure:', error);
         return null;
@@ -931,7 +970,7 @@ function loadDashboard(u) {
     const level5Earn = u.level5Earnings || 0;
     const referralEarnings = u.referralEarnings || 0;
     
-    // 🔥 FIXED: Team Members by Level - show actual counts from teamStructure
+    // 🔥 Team Members by Level - from teamStructure
     const teamLevels = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
     
     document.getElementById('sidebarName').textContent = name;
@@ -1165,8 +1204,8 @@ function loadDashboard(u) {
                                 <div class="transfer-item">
                                     <div>
                                         ${t.type === 'sent' ? 
-                                            `<span class="sent"><i class="bi bi-arrow-up-right"></i> Sent to <span class="user">${t.to.substring(0, 15)}...</span></span>` :
-                                            `<span class="received"><i class="bi bi-arrow-down-left"></i> Received from <span class="user">${t.from.substring(0, 15)}...</span></span>`
+                                            `<span class="sent"><i class="bi bi-arrow-up-right"></i> Sent to <span class="user">${t.to || 'unknown'}</span></span>` :
+                                            `<span class="received"><i class="bi bi-arrow-down-left"></i> Received from <span class="user">${t.from || 'unknown'}</span></span>`
                                         }
                                     </div>
                                     <div>
