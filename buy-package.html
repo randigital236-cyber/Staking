@@ -342,20 +342,10 @@
             font-size: 0.85rem;
         }
         
+        /* 🔥 RED BOX HIDE - Sirf yeh style add kiya gaya hai */
         .release-info-box {
-            background: rgba(52,211,153,0.05);
-            border: 1px solid rgba(52,211,153,0.1);
-            border-radius: 12px;
-            padding: 10px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 5px;
+            display: none !important;
         }
-        .release-info-box .label { color: #8899bb; font-size: 0.7rem; }
-        .release-info-box .value { color: #34d399; font-weight: 700; font-size: 0.9rem; }
         
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
@@ -368,7 +358,6 @@
             .sidebar-panel { width: 100%; right: -100%; }
             .sidebar-panel.open { right: 0; }
             .card-glass { padding: 1rem; }
-            .release-info-box { flex-direction: column; text-align: center; }
         }
     </style>
 </head>
@@ -737,12 +726,6 @@ onAuthStateChanged(auth, async (user) => {
                                     <h3 style="color:#a78bfa;">${(lockedRND || 0).toFixed(2)} RND</h3>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="release-info-box mt-3">
-                            <span class="label"><i class="bi bi-info-circle me-1"></i> Package buy karte hi RND Locked wallet mein add ho jayega. Release next day se start hoga.</span>
-                            <span class="label">Today's Release:</span>
-                            <span class="value">${(releaseWallet || 0).toFixed(4)} RND</span>
                         </div>
                     </div>
                 </div>
