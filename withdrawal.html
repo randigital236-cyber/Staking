@@ -249,15 +249,6 @@
     }
     .btn-outline-custom:hover { border-color: #2ecc71; color: #2ecc71; }
     
-    .min-withdraw-badge {
-      background: rgba(46,204,113,0.08);
-      border: 1px solid rgba(46,204,113,0.1);
-      border-radius: 20px;
-      padding: 2px 12px;
-      font-size: 0.65rem;
-      color: #2ecc71;
-    }
-    
     .toast-container {
       position: fixed;
       top: 20px;
@@ -303,6 +294,13 @@
     .withdraw-option-card .option-label { font-weight: 600; color: #fff; }
     .withdraw-option-card .option-balance { color: #fbbf24; font-weight: 600; }
     .withdraw-option-card .option-currency { color: #8899bb; font-size: 0.75rem; }
+    
+    .min-label {
+      font-size: 0.6rem;
+      margin-top: 2px;
+    }
+    .min-label.referral-min { color: #fbbf24; }
+    .min-label.rnd-min { color: #60a5fa; }
     
     @media (max-width: 768px) {
       .dashboard-container { padding: 15px; }
@@ -515,7 +513,8 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="wallet-icon referral"><i class="bi bi-coin"></i></div>
                 <div class="wallet-number gold">${referralWallet.toFixed(2)}</div>
                 <div class="wallet-label">💰 Referral Wallet</div>
-                <div class="wallet-sub">RND Balance</div>
+                <div class="wallet-sub">USDT Balance</div>
+                <div class="min-label referral-min">⚠️ Min: 20 USDT (BEP20)</div>
                 <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
               </div>
             </div>
@@ -524,7 +523,8 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="wallet-icon rnd"><i class="bi bi-database"></i></div>
                 <div class="wallet-number blue">${rndWallet.toFixed(4)}</div>
                 <div class="wallet-label">RND Wallet</div>
-                <div class="wallet-sub">Released RND</div>
+                <div class="wallet-sub">RND Balance</div>
+                <div class="min-label rnd-min">⚠️ Min: 5 RND (BEP20)</div>
                 <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
               </div>
             </div>
@@ -540,13 +540,16 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
 
-        <!-- ====== WITHDRAWAL FORM - ONLY 2 OPTIONS ====== -->
+        <!-- ====== WITHDRAWAL FORM ====== -->
         <div class="col-lg-7 mx-auto">
           <div class="card-glass">
             <div class="card-title"><i class="bi bi-arrow-up-circle text-success me-2"></i>Request Withdrawal</div>
             
             <div class="alert alert-warning" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);color:#fbbf24;border-radius:12px;">
-              <small><i class="bi bi-info-circle me-1"></i> Minimum withdrawal: <strong>5 RND</strong>. Withdrawals are manually processed.</small>
+              <small><i class="bi bi-info-circle me-1"></i> 
+                <strong>Referral Wallet:</strong> Min 20 USDT (BEP20) &nbsp;|&nbsp; 
+                <strong>RND Wallet:</strong> Min 5 RND (BEP20)
+              </small>
             </div>
 
             <!-- ====== WITHDRAWAL OPTIONS ====== -->
@@ -555,7 +558,8 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="withdraw-option-card selected" id="optionReferral" onclick="selectWithdrawOption('referralWallet')">
                   <div class="option-icon">💳</div>
                   <div class="option-label">Referral Wallet</div>
-                  <div class="option-balance">${referralWallet.toFixed(2)} RND</div>
+                  <div class="option-balance">${referralWallet.toFixed(2)} USDT</div>
+                  <div class="min-label referral-min">Min: 20 USDT (BEP20)</div>
                 </div>
               </div>
               <div class="col-6">
@@ -563,6 +567,7 @@ onAuthStateChanged(auth, async (user) => {
                   <div class="option-icon">📊</div>
                   <div class="option-label">RND Wallet</div>
                   <div class="option-balance">${rndWallet.toFixed(4)} RND</div>
+                  <div class="min-label rnd-min">Min: 5 RND (BEP20)</div>
                 </div>
               </div>
             </div>
@@ -570,18 +575,18 @@ onAuthStateChanged(auth, async (user) => {
             <form id="withdrawForm">
               <div class="mb-3">
                 <label class="form-label">Selected Wallet <span class="required">*</span></label>
-                <input type="text" id="selectedWalletDisplay" class="form-control form-control-custom" value="Referral Wallet" readonly>
+                <input type="text" id="selectedWalletDisplay" class="form-control form-control-custom" value="Referral Wallet (USDT - BEP20)" readonly>
                 <input type="hidden" id="selectedWallet" value="referralWallet">
               </div>
               <div class="mb-3">
-                <label class="form-label">Amount (RND) <span class="required">*</span></label>
-                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount (min 5 RND)" min="5" step="0.01" required>
-                <small class="text-muted" style="font-size:0.7rem;">Minimum: 5 RND</small>
+                <label class="form-label">Amount <span class="required">*</span></label>
+                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount" min="1" step="0.01" required>
+                <small class="text-muted" style="font-size:0.7rem;" id="minAmountHint">Minimum: 20 USDT (BEP20) for Referral Wallet</small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Wallet Address (BEP20) <span class="required">*</span></label>
                 <input type="text" id="withAddr" class="form-control form-control-custom" placeholder="0x..." required>
-                <small class="text-muted" style="font-size:0.7rem;">Enter your USDT (BEP20) wallet address</small>
+                <small class="text-muted" style="font-size:0.7rem;">Enter your BEP20 wallet address</small>
               </div>
               <button type="submit" class="btn-primary-custom" id="withdrawBtn">
                 <i class="bi bi-arrow-up-circle me-2"></i>Submit Withdrawal
@@ -612,10 +617,12 @@ onAuthStateChanged(auth, async (user) => {
                   else if (w.status === 'rejected') statusHtml = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
                   else statusHtml = '<span class="text-warning">Pending</span>';
                   const currency = w.currency || 'RND';
+                  const walletLabel = w.walletType === 'referralWallet' ? '💳 Referral' : '📊 RND';
                   return `
                     <div style="background:rgba(8,14,26,0.4);border-radius:12px;padding:10px 14px;border:1px solid rgba(46,204,113,0.06);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
                       <div>
                         <span style="font-weight:700;color:#2ecc71;">${w.amount} ${currency}</span>
+                        <span style="font-size:0.6rem;color:#556688;margin-left:6px;">${walletLabel}</span>
                         <div style="color:#556688;font-size:0.65rem;">${new Date(w.timestamp).toLocaleString('hi-IN')}</div>
                         ${w.wallet ? `<div style="font-size:0.6rem;color:#556688;font-family:monospace;">${w.wallet.substring(0,15)}...</div>` : ''}
                       </div>
@@ -640,13 +647,17 @@ onAuthStateChanged(auth, async (user) => {
       // Add selected to clicked
       if (walletType === 'referralWallet') {
         document.getElementById('optionReferral').classList.add('selected');
-        document.getElementById('selectedWalletDisplay').value = 'Referral Wallet';
+        document.getElementById('selectedWalletDisplay').value = 'Referral Wallet (USDT - BEP20)';
+        document.getElementById('selectedWallet').value = 'referralWallet';
+        document.getElementById('minAmountHint').textContent = 'Minimum: 20 USDT (BEP20) for Referral Wallet';
+        document.getElementById('minAmountHint').style.color = '#fbbf24';
       } else if (walletType === 'rndWallet') {
         document.getElementById('optionRND').classList.add('selected');
-        document.getElementById('selectedWalletDisplay').value = 'RND Wallet';
+        document.getElementById('selectedWalletDisplay').value = 'RND Wallet (RND - BEP20)';
+        document.getElementById('selectedWallet').value = 'rndWallet';
+        document.getElementById('minAmountHint').textContent = 'Minimum: 5 RND (BEP20) for RND Wallet';
+        document.getElementById('minAmountHint').style.color = '#60a5fa';
       }
-      
-      document.getElementById('selectedWallet').value = walletType;
     };
 
     // ============================================================
@@ -660,11 +671,22 @@ onAuthStateChanged(auth, async (user) => {
       const address = document.getElementById('withAddr').value.trim();
       const btn = document.getElementById('withdrawBtn');
 
-      // 🔥 Validation - Minimum 20 RND
-      if (!amount || amount < 20) { 
-        showToast('❌ Minimum withdrawal is 20 RND!', 'error'); 
-        return; 
+      // 🔥 Validation - Different minimums for different wallets
+      if (walletType === 'referralWallet') {
+        if (!amount || amount < 20) { 
+          showToast('❌ Minimum withdrawal for Referral Wallet is 20 USDT (BEP20)!', 'error'); 
+          return; 
+        }
+      } else if (walletType === 'rndWallet') {
+        if (!amount || amount < 5) { 
+          showToast('❌ Minimum withdrawal for RND Wallet is 5 RND (BEP20)!', 'error'); 
+          return; 
+        }
+      } else {
+        showToast('❌ Please select a valid wallet!', 'error');
+        return;
       }
+
       if (!address || !address.startsWith('0x') || address.length < 10) {
         showToast('❌ Please enter a valid BEP20 wallet address starting with 0x', 'error');
         return;
@@ -682,12 +704,15 @@ onAuthStateChanged(auth, async (user) => {
       // 🔥 Check balance
       if (balance < amount) {
         const labels = {
-          'referralWallet': 'Referral Wallet',
-          'rndWallet': 'RND Wallet'
+          'referralWallet': 'Referral Wallet (USDT)',
+          'rndWallet': 'RND Wallet (RND)'
         };
-        showToast(`❌ Insufficient balance in ${labels[walletType] || 'Wallet'}! You have ${balance.toFixed(4)} RND`, 'error');
+        showToast(`❌ Insufficient balance in ${labels[walletType] || 'Wallet'}! You have ${balance.toFixed(4)}`, 'error');
         return;
       }
+
+      // 🔥 Currency based on wallet type
+      const currency = walletType === 'referralWallet' ? 'USDT' : 'RND';
 
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
@@ -702,14 +727,14 @@ onAuthStateChanged(auth, async (user) => {
         await push(ref(db, 'withdrawals'), {
           uid: user.uid,
           amount: amount,
-          currency: 'RND',
+          currency: currency,
           walletType: walletType,
           wallet: address,
           status: 'pending',
           timestamp: Date.now()
         });
 
-        showToast(`✅ Withdrawal request submitted successfully! ${amount} RND will be processed by admin.`, 'success');
+        showToast(`✅ Withdrawal request submitted successfully! ${amount} ${currency} will be processed by admin.`, 'success');
         document.getElementById('withAmount').value = '';
         document.getElementById('withAddr').value = '';
         setTimeout(() => { window.location.reload(); }, 1500);
