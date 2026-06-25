@@ -900,9 +900,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 const balance = currentUserData[payFrom] || 0;
                 if (payFrom === 'referralWallet') {
-                    const rndNeeded = payAmount / (rndPrice || 1);
-                    if (balance < rndNeeded) {
-                        showToast(`❌ Insufficient RND balance! You have ${balance.toFixed(2)} RND, need ${rndNeeded.toFixed(2)} RND`, 'error');
+                    const usdtNeeded = payAmount / (rndPrice || 1);
+                    if (balance < usdtNeeded) {
+                        showToast(`❌ Insufficient USDT balance! You have ${balance.toFixed(2)} USDT, need ${usdtNeeded.toFixed(2)} USDT`, 'error');
                         return;
                     }
                 } else {
