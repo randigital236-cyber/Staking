@@ -546,7 +546,7 @@ onAuthStateChanged(auth, async (user) => {
             <div class="card-title"><i class="bi bi-arrow-up-circle text-success me-2"></i>Request Withdrawal</div>
             
             <div class="alert alert-warning" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);color:#fbbf24;border-radius:12px;">
-              <small><i class="bi bi-info-circle me-1"></i> Minimum withdrawal: <strong>20 RND</strong>. Withdrawals are manually processed.</small>
+              <small><i class="bi bi-info-circle me-1"></i> Minimum withdrawal: <strong>5 RND</strong>. Withdrawals are manually processed.</small>
             </div>
 
             <!-- ====== WITHDRAWAL OPTIONS ====== -->
@@ -575,8 +575,8 @@ onAuthStateChanged(auth, async (user) => {
               </div>
               <div class="mb-3">
                 <label class="form-label">Amount (RND) <span class="required">*</span></label>
-                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount (min 20 RND)" min="20" step="0.01" required>
-                <small class="text-muted" style="font-size:0.7rem;">Minimum: 20 RND</small>
+                <input type="number" id="withAmount" class="form-control form-control-custom" placeholder="Enter amount (min 5 RND)" min="5" step="0.01" required>
+                <small class="text-muted" style="font-size:0.7rem;">Minimum: 5 RND</small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Wallet Address (BEP20) <span class="required">*</span></label>
