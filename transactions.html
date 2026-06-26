@@ -282,6 +282,33 @@
         .summary-stats .stat-box .num.pink { color: #f472b6; }
         .summary-stats .stat-box .label { font-size: 0.6rem; color: #8899bb; margin-top: 2px; }
         
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
@@ -298,21 +325,6 @@
             .filter-btn { font-size: 0.7rem; padding: 4px 12px; }
             .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
             .summary-stats .stat-box .num { font-size: 1.1rem; }
-        }
-        @media print {
-            .navbar-custom, .sidebar-toggle, .sidebar-panel, .sidebar-overlay, .filter-buttons, .btn-print { display: none !important; }
-            body { background: #fff; }
-            .card-glass { background: #fff; border: 1px solid #ddd; }
-            .transaction-item { background: #f8f8f8; border-color: #ddd; }
-            .summary-stats .stat-box { background: #f0f0f0; border-color: #ddd; }
-            .transaction-item .info h6 { color: #000; }
-            .transaction-item .info .sub-detail { color: #666; }
-            .transaction-item .amount-section .amount.positive { color: #065f46; }
-            .transaction-item .amount-section .amount.negative { color: #991b1b; }
-            .summary-stats .stat-box .num { color: #000; }
-            .summary-stats .stat-box .num.green { color: #065f46; }
-            .summary-stats .stat-box .num.gold { color: #92400e; }
-            .summary-stats .stat-box .num.blue { color: #1e40af; }
         }
     </style>
 </head>
@@ -356,7 +368,6 @@
     <a href="referrals.html" class="nav-item"><i class="bi bi-people"></i> Referrals <span class="badge" id="referralBadge">0</span></a>
     <a href="buy-package.html" class="nav-item"><i class="bi bi-box-seam"></i> Buy Package</a>
     <a href="transactions.html" class="nav-item active"><i class="bi bi-receipt"></i> Transactions</a>
-    <a href="invoice.html" class="nav-item"><i class="bi bi-file-text"></i> Invoice</a>
     <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
@@ -384,7 +395,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, get, onValue } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -514,49 +525,94 @@ function getAmountSign(type) {
 
 function getStatusClass(status) {
     if (status === 'pending') return 'pending';
-    if (status === 'approved' || status === 'active' || status === 'completed') return 'approved';
+    if (status === 'approved' || status === 'active' || status === 'completed' || status === 'success') return 'approved';
     if (status === 'rejected') return 'rejected';
     return 'approved';
 }
 
+function getStatusLabel(status) {
+    if (status === 'pending') return '⏳ Pending';
+    if (status === 'approved' || status === 'success') return '✅ Success';
+    if (status === 'active') return '✅ Active';
+    if (status === 'completed') return '✅ Completed';
+    if (status === 'rejected') return '❌ Rejected';
+    return status;
+}
+
 // ============================================================
-// 🔥 FETCH ALL TRANSACTIONS
+// 🔥 FETCH ALL TRANSACTIONS - FIXED
 // ============================================================
-async function fetchAllTransactions(uid, allUsers) {
+async function fetchAllTransactions(uid) {
     const allTransactions = [];
 
-    // 1️⃣ DEPOSITS
-    const depSnap = await get(ref(db, 'deposits'));
-    if (depSnap.exists()) {
-        const data = depSnap.val();
-        for (const key in data) {
-            const item = data[key];
-            if (item.uid === uid) {
+    // 1️⃣ GET USER'S TRANSACTIONS (deposits, withdrawals, referrals, releases)
+    const userSnap = await get(ref(db, 'users/' + uid));
+    let userData = {};
+    if (userSnap.exists()) {
+        userData = userSnap.val();
+        
+        // Check transactions node (contains deposits, referrals, releases, etc.)
+        const transactions = userData.transactions || {};
+        for (const key in transactions) {
+            const item = transactions[key];
+            
+            // Deposit transactions
+            if (item.type === 'deposit' || item.type === 'deposit_verified') {
                 allTransactions.push({
                     id: key,
                     type: 'deposit',
                     amount: item.amount || 0,
                     currency: 'USDT',
-                    status: item.status || 'pending',
+                    status: item.status || 'success',
                     timestamp: item.timestamp || Date.now(),
-                    description: `Deposit of $${(item.amount || 0).toFixed(2)} USDT`,
-                    from: item.uid,
+                    description: item.description || `Deposit of $${(item.amount || 0).toFixed(2)} USDT`,
+                    from: item.from || 'External',
                     to: uid,
-                    fromName: 'You',
+                    fromName: 'Blockchain',
                     toName: 'You',
-                    txHash: item.txHash || ''
+                    txHash: item.txHash || '',
+                    blockNumber: item.blockNumber || '',
+                    confirmations: item.confirmations || ''
                 });
             }
-        }
-    }
-
-    // 2️⃣ WITHDRAWALS
-    const wdSnap = await get(ref(db, 'withdrawals'));
-    if (wdSnap.exists()) {
-        const data = wdSnap.val();
-        for (const key in data) {
-            const item = data[key];
-            if (item.uid === uid) {
+            
+            // Referral commissions
+            if (item.type === 'referral_commission') {
+                allTransactions.push({
+                    id: key,
+                    type: 'referral_commission',
+                    amount: item.amount || 0,
+                    currency: 'RND',
+                    status: 'success',
+                    timestamp: item.timestamp || Date.now(),
+                    description: item.description || `Level ${item.level || ''} Commission`,
+                    from: item.fromUser || 'System',
+                    to: uid,
+                    fromName: item.fromUser || 'System',
+                    toName: 'You',
+                    level: item.level
+                });
+            }
+            
+            // Daily releases
+            if (item.type === 'daily_release') {
+                allTransactions.push({
+                    id: key,
+                    type: 'daily_release',
+                    amount: item.amount || 0,
+                    currency: 'RND',
+                    status: 'success',
+                    timestamp: item.timestamp || Date.now(),
+                    description: item.description || 'Daily RND Release',
+                    from: 'System',
+                    to: uid,
+                    fromName: 'System',
+                    toName: 'You'
+                });
+            }
+            
+            // Withdrawals
+            if (item.type === 'withdrawal') {
                 allTransactions.push({
                     id: key,
                     type: 'withdrawal',
@@ -564,7 +620,7 @@ async function fetchAllTransactions(uid, allUsers) {
                     currency: item.currency || 'RND',
                     status: item.status || 'pending',
                     timestamp: item.timestamp || Date.now(),
-                    description: `Withdrawal of ${(item.amount || 0).toFixed(2)} ${item.currency || 'RND'}`,
+                    description: item.description || `Withdrawal of ${(item.amount || 0).toFixed(2)} ${item.currency || 'RND'}`,
                     from: uid,
                     to: item.wallet || 'N/A',
                     fromName: 'You',
@@ -573,14 +629,11 @@ async function fetchAllTransactions(uid, allUsers) {
                 });
             }
         }
-    }
-
-    // 3️⃣ PACKAGES
-    const pkgSnap = await get(ref(db, 'users/' + uid + '/packages'));
-    if (pkgSnap.exists()) {
-        const data = pkgSnap.val();
-        for (const key in data) {
-            const item = data[key];
+        
+        // 2️⃣ PACKAGES
+        const packages = userData.packages || {};
+        for (const key in packages) {
+            const item = packages[key];
             allTransactions.push({
                 id: key,
                 type: 'package',
@@ -600,103 +653,35 @@ async function fetchAllTransactions(uid, allUsers) {
         }
     }
 
-    // 4️⃣ TRANSFERS (from user's own history)
-    const userSnap = await get(ref(db, 'users/' + uid));
-    let userData = {};
-    if (userSnap.exists()) {
-        userData = userSnap.val();
-        const transferHistory = userData.transferHistory || [];
-        for (const t of transferHistory) {
-            const isSent = t.type === 'sent';
-            const otherUid = isSent ? t.to : t.from;
-            let otherName = otherUid;
-            if (allUsers[otherUid]) {
-                otherName = allUsers[otherUid].name || allUsers[otherUid].username || otherUid;
-            }
-            allTransactions.push({
-                id: 'transfer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                type: isSent ? 'transfer_sent' : 'transfer_received',
-                amount: t.amount || 0,
-                currency: t.currency || 'RND',
-                status: 'completed',
-                timestamp: t.timestamp || Date.now(),
-                description: isSent ? `Sent to ${otherName}` : `Received from ${otherName}`,
-                from: isSent ? uid : otherUid,
-                to: isSent ? otherUid : uid,
-                fromName: isSent ? 'You' : otherName,
-                toName: isSent ? otherName : 'You'
-            });
-        }
-    }
-
-    // 5️⃣ INCOMING TRANSFERS (from other users' history)
-    for (const otherUid in allUsers) {
-        if (otherUid === uid) continue;
-        const otherData = allUsers[otherUid];
-        const otherHistory = otherData.transferHistory || [];
-        for (const t of otherHistory) {
-            if (t.type === 'sent' && t.to === uid) {
-                const fromName = otherData.name || otherData.username || otherUid;
-                const exists = allTransactions.some(x => 
-                    x.type === 'transfer_received' && 
-                    Math.abs(x.timestamp - t.timestamp) < 2000 && 
-                    x.amount === t.amount
+    // 3️⃣ ALSO CHECK DEPOSITS NODE (for backward compatibility)
+    const depSnap = await get(ref(db, 'deposits'));
+    if (depSnap.exists()) {
+        const data = depSnap.val();
+        for (const key in data) {
+            const item = data[key];
+            if (item.uid === uid) {
+                // Check if already added
+                const exists = allTransactions.some(t => 
+                    t.type === 'deposit' && 
+                    t.txHash === item.txHash && 
+                    Math.abs(t.timestamp - (item.timestamp || 0)) < 5000
                 );
                 if (!exists) {
                     allTransactions.push({
-                        id: 'transfer_in_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                        type: 'transfer_received',
-                        amount: t.amount || 0,
-                        currency: t.currency || 'RND',
-                        status: 'completed',
-                        timestamp: t.timestamp || Date.now(),
-                        description: `Received from ${fromName}`,
-                        from: otherUid,
+                        id: key,
+                        type: 'deposit',
+                        amount: item.amount || 0,
+                        currency: 'USDT',
+                        status: item.status || 'pending',
+                        timestamp: item.timestamp || Date.now(),
+                        description: `Deposit of $${(item.amount || 0).toFixed(2)} USDT`,
+                        from: item.uid,
                         to: uid,
-                        fromName: fromName,
-                        toName: 'You'
+                        fromName: 'Blockchain',
+                        toName: 'You',
+                        txHash: item.txHash || ''
                     });
                 }
-            }
-        }
-    }
-
-    // 6️⃣ REFERRAL COMMISSIONS (from user's transactions)
-    const transSnap = await get(ref(db, 'users/' + uid + '/transactions'));
-    if (transSnap.exists()) {
-        const data = transSnap.val();
-        for (const key in data) {
-            const item = data[key];
-            if (item.type === 'referral_commission') {
-                allTransactions.push({
-                    id: key,
-                    type: 'referral_commission',
-                    amount: item.amount || 0,
-                    currency: 'RND',
-                    status: 'completed',
-                    timestamp: item.timestamp || Date.now(),
-                    description: item.description || `Level ${item.level || ''} Commission`,
-                    from: item.fromUser || 'System',
-                    to: uid,
-                    fromName: item.fromUser || 'System',
-                    toName: 'You',
-                    level: item.level
-                });
-            }
-            if (item.type === 'daily_release') {
-                allTransactions.push({
-                    id: key,
-                    type: 'daily_release',
-                    amount: item.amount || 0,
-                    currency: 'RND',
-                    status: 'completed',
-                    timestamp: item.timestamp || Date.now(),
-                    description: item.description || 'Daily RND Release',
-                    from: 'System',
-                    to: uid,
-                    fromName: 'System',
-                    toName: 'You'
-                });
             }
         }
     }
@@ -716,10 +701,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
-        // Get all users for name mapping
-        const usersSnap = await get(ref(db, 'users'));
-        const allUsers = usersSnap.exists() ? usersSnap.val() : {};
-
         // Get current user
         const userSnap = await get(ref(db, 'users/' + user.uid));
         if (!userSnap.exists()) {
@@ -739,9 +720,18 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
 
-        // Fetch all transactions
-        const allTransactions = await fetchAllTransactions(user.uid, allUsers);
+        let allTransactions = [];
         let currentFilter = 'all';
+
+        // Load initial transactions
+        allTransactions = await fetchAllTransactions(user.uid);
+
+        // Listen for real-time updates
+        const userRef = ref(db, 'users/' + user.uid);
+        onValue(userRef, async () => {
+            allTransactions = await fetchAllTransactions(user.uid);
+            renderTransactions(currentFilter);
+        });
 
         // ============================================================
         // 🔥 RENDER
@@ -765,13 +755,14 @@ onAuthStateChanged(auth, async (user) => {
             }
 
             // Calculate summary stats
-            const totalDeposits = allTransactions.filter(t => t.type === 'deposit' && t.status !== 'rejected')
+            const totalDeposits = allTransactions.filter(t => t.type === 'deposit' && t.status !== 'rejected' && t.status !== 'pending')
                 .reduce((sum, t) => sum + t.amount, 0);
-            const totalWithdrawals = allTransactions.filter(t => t.type === 'withdrawal' && t.status === 'approved')
+            const totalWithdrawals = allTransactions.filter(t => t.type === 'withdrawal' && (t.status === 'approved' || t.status === 'success'))
                 .reduce((sum, t) => sum + t.amount, 0);
             const totalPackages = allTransactions.filter(t => t.type === 'package').length;
-            const totalTransfers = allTransactions.filter(t => t.type === 'transfer_sent' || t.type === 'transfer_received').length;
             const totalReferralEarned = allTransactions.filter(t => t.type === 'referral_commission')
+                .reduce((sum, t) => sum + t.amount, 0);
+            const totalReleases = allTransactions.filter(t => t.type === 'daily_release')
                 .reduce((sum, t) => sum + t.amount, 0);
 
             document.getElementById('transactionsContent').innerHTML = `
@@ -797,12 +788,12 @@ onAuthStateChanged(auth, async (user) => {
                                 <div class="label">📦 Packages</div>
                             </div>
                             <div class="stat-box">
-                                <div class="num purple">${totalTransfers}</div>
-                                <div class="label">🔄 Transfers</div>
+                                <div class="num purple">${totalReferralEarned.toFixed(2)}</div>
+                                <div class="label">👥 Referral Earned</div>
                             </div>
                             <div class="stat-box">
-                                <div class="num pink">${totalReferralEarned.toFixed(2)}</div>
-                                <div class="label">👥 Referral Earned</div>
+                                <div class="num pink">${totalReleases.toFixed(2)}</div>
+                                <div class="label">📈 Total Released</div>
                             </div>
                             <div class="stat-box">
                                 <div class="num" style="color:#34d399;">${allTransactions.length}</div>
@@ -814,25 +805,22 @@ onAuthStateChanged(auth, async (user) => {
                     <!-- Filters -->
                     <div class="col-12">
                         <div class="filter-buttons">
-                            <button class="filter-btn ${filter === 'all' ? 'active' : ''}" onclick="setFilter('all')">
+                            <button class="filter-btn ${filter === 'all' ? 'active' : ''}" data-filter="all">
                                 <i class="bi bi-list"></i> All
                             </button>
-                            <button class="filter-btn ${filter === 'deposit' ? 'active' : ''}" onclick="setFilter('deposit')">
+                            <button class="filter-btn ${filter === 'deposit' ? 'active' : ''}" data-filter="deposit">
                                 <i class="bi bi-arrow-down-circle"></i> Deposits
                             </button>
-                            <button class="filter-btn ${filter === 'withdrawal' ? 'active' : ''}" onclick="setFilter('withdrawal')">
+                            <button class="filter-btn ${filter === 'withdrawal' ? 'active' : ''}" data-filter="withdrawal">
                                 <i class="bi bi-arrow-up-circle"></i> Withdrawals
                             </button>
-                            <button class="filter-btn ${filter === 'package' ? 'active' : ''}" onclick="setFilter('package')">
+                            <button class="filter-btn ${filter === 'package' ? 'active' : ''}" data-filter="package">
                                 <i class="bi bi-box-seam"></i> Packages
                             </button>
-                            <button class="filter-btn ${filter === 'transfer' ? 'active' : ''}" onclick="setFilter('transfer')">
-                                <i class="bi bi-arrow-left-right"></i> Transfers
-                            </button>
-                            <button class="filter-btn ${filter === 'referral' ? 'active' : ''}" onclick="setFilter('referral')">
+                            <button class="filter-btn ${filter === 'referral' ? 'active' : ''}" data-filter="referral">
                                 <i class="bi bi-people"></i> Referrals
                             </button>
-                            <button class="filter-btn ${filter === 'release' ? 'active' : ''}" onclick="setFilter('release')">
+                            <button class="filter-btn ${filter === 'release' ? 'active' : ''}" data-filter="release">
                                 <i class="bi bi-clock-history"></i> Releases
                             </button>
                         </div>
@@ -854,6 +842,7 @@ onAuthStateChanged(auth, async (user) => {
                                     const amountClass = getAmountClass(t.type);
                                     const sign = getAmountSign(t.type);
                                     const statusClass = getStatusClass(t.status);
+                                    const statusLabel = getStatusLabel(t.status);
                                     
                                     let extraHtml = '';
                                     if (t.type === 'package') {
@@ -868,14 +857,8 @@ onAuthStateChanged(auth, async (user) => {
                                         extraHtml = `
                                             <div class="sub-detail" style="font-family:monospace;font-size:0.6rem;color:#556688;">
                                                 TX: ${t.txHash.substring(0, 20)}...
-                                            </div>
-                                        `;
-                                    } else if (t.type === 'transfer_sent' || t.type === 'transfer_received') {
-                                        const other = t.type === 'transfer_sent' ? t.toName : t.fromName;
-                                        const action = t.type === 'transfer_sent' ? 'To' : 'From';
-                                        extraHtml = `
-                                            <div class="sub-detail">
-                                                <i class="bi bi-person"></i> ${action}: <span class="name">${other}</span>
+                                                ${t.blockNumber ? ` | Block: ${t.blockNumber}` : ''}
+                                                ${t.confirmations ? ` | Confirmations: ${t.confirmations}` : ''}
                                             </div>
                                         `;
                                     } else if (t.type === 'referral_commission') {
@@ -898,12 +881,6 @@ onAuthStateChanged(auth, async (user) => {
                                         `;
                                     }
 
-                                    const statusDisplay = t.status === 'pending' ? 'Pending' :
-                                                        t.status === 'approved' ? '✅ Approved' :
-                                                        t.status === 'completed' ? '✅ Completed' :
-                                                        t.status === 'active' ? '✅ Active' :
-                                                        t.status === 'rejected' ? '❌ Rejected' : t.status;
-
                                     return `
                                         <div class="transaction-item">
                                             <div class="d-flex align-items-center gap-3" style="flex:1;min-width:0;">
@@ -923,8 +900,8 @@ onAuthStateChanged(auth, async (user) => {
                                                 <div class="amount ${amountClass}">
                                                     ${sign}${t.amount.toFixed(t.currency === 'RND' ? 4 : 2)} ${t.currency || ''}
                                                 </div>
-                                                <div class="status ${statusClass}">${statusDisplay}</div>
-                                                <div class="date">#${t.id.substring(0, 8)}</div>
+                                                <div class="status ${statusClass}">${statusLabel}</div>
+                                                <div class="date">#${t.id ? t.id.substring(0, 8) : 'N/A'}</div>
                                             </div>
                                         </div>
                                     `;
@@ -953,11 +930,14 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
             `;
-        }
 
-        window.setFilter = function(filter) {
-            renderTransactions(filter);
-        };
+            // Attach filter button listeners
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    renderTransactions(this.dataset.filter);
+                });
+            });
+        }
 
         renderTransactions('all');
 
