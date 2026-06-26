@@ -421,6 +421,25 @@
         .verification-log .log-error { color: #ef4444; }
         .verification-log .log-info { color: #60a5fa; }
 
+        .debug-panel {
+            background: rgba(255,193,7,0.1);
+            border: 1px solid rgba(255,193,7,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+        .debug-panel.active { display: block; }
+        .debug-panel h6 { color: #ffc107; margin-bottom: 10px; }
+        .debug-panel pre {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #8899bb;
+            overflow-x: auto;
+        }
+
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
@@ -538,7 +557,23 @@ const BSCSCAN_API_KEY = "SJSI7V7H8G2M2WX46DXRNGTFQNKE8IV244";
 const USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955";
 const MIN_DEPOSIT = 10;
 const CONFIRMATIONS_REQUIRED = 12;
-const AMOUNT_TOLERANCE = 0.90; // 90% of expected amount (10% tolerance for fees)
+const AMOUNT_TOLERANCE = 0.90;
+
+// CORS Proxy options (try multiple for reliability)
+const CORS_PROXIES = [
+    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://thingproxy.freeboard.io/fetch/'
+];
+
+// Public BSC RPC endpoints (no API key needed)
+const BSC_RPC_ENDPOINTS = [
+    'https://bsc-dataseed.binance.org/',
+    'https://bsc-dataseed1.defibit.io/',
+    'https://bsc-dataseed1.ninicoin.io/',
+    'https://rpc.ankr.com/bsc',
+    'https://bscrpc.com'
+];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -603,14 +638,40 @@ function addLog(message, type = 'info') {
     logContainer.scrollTop = logContainer.scrollHeight;
 }
 
+// ============== CORS PROXY FETCH ==============
+async function fetchWithProxy(url, proxyIndex = 0) {
+    if (proxyIndex >= CORS_PROXIES.length) {
+        throw new Error('All CORS proxies failed');
+    }
+
+    const proxyUrl = CORS_PROXIES[proxyIndex] + encodeURIComponent(url);
+
+    try {
+        const response = await fetch(proxyUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.warn(`Proxy ${proxyIndex} failed:`, error);
+        return fetchWithProxy(url, proxyIndex + 1);
+    }
+}
+
 // ============== BSC BLOCKCHAIN FUNCTIONS ==============
 
-// Get transaction receipt from BSC
+// Get transaction receipt from BSC using BSCScan API with CORS proxy
 async function getBscTransactionReceipt(txHash) {
     try {
         const url = `https://api.bscscan.com/api?module=proxy&action=eth_getTransactionReceipt&txhash=${txHash}&apikey=${BSCSCAN_API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchWithProxy(url);
 
         if (data.result && data.result.status) {
             return data.result;
@@ -626,8 +687,7 @@ async function getBscTransactionReceipt(txHash) {
 async function getBscTransaction(txHash) {
     try {
         const url = `https://api.bscscan.com/api?module=proxy&action=eth_getTransactionByHash&txhash=${txHash}&apikey=${BSCSCAN_API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchWithProxy(url);
         return data.result;
     } catch (error) {
         console.error('BSC Transaction Error:', error);
@@ -635,12 +695,11 @@ async function getBscTransaction(txHash) {
     }
 }
 
-// Get token transfer events for our wallet
+// Get token transfer events using BSCScan API with CORS proxy
 async function getTokenTransfers(address, page = 1, offset = 50) {
     try {
         const url = `https://api.bscscan.com/api?module=account&action=tokentx&contractaddress=${USDT_CONTRACT}&address=${address}&page=${page}&offset=${offset}&sort=desc&apikey=${BSCSCAN_API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchWithProxy(url);
 
         if (data.status === '1' && data.result) {
             return data.result;
@@ -656,8 +715,7 @@ async function getTokenTransfers(address, page = 1, offset = 50) {
 async function getCurrentBlock() {
     try {
         const url = `https://api.bscscan.com/api?module=proxy&action=eth_blockNumber&apikey=${BSCSCAN_API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchWithProxy(url);
         return parseInt(data.result, 16);
     } catch (error) {
         return 0;
@@ -769,6 +827,7 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
     const statusDiv = document.getElementById('verificationStatus');
     const resultDiv = document.getElementById('verificationResult');
     const submitBtn = document.getElementById('depositBtn');
+    const debugPanel = document.getElementById('debugPanel');
 
     statusDiv.classList.add('active');
     resultDiv.classList.remove('active', 'success', 'error');
@@ -777,7 +836,7 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
     showToast('Starting automatic blockchain verification...', 'info');
 
     let attempts = 0;
-    const maxAttempts = 30; // 5 minutes total (10 sec interval)
+    const maxAttempts = 30;
 
     const checkInterval = setInterval(async () => {
         attempts++;
@@ -786,10 +845,7 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
             const result = await verifyUsdtTransfer(txHash, expectedAmount);
 
             if (result.valid) {
-                // Transaction found and valid
-
                 if (result.confirmations >= CONFIRMATIONS_REQUIRED) {
-                    // Enough confirmations - APPROVE!
                     clearInterval(checkInterval);
 
                     addLog('Sufficient confirmations received!', 'success');
@@ -812,7 +868,6 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
                     setTimeout(() => window.location.reload(), 4000);
 
                 } else {
-                    // Transaction found but waiting for more confirmations
                     statusDiv.innerHTML = `
                         <div class="spinner"></div>
                         <p class="text-light mb-1">Transaction verified! Waiting for confirmations...</p>
@@ -824,7 +879,6 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
                 }
 
             } else {
-                // Transaction not found yet or invalid
                 if (attempts >= maxAttempts) {
                     clearInterval(checkInterval);
                     statusDiv.classList.remove('active');
@@ -863,14 +917,13 @@ async function startAutoVerification(txHash, expectedAmount, userId) {
             addLog('Error: ' + error.message, 'error');
         }
 
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 }
 
 // ============== CONFIRM DEPOSIT & UPDATE BALANCE ==============
 
 async function confirmDeposit(txHash, verificationResult, userId) {
     try {
-        // Update deposit status to approved
         const depositsRef = ref(db, 'deposits');
         const depositsSnap = await get(depositsRef);
 
@@ -893,7 +946,6 @@ async function confirmDeposit(txHash, verificationResult, userId) {
             }
         }
 
-        // Update user balance
         const userRef = ref(db, 'users/' + userId);
         const userSnap = await get(userRef);
 
@@ -912,7 +964,6 @@ async function confirmDeposit(txHash, verificationResult, userId) {
             addLog(`Balance updated: ${currentBalance} -> ${newBalance.toFixed(2)} USDT`, 'success');
         }
 
-        // Add to transactions history
         await push(ref(db, 'transactions'), {
             uid: userId,
             type: 'deposit',
@@ -958,7 +1009,6 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
 
-        // Load deposit history
         const depositsRef = ref(db, 'deposits');
         const depositsSnap = await get(depositsRef);
         let userDeposits = [];
@@ -972,7 +1022,6 @@ onAuthStateChanged(auth, async (user) => {
             userDeposits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         }
 
-        // Render deposit page
         document.getElementById('depositContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -980,7 +1029,6 @@ onAuthStateChanged(auth, async (user) => {
                     <hr class="border-secondary">
                 </div>
 
-                <!-- Steps Indicator -->
                 <div class="col-lg-7 mx-auto">
                     <div class="step-indicator">
                         <div class="step active" id="step1">
@@ -1002,25 +1050,21 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- Deposit Card -->
                 <div class="col-lg-7 mx-auto">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-wallet2 text-success me-2"></i>Send USDT BEP-20</div>
 
-                        <!-- Auto Verify Badge -->
                         <div class="auto-verify-badge">
                             <i class="bi bi-shield-check"></i>
                             <span><strong>Automatic Verification:</strong> Your deposit will be verified automatically on the BSC blockchain. No manual approval needed!</span>
                         </div>
 
-                        <!-- Network Badge -->
                         <div class="text-center mb-3">
                             <span class="network-badge">
                                 <i class="bi bi-circle-fill"></i> Binance Smart Chain (BEP-20)
                             </span>
                         </div>
 
-                        <!-- QR Code -->
                         <div class="text-center mb-3">
                             <div class="qr-code-box">
                                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${WALLET_ADDRESS}" alt="Wallet QR Code">
@@ -1028,7 +1072,6 @@ onAuthStateChanged(auth, async (user) => {
                             <p class="text-muted small mt-2">Scan with Trust Wallet, MetaMask, or any BSC wallet</p>
                         </div>
 
-                        <!-- Wallet Address -->
                         <div class="mb-4">
                             <label class="form-label">Deposit Wallet Address <span class="required">*</span></label>
                             <div class="wallet-address-box">
@@ -1044,7 +1087,6 @@ onAuthStateChanged(auth, async (user) => {
                             </small>
                         </div>
 
-                        <!-- Verification Status Panel -->
                         <div class="verification-status" id="verificationStatus">
                             <div class="spinner"></div>
                             <p class="text-light mb-1">Verifying on BSC blockchain...</p>
@@ -1052,10 +1094,8 @@ onAuthStateChanged(auth, async (user) => {
                             <div class="verification-log" id="verificationLog"></div>
                         </div>
 
-                        <!-- Verification Result Panel -->
                         <div class="verification-result" id="verificationResult"></div>
 
-                        <!-- Deposit Form -->
                         <form id="depositForm">
                             <div class="mb-3">
                                 <label class="form-label">Amount (USDT) <span class="required">*</span></label>
@@ -1089,7 +1129,6 @@ onAuthStateChanged(auth, async (user) => {
                     </div>
                 </div>
 
-                <!-- Deposit History -->
                 <div class="col-lg-7 mx-auto">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Deposit History</div>
@@ -1138,7 +1177,6 @@ onAuthStateChanged(auth, async (user) => {
             </div>
         `;
 
-        // Copy wallet address
         document.getElementById('copyWalletBtn').addEventListener('click', () => {
             navigator.clipboard.writeText(WALLET_ADDRESS).then(() => {
                 showToast('Wallet address copied!', 'success');
@@ -1155,13 +1193,11 @@ onAuthStateChanged(auth, async (user) => {
             });
         });
 
-        // Amount input - update step
         document.getElementById('depAmount').addEventListener('input', () => {
             document.getElementById('step2').classList.add('completed');
             document.getElementById('step3').classList.add('active');
         });
 
-        // Deposit form submit
         document.getElementById('depositForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -1169,7 +1205,6 @@ onAuthStateChanged(auth, async (user) => {
             const txHash = document.getElementById('depTx').value.trim();
             const btn = document.getElementById('depositBtn');
 
-            // Validation
             if (!amount || amount < MIN_DEPOSIT) {
                 showToast(`Minimum deposit is ${MIN_DEPOSIT} USDT!`, 'error');
                 return;
@@ -1179,7 +1214,6 @@ onAuthStateChanged(auth, async (user) => {
                 return;
             }
 
-            // Check for duplicate
             const existingDeposit = userDeposits.find(d => d.txHash === txHash);
             if (existingDeposit) {
                 showToast('This transaction hash has already been submitted!', 'error');
@@ -1190,7 +1224,6 @@ onAuthStateChanged(auth, async (user) => {
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
 
             try {
-                // Save to database with verifying status
                 const depositRef = await push(ref(db, 'deposits'), {
                     uid: auth.currentUser.uid,
                     amount: amount,
@@ -1202,11 +1235,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 showToast('Deposit submitted! Starting automatic verification...', 'success');
 
-                // Update steps
                 document.getElementById('step3').classList.add('completed');
                 document.getElementById('step4').classList.add('active');
 
-                // Start auto verification
                 startAutoVerification(txHash, amount, auth.currentUser.uid);
 
             } catch (error) {
@@ -1217,7 +1248,6 @@ onAuthStateChanged(auth, async (user) => {
             }
         });
 
-        // Real-time listener for deposit updates
         const depositsListener = ref(db, 'deposits');
         onValue(depositsListener, (snapshot) => {
             if (snapshot.exists()) {
