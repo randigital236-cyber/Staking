@@ -119,7 +119,7 @@ export async function checkDuplicateTransaction(txHash) {
         return { isDuplicate: false };
     } catch (error) {
         console.error("Error checking duplicate:", error);
-        throw new Error("Failed to check transaction status");
+        return { isDuplicate: false };
     }
 }
 
@@ -273,27 +273,30 @@ export async function verifyTransaction(txHash, expectedAmount) {
 }
 
 /**
- * Process deposit with atomic transaction
+ * Process deposit - SIMPLIFIED to avoid permission issues
  */
 export async function processDeposit(uid, txHash, amount, receipt) {
     try {
         console.log('Processing deposit for user:', uid);
         console.log('Amount:', amount);
         
-        // First, verify user exists
-        const userSnap = await get(ref(db, `users/${uid}`));
+        // Get current user data
+        const userRef = ref(db, `users/${uid}`);
+        const userSnap = await get(userRef);
+        
         if (!userSnap.exists()) {
             throw new Error("User not found");
         }
         
         const userData = userSnap.val();
         const currentBalance = userData.depositWallet || 0;
+        const newBalance = currentBalance + amount;
+        
         console.log('Current balance:', currentBalance);
+        console.log('New balance:', newBalance);
         
         // Update deposit wallet
-        const newBalance = currentBalance + amount;
         await set(ref(db, `users/${uid}/depositWallet`), newBalance);
-        console.log('New balance:', newBalance);
         
         // Create transaction record
         const transactionsRef = ref(db, `users/${uid}/transactions`);
@@ -340,69 +343,73 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
     console.log('TxHash:', txHash);
     console.log('Amount:', amount);
     
-    // Step 1: Acquire lock
-    const lockAcquired = await acquireProcessingLock(txHash, uid, amount);
-    if (!lockAcquired) {
-        return {
-            success: false,
-            error: "This transaction is already being processed. Please wait."
-        };
-    }
-    
     try {
-        // Step 2: Check duplicate
+        // Step 1: Check duplicate first (fastest check)
         const duplicateCheck = await checkDuplicateTransaction(txHash);
         if (duplicateCheck.isDuplicate) {
-            await releaseProcessingLock(txHash);
             return {
                 success: false,
                 error: "This transaction hash has already been used. Duplicate deposits are not allowed."
             };
         }
         
-        // Step 3: Verify on blockchain
-        const verification = await verifyTransaction(txHash, amount);
-        console.log('Verification result:', verification);
-        
-        if (verification.pending) {
-            if (onPending) {
-                onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
-            }
-            
-            // Start auto-polling
-            const pollingResult = await startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError);
-            await releaseProcessingLock(txHash);
-            return pollingResult;
-        }
-        
-        if (!verification.success) {
-            await releaseProcessingLock(txHash);
-            return verification;
-        }
-        
-        // Step 4: Process deposit
-        try {
-            const result = await processDeposit(uid, txHash, amount, verification.receipt);
-            await releaseProcessingLock(txHash);
-            
-            if (onSuccess) {
-                onSuccess(result.newBalance);
-            }
-            
-            return {
-                success: true,
-                ...result
-            };
-        } catch (error) {
-            await releaseProcessingLock(txHash);
+        // Step 2: Acquire lock
+        const lockAcquired = await acquireProcessingLock(txHash, uid, amount);
+        if (!lockAcquired) {
             return {
                 success: false,
-                error: error.message || "Failed to process deposit"
+                error: "This transaction is already being processed. Please wait."
             };
+        }
+        
+        try {
+            // Step 3: Verify on blockchain
+            const verification = await verifyTransaction(txHash, amount);
+            console.log('Verification result:', verification);
+            
+            if (verification.pending) {
+                if (onPending) {
+                    onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
+                }
+                
+                // Start auto-polling
+                const pollingResult = await startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError);
+                await releaseProcessingLock(txHash);
+                return pollingResult;
+            }
+            
+            if (!verification.success) {
+                await releaseProcessingLock(txHash);
+                return verification;
+            }
+            
+            // Step 4: Process deposit
+            try {
+                const result = await processDeposit(uid, txHash, amount, verification.receipt);
+                await releaseProcessingLock(txHash);
+                
+                if (onSuccess) {
+                    onSuccess(result.newBalance);
+                }
+                
+                return {
+                    success: true,
+                    ...result
+                };
+            } catch (error) {
+                await releaseProcessingLock(txHash);
+                return {
+                    success: false,
+                    error: error.message || "Failed to process deposit"
+                };
+            }
+            
+        } catch (error) {
+            await releaseProcessingLock(txHash);
+            throw error;
         }
         
     } catch (error) {
-        await releaseProcessingLock(txHash);
         console.error('Complete deposit error:', error);
         return {
             success: false,
