@@ -323,6 +323,7 @@
             .card-glass { padding: 1rem; }
         }
     </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -511,6 +512,12 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="col-12 col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-qr-code text-success me-2"></i>Send USDT (BEP20)</div>
+                        <div class="text-center mb-3">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(WALLET_CONFIG.DEPOSIT_WALLET)}&color=2ecc71&bgcolor=080e1a" 
+                                 alt="Deposit QR Code" 
+                                 style="width:180px; height:180px; border-radius:12px; border:1px solid rgba(46,204,113,0.2);"
+                                 id="qrCodeImg">
+                        </div>
                         <div class="wallet-address-box">
                             <span class="address" id="depositAddress">${WALLET_CONFIG.DEPOSIT_WALLET}</span>
                             <button class="copy-btn" id="copyAddressBtn"><i class="bi bi-copy"></i> Copy</button>
