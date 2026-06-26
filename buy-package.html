@@ -438,7 +438,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update, set } from "firebase/database";
+import { getDatabase, ref, get, update, set, runTransaction } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -583,6 +583,7 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
         
         let currentRefCode = currentUser.referredBy || '';
         let totalCommission = 0;
+        let commissionCount = 0;
         
         for (let level = 0; level < 5; level++) {
             if (!currentRefCode) break;
@@ -600,6 +601,7 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
             const commissionUSDT = amount * rates[level];
             const commissionRND = commissionUSDT / rndPriceAtTime;
             totalCommission += commissionRND;
+            commissionCount++;
             
             await update(ref(db, 'users/' + sponsorUid), {
                 referralEarnings: (sponsor.referralEarnings || 0) + commissionUSDT,
@@ -627,10 +629,10 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
             
             currentRefCode = sponsor.referredBy || '';
         }
-        return totalCommission;
+        return { totalCommission, commissionCount };
     } catch (error) {
         console.error('Error distributing referral commission:', error);
-        return 0;
+        return { totalCommission: 0, commissionCount: 0, error: error.message };
     }
 }
 
@@ -721,7 +723,7 @@ onAuthStateChanged(auth, async (user) => {
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center p-3" style="background:rgba(251,191,36,0.05);border-radius:12px;border:1px solid rgba(251,191,36,0.1);">
-                                    <small class="text-muted">Referral Wallet ($USDT)</small>
+                                    <small class="text-muted">Referral Wallet (USDT)</small>
                                     <h3 style="color:#fbbf24;">${(referralWallet || 0).toFixed(2)} USDT</h3>
                                 </div>
                             </div>
@@ -885,62 +887,72 @@ onAuthStateChanged(auth, async (user) => {
                 const payFrom = document.getElementById('payFrom').value;
                 const buyBtn = document.getElementById('buyBtn');
 
-                if (!planName || planName === 'None') { showToast('❌ Please select a plan first!', 'error'); return; }
+                if (!planName || planName === 'None') { 
+                    showToast('❌ Please select a plan first!', 'error'); 
+                    return; 
+                }
 
                 const plan = PLANS.find(p => p.name === planName);
-                if (!plan) { showToast('❌ Invalid plan selected!', 'error'); return; }
+                if (!plan) { 
+                    showToast('❌ Invalid plan selected!', 'error'); 
+                    return; 
+                }
                 
                 if (!payAmount || payAmount < plan.minAmount) { 
                     showToast(`❌ Minimum investment for ${plan.name} is $${plan.minAmount} USDT!`, 'error'); 
                     return; 
                 }
 
-                const currentUserData = await getUserData(auth.currentUser.uid);
-                if (!currentUserData) { showToast('❌ User data not found!', 'error'); return; }
-
-                const balance = currentUserData[payFrom] || 0;
-                if (payFrom === 'referralWallet') {
-                    const usdtNeeded = payAmount / (rndPrice || 1);
-                    if (balance < usdtNeeded) {
-                        showToast(`❌ Insufficient USDT balance! You have ${balance.toFixed(2)} USDT, need ${usdtNeeded.toFixed(2)} USDT`, 'error');
-                        return;
-                    }
-                } else {
-                    if (balance < payAmount) {
-                        showToast(`❌ Insufficient balance! You have $${balance.toFixed(2)}`, 'error');
-                        return;
-                    }
-                }
-
-                // 🔥 Calculate RND with fixed daily release
-                const result = calculateStaking(payAmount, rndPrice || 1, plan);
-                
+                // Disable button
                 buyBtn.disabled = true;
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
                 try {
-                    // Step 1: Deduct payment
-                    if (payFrom === 'depositWallet') {
-                        await update(ref(db, 'users/' + auth.currentUser.uid), {
-                            [payFrom]: balance - payAmount
-                        });
-                    } else {
-                        const rndToDeduct = payAmount / (rndPrice || 1);
-                        await update(ref(db, 'users/' + auth.currentUser.uid), {
-                            [payFrom]: balance - rndToDeduct
-                        });
+                    // Get fresh user data
+                    const currentUserData = await getUserData(auth.currentUser.uid);
+                    if (!currentUserData) { 
+                        showToast('❌ User data not found!', 'error');
+                        buyBtn.disabled = false;
+                        buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
+                        return; 
                     }
 
-                    // Step 2: Get fresh user data
-                    const userRef = ref(db, 'users/' + auth.currentUser.uid);
-                    const userSnap = await get(userRef);
-                    const currentUserData2 = userSnap.val();
-                    const packages = currentUserData2.packages || {};
+                    // Check balance
+                    const balance = currentUserData[payFrom] || 0;
+                    if (payFrom === 'referralWallet') {
+                        const usdtNeeded = payAmount;
+                        if (balance < usdtNeeded) {
+                            showToast(`❌ Insufficient USDT balance! You have ${balance.toFixed(2)} USDT, need ${usdtNeeded.toFixed(2)} USDT`, 'error');
+                            buyBtn.disabled = false;
+                            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
+                            return;
+                        }
+                    } else {
+                        if (balance < payAmount) {
+                            showToast(`❌ Insufficient balance! You have $${balance.toFixed(2)}`, 'error');
+                            buyBtn.disabled = false;
+                            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
+                            return;
+                        }
+                    }
+
+                    // 🔥 Calculate RND
+                    const result = calculateStaking(payAmount, rndPrice || 1, plan);
                     
+                    // Step 1: Deduct payment using transaction
+                    let updateData = {};
+                    if (payFrom === 'depositWallet') {
+                        updateData[payFrom] = balance - payAmount;
+                    } else {
+                        // For referral wallet, deduct USDT directly
+                        updateData[payFrom] = balance - payAmount;
+                    }
+
+                    // Step 2: Prepare package data
                     const packageId = 'pkg_' + Date.now();
                     const purchaseDate = Date.now();
+                    const packages = currentUserData.packages || {};
                     
-                    // 🔥 Step 3: Package save - NO RELEASE AT PURCHASE
                     packages[packageId] = {
                         planId: plan.id,
                         planName: plan.name,
@@ -957,19 +969,22 @@ onAuthStateChanged(auth, async (user) => {
                         timestamp: Date.now()
                     };
                     
-                    // 🔥 Step 4: Locked wallet update
-                    const currentLocked = currentUserData2.lockedRND || 0;
+                    // Step 3: Update locked RND
+                    const currentLocked = currentUserData.lockedRND || 0;
                     const newLocked = currentLocked + result.totalRND;
                     
-                    // 🔥 Step 5: RND wallet - NO CHANGE
-                    
-                    await update(ref(db, 'users/' + auth.currentUser.uid), {
+                    // Step 4: Prepare final update
+                    const finalUpdate = {
                         packages: packages,
                         lockedRND: newLocked,
-                        totalStake: (currentUserData2.totalStake || 0) + payAmount
-                    });
+                        totalStake: (currentUserData.totalStake || 0) + payAmount,
+                        ...updateData
+                    };
 
-                    // 🔥 Step 6: Transaction history
+                    // Step 5: Execute main update
+                    await update(ref(db, 'users/' + auth.currentUser.uid), finalUpdate);
+
+                    // Step 6: Add transaction history
                     const transactionRef = ref(db, `users/${auth.currentUser.uid}/transactions`);
                     const transSnap = await get(transactionRef);
                     const transactions = transSnap.exists() ? transSnap.val() : {};
@@ -987,15 +1002,26 @@ onAuthStateChanged(auth, async (user) => {
                     };
                     await set(transactionRef, transactions);
 
-                    // Step 7: Distribute referral commission
-                    await distributeReferralCommission(auth.currentUser.uid, payAmount, rndPrice || 1);
+                    // Step 7: Distribute referral commission (non-blocking)
+                    try {
+                        const commissionResult = await distributeReferralCommission(auth.currentUser.uid, payAmount, rndPrice || 1);
+                        if (commissionResult.error) {
+                            console.warn('Referral commission warning:', commissionResult.error);
+                        }
+                    } catch (commissionError) {
+                        console.warn('Referral commission error (non-critical):', commissionError);
+                    }
 
                     showToast(`✅ ${plan.name} purchased! ${result.totalRND.toFixed(2)} RND locked. Daily release: ${result.dailyRelease.toFixed(4)} RND from tomorrow.`, 'success');
-                    setTimeout(() => { window.location.reload(); }, 2500);
+                    
+                    // Reload after short delay
+                    setTimeout(() => { 
+                        window.location.reload(); 
+                    }, 2500);
 
                 } catch (error) {
                     console.error('Purchase error:', error);
-                    showToast('❌ Error purchasing plan. Please try again.', 'error');
+                    showToast(`❌ Error purchasing plan: ${error.message || 'Please try again.'}`, 'error');
                     buyBtn.disabled = false;
                     buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
                 }
