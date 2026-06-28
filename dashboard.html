@@ -557,7 +557,7 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update } from "firebase/database";
+import { getDatabase, ref, get, update, runTransaction } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -661,86 +661,215 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 DAILY RELEASE ENGINE - FIXED DAILY RELEASE AMOUNT
+// 🔥 FIX 1: ATOMIC TRANSFER USING runTransaction()
+// ============================================================
+async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, senderUsername, recipientUsername) {
+    // Step 1: Deduct from sender
+    const senderRef = ref(db, 'users/' + senderUid);
+    const senderResult = await runTransaction(senderRef, (currentData) => {
+        if (!currentData) return { ...currentData };
+        const balance = currentData[walletType] || 0;
+        if (balance < amount) {
+            return { ...currentData };
+        }
+        const newBalance = balance - amount;
+        
+        // Add transfer to history
+        const transferHistory = currentData.transferHistory || [];
+        transferHistory.push({
+            type: 'sent',
+            to: recipientUsername,
+            amount: amount,
+            from: senderUsername,
+            currency: currency,
+            timestamp: Date.now()
+        });
+        
+        // Add transaction
+        const transactions = currentData.transactions || {};
+        const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        transactions[txId] = {
+            type: 'transfer_sent',
+            amount: amount,
+            currency: currency,
+            to: recipientUsername,
+            from: senderUsername,
+            timestamp: Date.now(),
+            date: new Date().toDateString(),
+            status: 'completed',
+            description: `Sent ${amount} ${currency} to ${recipientUsername}`
+        };
+        
+        return {
+            ...currentData,
+            [walletType]: newBalance,
+            transferHistory: transferHistory,
+            transactions: transactions
+        };
+    });
+    
+    if (!senderResult.committed) {
+        return { success: false, error: 'Insufficient balance or sender update failed' };
+    }
+    
+    // Step 2: Credit to recipient
+    const recipientRef = ref(db, 'users/' + recipientUid);
+    const recipientResult = await runTransaction(recipientRef, (currentData) => {
+        if (!currentData) return { ...currentData };
+        const balance = currentData[walletType] || 0;
+        const newBalance = balance + amount;
+        
+        // Add to history
+        const transferHistory = currentData.transferHistory || [];
+        transferHistory.push({
+            type: 'received',
+            from: senderUsername,
+            to: recipientUsername,
+            amount: amount,
+            currency: currency,
+            timestamp: Date.now()
+        });
+        
+        // Add transaction
+        const transactions = currentData.transactions || {};
+        const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        transactions[txId] = {
+            type: 'transfer_received',
+            amount: amount,
+            currency: currency,
+            from: senderUsername,
+            to: recipientUsername,
+            timestamp: Date.now(),
+            date: new Date().toDateString(),
+            status: 'completed',
+            description: `Received ${amount} ${currency} from ${senderUsername}`
+        };
+        
+        return {
+            ...currentData,
+            [walletType]: newBalance,
+            transferHistory: transferHistory,
+            transactions: transactions
+        };
+    });
+    
+    if (!recipientResult.committed) {
+        // Rollback sender if recipient failed
+        const rollbackRef = ref(db, 'users/' + senderUid);
+        await runTransaction(rollbackRef, (currentData) => {
+            if (!currentData) return { ...currentData };
+            const balance = currentData[walletType] || 0;
+            const newBalance = balance + amount;
+            return {
+                ...currentData,
+                [walletType]: newBalance
+            };
+        });
+        return { success: false, error: 'Recipient update failed, funds returned' };
+    }
+    
+    return { success: true };
+}
+
+// ============================================================
+// 🔥 FIX 3: DAILY RELEASE WITH TRANSACTION SAVE
 // ============================================================
 async function processDailyReleases(userId) {
     try {
-        const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) return null;
+        const userRef = ref(db, 'users/' + userId);
         
-        const userData = userSnap.val();
-        const packages = userData.packages || {};
-        const today = new Date().toDateString();
-        const lastReleaseDate = userData.lastReleaseDate || '';
-        
-        // 🔥 Sirf date change hone par chale
-        if (lastReleaseDate === today) {
-            console.log('✅ Daily release already processed today');
-            return null;
-        }
-        
-        let totalReleaseToday = 0;
-        let updatedPackages = {};
-        let rndWallet = userData.rndWallet || 0;
-        let lockedRND = userData.lockedRND || 0;
-        let totalReleased = userData.totalReleased || 0;
-        let totalDailyRelease = 0;
-        
-        // 🔥 Loop through all packages
-        for (let key in packages) {
-            const pkg = packages[key];
+        const result = await runTransaction(userRef, (currentData) => {
+            if (!currentData) return { ...currentData };
             
-            // 🔥 Sirf active packages par hi chale
-            if (pkg.status !== 'active') {
+            const packages = currentData.packages || {};
+            const today = new Date().toDateString();
+            const lastReleaseDate = currentData.lastReleaseDate || '';
+            
+            if (lastReleaseDate === today) {
+                return { ...currentData };
+            }
+            
+            let totalReleaseToday = 0;
+            let updatedPackages = {};
+            let rndWallet = currentData.rndWallet || 0;
+            let lockedRND = currentData.lockedRND || 0;
+            let totalReleased = currentData.totalReleased || 0;
+            let totalDailyRelease = 0;
+            let releaseTransactions = [];
+            
+            for (let key in packages) {
+                const pkg = packages[key];
+                if (pkg.status !== 'active') {
+                    updatedPackages[key] = pkg;
+                    continue;
+                }
+                
+                const remainingRND = pkg.remainingRND || 0;
+                const dailyRelease = pkg.dailyRelease || 0;
+                let releaseAmount = dailyRelease;
+                
+                if (releaseAmount > remainingRND) {
+                    releaseAmount = remainingRND;
+                }
+                
+                pkg.remainingRND = remainingRND - releaseAmount;
+                pkg.releasedRND = (pkg.releasedRND || 0) + releaseAmount;
+                
+                rndWallet += releaseAmount;
+                lockedRND -= releaseAmount;
+                totalReleased += releaseAmount;
+                totalReleaseToday += releaseAmount;
+                totalDailyRelease += dailyRelease;
+                
+                if (pkg.remainingRND <= 0) {
+                    pkg.remainingRND = 0;
+                    pkg.status = 'completed';
+                }
+                
                 updatedPackages[key] = pkg;
-                continue;
+                
+                // 🔥 Save daily release transaction
+                releaseTransactions.push({
+                    type: 'daily_release',
+                    amount: releaseAmount,
+                    currency: 'RND',
+                    packageId: key,
+                    planName: pkg.planName || 'Package',
+                    timestamp: Date.now(),
+                    date: today,
+                    status: 'completed',
+                    description: `Daily release of ${releaseAmount.toFixed(4)} RND from ${pkg.planName || 'Package'}`
+                });
             }
             
-            const remainingRND = pkg.remainingRND || 0;
-            const dailyRelease = pkg.dailyRelease || 0;
-            
-            // 🔥 Fixed daily release amount
-            let releaseAmount = dailyRelease;
-            
-            // 🔥 Safety check: agar releaseAmount remaining se zyada hai toh
-            if (releaseAmount > remainingRND) {
-                releaseAmount = remainingRND;
+            if (totalReleaseToday > 0) {
+                const transactions = currentData.transactions || {};
+                for (let tx of releaseTransactions) {
+                    const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    transactions[txId] = tx;
+                }
+                
+                return {
+                    ...currentData,
+                    packages: updatedPackages,
+                    rndWallet: rndWallet,
+                    lockedRND: lockedRND,
+                    totalReleased: totalReleased,
+                    releaseWallet: totalDailyRelease,
+                    lastReleaseDate: today,
+                    transactions: transactions
+                };
             }
             
-            // 🔥 Update package
-            pkg.remainingRND = remainingRND - releaseAmount;
-            pkg.releasedRND = (pkg.releasedRND || 0) + releaseAmount;
-            
-            // 🔥 Wallet update
-            rndWallet += releaseAmount;
-            lockedRND -= releaseAmount;
-            totalReleased += releaseAmount;
-            totalReleaseToday += releaseAmount;
-            totalDailyRelease += dailyRelease;
-            
-            // 🔥 Check if package is completed
-            if (pkg.remainingRND <= 0) {
-                pkg.remainingRND = 0;
-                pkg.status = 'completed';
-            }
-            
-            updatedPackages[key] = pkg;
-        }
+            return { ...currentData };
+        });
         
-        // 🔥 Agar kuch release hua hai toh update karo
-        if (totalReleaseToday > 0) {
-            await update(ref(db, 'users/' + userId), {
-                packages: updatedPackages,
-                rndWallet: rndWallet,
-                lockedRND: lockedRND,
-                totalReleased: totalReleased,
-                releaseWallet: totalDailyRelease,
-                lastReleaseDate: today
-            });
-            console.log(`✅ Daily release: ${totalReleaseToday} RND released today`);
+        if (result.committed && result.snapshot.exists()) {
+            const data = result.snapshot.val();
+            console.log('✅ Daily release processed:', data.totalReleased || 0);
+            return data;
         }
-        
-        return { totalReleaseToday, rndWallet, lockedRND, totalReleased };
+        return null;
     } catch (error) {
         console.error('Error processing daily releases:', error);
         return null;
@@ -899,7 +1028,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         
-        // 🔥 Process daily releases (fixed daily release amount)
+        // 🔥 Process daily releases with transaction save
         await processDailyReleases(user.uid);
         await recalculateTeamStructure(user.uid);
         await recalculateUserData(user.uid);
@@ -1294,6 +1423,9 @@ window.copyUserId = function(username) {
     });
 };
 
+// ============================================================
+// 🔥 FIX 1 & 2: ATOMIC TRANSFER HANDLER WITH TRANSACTION SAVE
+// ============================================================
 async function handleTransfer() {
     const toUsername = document.getElementById('transferUserId').value.trim();
     const amount = parseFloat(document.getElementById('transferAmount').value);
@@ -1333,47 +1465,25 @@ async function handleTransfer() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
     
     try {
-        await update(ref(db, 'users/' + user.uid), {
-            [walletType]: senderBalance - amount
-        });
+        // 🔥 ATOMIC TRANSFER - runTransaction() with transaction save
+        const result = await atomicTransfer(
+            user.uid,
+            recipient.uid,
+            amount,
+            walletType,
+            currency,
+            senderUsername,
+            toUsername
+        );
         
-        const recipientBalance = recipient.data[walletType] || 0;
-        await update(ref(db, 'users/' + recipient.uid), {
-            [walletType]: recipientBalance + amount
-        });
-        
-        const senderHistory = senderData.transferHistory || [];
-        senderHistory.push({
-            type: 'sent',
-            to: toUsername,
-            amount: amount,
-            from: senderUsername,
-            currency: currency,
-            timestamp: Date.now()
-        });
-        await update(ref(db, 'users/' + user.uid), {
-            transferHistory: senderHistory
-        });
-        
-        const recipientHistory = recipient.data.transferHistory || [];
-        recipientHistory.push({
-            type: 'received',
-            from: senderUsername,
-            to: toUsername,
-            amount: amount,
-            currency: currency,
-            timestamp: Date.now()
-        });
-        await update(ref(db, 'users/' + recipient.uid), {
-            transferHistory: recipientHistory
-        });
-        
-        showToast('✅ ' + amount + ' ' + currency + ' sent successfully!', 'success');
-        
-        document.getElementById('transferUserId').value = '';
-        document.getElementById('transferAmount').value = '';
-        
-        setTimeout(() => { window.location.reload(); }, 1500);
+        if (result.success) {
+            showToast(`✅ ${amount} ${currency} sent successfully to ${toUsername}!`, 'success');
+            document.getElementById('transferUserId').value = '';
+            document.getElementById('transferAmount').value = '';
+            setTimeout(() => { window.location.reload(); }, 1500);
+        } else {
+            showToast('❌ ' + (result.error || 'Transfer failed. Please try again.'), 'error');
+        }
         
     } catch (error) {
         console.error('Transfer error:', error);
