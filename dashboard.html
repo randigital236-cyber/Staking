@@ -1213,7 +1213,7 @@ function loadDashboard(u) {
                             <div class="col-md-3">
                                 <select id="transferWallet" class="form-select form-control-custom">
                                     <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                                    <option value="referralWallet">💳 Referral Wallet (RND)</option>
+                                    <option value="referralWallet">💳 Referral Wallet (USDT)</option>
                                     <option value="rndWallet">📊 RND Wallet (RND)</option>
                                 </select>
                             </div>
@@ -1320,7 +1320,7 @@ async function handleTransfer() {
     if (senderBalance < amount) {
         const walletLabels = {
             'depositWallet': 'Deposit Wallet (USDT)',
-            'referralWallet': 'Referral Wallet (RND)',
+            'referralWallet': 'Referral Wallet (USDT)',
             'rndWallet': 'RND Wallet (RND)'
         };
         showToast(`❌ Insufficient balance in ${walletLabels[walletType] || 'Wallet'}! You have ${senderBalance.toFixed(4)}`, 'error');
