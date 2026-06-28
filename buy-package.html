@@ -570,16 +570,156 @@ async function getRNDPrice() {
     return rndPrice;
 }
 
-async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
+// ============================================================
+// 🔥 FIX 1: ATOMIC saveTransaction() using runTransaction
+// ============================================================
+async function saveTransaction(uid, transactionData) {
+    try {
+        const userRef = ref(db, 'users/' + uid);
+        
+        const result = await runTransaction(userRef, (currentData) => {
+            if (!currentData) {
+                return { ...currentData };
+            }
+            
+            const transactions = currentData.transactions || {};
+            
+            // 🔥 Duplicate check - Daily Release
+            if (transactionData.type === 'daily_release') {
+                const today = new Date().toDateString();
+                for (let key in transactions) {
+                    if (transactions[key].type === 'daily_release' && 
+                        transactions[key].date === today) {
+                        return { ...currentData };
+                    }
+                }
+            }
+            
+            // 🔥 Duplicate check - Package (packageId se)
+            if (transactionData.type === 'package' && transactionData.packageId) {
+                for (let key in transactions) {
+                    const tx = transactions[key];
+                    if (tx.type === 'package' && tx.packageId === transactionData.packageId) {
+                        return { ...currentData };
+                    }
+                }
+            }
+            
+            // Generate unique ID
+            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            transactions[txId] = transactionData;
+            
+            return {
+                ...currentData,
+                transactions: transactions
+            };
+        });
+        
+        if (result.committed) {
+            console.log('✅ Transaction saved atomically:', transactionData.type);
+            return true;
+        } else {
+            console.log('⚠️ Transaction not committed (duplicate or no change)');
+            return false;
+        }
+    } catch (error) {
+        console.error('Error saving transaction:', error);
+        return false;
+    }
+}
+
+// ============================================================
+// 🔥 FIX 3: ATOMIC PURCHASE PROCESS - Sab ek saath
+// ============================================================
+async function processAtomicPurchase(uid, plan, payAmount, payFrom, result) {
+    const userRef = ref(db, 'users/' + uid);
+    const packageId = 'pkg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+    
+    const txResult = await runTransaction(userRef, (currentData) => {
+        if (!currentData) return { ...currentData };
+        
+        // 1. Check balance
+        const balance = currentData[payFrom] || 0;
+        if (balance < payAmount) {
+            return { ...currentData };
+        }
+        
+        // 2. Prepare packages
+        const packages = currentData.packages || {};
+        packages[packageId] = {
+            planId: plan.id,
+            planName: plan.name,
+            usdtAmount: payAmount,
+            totalRND: result.totalRND,
+            remainingRND: result.totalRND,
+            releasedRND: 0,
+            dailyRelease: result.dailyRelease,
+            planDays: plan.days,
+            bonusPercent: plan.bonus,
+            status: 'active',
+            purchaseDate: Date.now(),
+            rndPriceAtTime: rndPrice || 1,
+            timestamp: Date.now()
+        };
+        
+        // 3. Update balances
+        const newBalance = balance - payAmount;
+        const currentLocked = currentData.lockedRND || 0;
+        const newLocked = currentLocked + result.totalRND;
+        const totalStake = (currentData.totalStake || 0) + payAmount;
+        
+        // 4. Create transaction
+        const transactions = currentData.transactions || {};
+        const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        transactions[txId] = {
+            type: 'package',
+            packageId: packageId,
+            amount: payAmount,
+            currency: 'USDT',
+            rndReceived: result.totalRND,
+            planName: plan.name,
+            dailyRelease: result.dailyRelease,
+            planDays: plan.days,
+            bonusPercent: plan.bonus,
+            timestamp: Date.now(),
+            date: new Date().toDateString(),
+            status: 'completed',
+            description: `Purchased ${plan.name} - ${result.totalRND.toFixed(2)} RND locked`
+        };
+        
+        // 5. Return updated data
+        return {
+            ...currentData,
+            [payFrom]: newBalance,
+            packages: packages,
+            lockedRND: newLocked,
+            totalStake: totalStake,
+            transactions: transactions
+        };
+    });
+    
+    if (txResult.committed) {
+        console.log('✅ Atomic purchase completed:', packageId);
+        return { success: true, packageId: packageId };
+    } else {
+        console.log('⚠️ Atomic purchase failed or insufficient balance');
+        return { success: false, error: 'Transaction failed' };
+    }
+}
+
+// ============================================================
+// 🔥 DISTRIBUTE REFERRAL COMMISSION
+// ============================================================
+async function distributeReferralCommission(userUid, amount, rndPriceAtTime, packageId) {
     try {
         const rates = [0.08, 0.04, 0.02, 0.01, 0.01];
         const levelNames = ['Level 1 (8%)', 'Level 2 (4%)', 'Level 3 (2%)', 'Level 4 (1%)', 'Level 5 (1%)'];
         
         const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) return;
+        if (!usersSnap.exists()) return { totalCommission: 0, commissionCount: 0 };
         const users = usersSnap.val();
         const currentUser = users[userUid];
-        if (!currentUser) return;
+        if (!currentUser) return { totalCommission: 0, commissionCount: 0 };
         
         let currentRefCode = currentUser.referredBy || '';
         let totalCommission = 0;
@@ -611,21 +751,20 @@ async function distributeReferralCommission(userUid, amount, rndPriceAtTime) {
                 [`level${level+1}Earnings`]: (sponsor[`level${level+1}Earnings`] || 0) + commissionUSDT
             });
             
-            const transactionRef = ref(db, `users/${sponsorUid}/transactions`);
-            const transSnap = await get(transactionRef);
-            const transactions = transSnap.exists() ? transSnap.val() : {};
-            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-            transactions[txId] = {
+            // 🔥 Save referral commission as transaction (with packageId reference)
+            await saveTransaction(sponsorUid, {
                 type: 'referral_commission',
                 level: level + 1,
                 amount: commissionRND,
                 amountUSDT: commissionUSDT,
                 fromUser: currentUser.username || userUid,
+                packageId: packageId,
                 rate: rndPriceAtTime,
                 timestamp: Date.now(),
+                date: new Date().toDateString(),
+                status: 'completed',
                 description: `${levelNames[level]} commission from package purchase`
-            };
-            await set(transactionRef, transactions);
+            });
             
             currentRefCode = sponsor.referredBy || '';
         }
@@ -908,106 +1047,33 @@ onAuthStateChanged(auth, async (user) => {
                 buyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
                 try {
-                    // Get fresh user data
-                    const currentUserData = await getUserData(auth.currentUser.uid);
-                    if (!currentUserData) { 
-                        showToast('❌ User data not found!', 'error');
-                        buyBtn.disabled = false;
-                        buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
-                        return; 
-                    }
-
-                    // Check balance
-                    const balance = currentUserData[payFrom] || 0;
-                    if (payFrom === 'referralWallet') {
-                        const usdtNeeded = payAmount;
-                        if (balance < usdtNeeded) {
-                            showToast(`❌ Insufficient USDT balance! You have ${balance.toFixed(2)} USDT, need ${usdtNeeded.toFixed(2)} USDT`, 'error');
-                            buyBtn.disabled = false;
-                            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
-                            return;
-                        }
-                    } else {
-                        if (balance < payAmount) {
-                            showToast(`❌ Insufficient balance! You have $${balance.toFixed(2)}`, 'error');
-                            buyBtn.disabled = false;
-                            buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
-                            return;
-                        }
-                    }
-
                     // 🔥 Calculate RND
                     const result = calculateStaking(payAmount, rndPrice || 1, plan);
                     
-                    // Step 1: Deduct payment using transaction
-                    let updateData = {};
-                    if (payFrom === 'depositWallet') {
-                        updateData[payFrom] = balance - payAmount;
-                    } else {
-                        // For referral wallet, deduct USDT directly
-                        updateData[payFrom] = balance - payAmount;
+                    // 🔥 FIX 3: ATOMIC PURCHASE - Sab ek saath
+                    const purchaseResult = await processAtomicPurchase(
+                        auth.currentUser.uid, 
+                        plan, 
+                        payAmount, 
+                        payFrom, 
+                        result
+                    );
+                    
+                    if (!purchaseResult.success) {
+                        showToast('❌ Insufficient balance or transaction failed!', 'error');
+                        buyBtn.disabled = false;
+                        buyBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Buy ${planName}`;
+                        return;
                     }
-
-                    // Step 2: Prepare package data
-                    const packageId = 'pkg_' + Date.now();
-                    const purchaseDate = Date.now();
-                    const packages = currentUserData.packages || {};
                     
-                    packages[packageId] = {
-                        planId: plan.id,
-                        planName: plan.name,
-                        usdtAmount: payAmount,
-                        totalRND: result.totalRND,
-                        remainingRND: result.totalRND,
-                        releasedRND: 0,
-                        dailyRelease: result.dailyRelease,
-                        planDays: plan.days,
-                        bonusPercent: plan.bonus,
-                        status: 'active',
-                        purchaseDate: purchaseDate,
-                        rndPriceAtTime: rndPrice || 1,
-                        timestamp: Date.now()
-                    };
-                    
-                    // Step 3: Update locked RND
-                    const currentLocked = currentUserData.lockedRND || 0;
-                    const newLocked = currentLocked + result.totalRND;
-                    
-                    // Step 4: Prepare final update
-                    const finalUpdate = {
-                        packages: packages,
-                        lockedRND: newLocked,
-                        totalStake: (currentUserData.totalStake || 0) + payAmount,
-                        ...updateData
-                    };
-
-                    // Step 5: Execute main update
-                    await update(ref(db, 'users/' + auth.currentUser.uid), finalUpdate);
-
-                    // Step 6: Add transaction history
-                    const transactionRef = ref(db, `users/${auth.currentUser.uid}/transactions`);
-                    const transSnap = await get(transactionRef);
-                    const transactions = transSnap.exists() ? transSnap.val() : {};
-                    const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-                    transactions[txId] = {
-                        type: 'package_purchase',
-                        amount: payAmount,
-                        currency: 'USDT',
-                        rndReceived: result.totalRND,
-                        planName: plan.name,
-                        dailyRelease: result.dailyRelease,
-                        planDays: plan.days,
-                        timestamp: Date.now(),
-                        description: `Purchased ${plan.name} - ${result.totalRND.toFixed(2)} RND locked`
-                    };
-                    await set(transactionRef, transactions);
-
-                    // Step 7: Distribute referral commission (non-blocking)
+                    // 🔥 Step 7: Distribute referral commission (non-blocking)
                     try {
-                        const commissionResult = await distributeReferralCommission(auth.currentUser.uid, payAmount, rndPrice || 1);
-                        if (commissionResult.error) {
-                            console.warn('Referral commission warning:', commissionResult.error);
-                        }
+                        await distributeReferralCommission(
+                            auth.currentUser.uid, 
+                            payAmount, 
+                            rndPrice || 1,
+                            purchaseResult.packageId
+                        );
                     } catch (commissionError) {
                         console.warn('Referral commission error (non-critical):', commissionError);
                     }
