@@ -1459,7 +1459,10 @@ async function handleTransfer() {
         return;
     }
     
-    const currency = walletType === 'depositWallet' ? 'USDT' : 'RND';
+    const currency =
+    walletType === 'rndWallet'
+        ? 'RND'
+        : 'USDT';
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
