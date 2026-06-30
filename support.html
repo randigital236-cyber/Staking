@@ -7,6 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js">
+    </script>
     <style>
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
@@ -26,7 +28,7 @@
         .navbar-custom .nav-link:hover { color: #2ecc71; }
         
         .support-container {
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             padding: 30px 20px;
         }
@@ -268,10 +270,36 @@
             text-decoration: none;
         }
         
+        /* Ticket Number Display */
+        .ticket-number {
+            font-size: 0.8rem;
+            color: #2ecc71;
+            font-weight: 600;
+            background: rgba(46,204,113,0.08);
+            padding: 2px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(46,204,113,0.15);
+        }
+        
+        .search-section {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .search-section .form-control-custom {
+            flex: 1;
+            min-width: 200px;
+        }
+        .search-section .btn-outline-custom {
+            padding: 12px 20px;
+        }
+        
         @media (max-width: 768px) {
             .support-container { padding: 15px; }
             .support-card { padding: 1.2rem; }
             .ticket-item .ticket-header { flex-direction: column; align-items: flex-start; }
+            .search-section { flex-direction: column; }
         }
         @media (max-width: 480px) {
             .support-header h2 { font-size: 1.5rem; }
@@ -385,6 +413,18 @@
     <!-- ====== MY TICKETS ====== -->
     <div class="support-card" id="ticketsCard">
         <div class="card-title"><i class="bi bi-ticket-detailed"></i> My Support Tickets</div>
+        
+        <!-- Search Section -->
+        <div class="search-section">
+            <input type="text" id="searchUserId" class="form-control form-control-custom" placeholder="Enter User ID to view tickets...">
+            <button class="btn-outline-custom" onclick="searchTickets()">
+                <i class="bi bi-search me-1"></i> Search
+            </button>
+            <button class="btn-outline-custom" onclick="clearSearch()">
+                <i class="bi bi-x-circle me-1"></i> Clear
+            </button>
+        </div>
+        
         <div id="ticketsList">
             <div class="no-tickets">
                 <i class="bi bi-inbox"></i>
@@ -394,7 +434,8 @@
     </div>
 
     <div class="powered-by">
-        Powered by <a href="#">RND Staking Support System</a>
+        Powered by <a href="#">RND Staking Support System</a> | 
+        <span style="color:#556688;">v2.0</span>
     </div>
 </div>
 
@@ -411,13 +452,13 @@
 
 <script type="module">
 // ============================================================
-// 🔥 FIREBASE IMPORT - NEW ACCOUNT (ONLY FOR SUPPORT)
+// 🔥 FIREBASE - ONLY DATABASE (NO AUTH)
 // ============================================================
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, push, set, onValue, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
-// 🔥 FIREBASE CONFIG - NEW ACCOUNT
+// 🔥 FIREBASE CONFIG - NEW ACCOUNT (ONLY FOR SUPPORT)
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyBshAGZScyo7PJegLHMzORbkkrCLGD6U5s",
@@ -431,7 +472,7 @@ const firebaseConfig = {
 };
 
 // ============================================================
-// 🔥 INITIALIZE FIREBASE (NO AUTH - Standalone)
+// 🔥 INITIALIZE FIREBASE (ONLY DATABASE - NO AUTH)
 // ============================================================
 const app = initializeApp(firebaseConfig, "supportApp");
 const db = getDatabase(app);
@@ -477,7 +518,7 @@ function loadUserTickets(userId) {
             ticketsList.innerHTML = `
                 <div class="no-tickets">
                     <i class="bi bi-inbox"></i>
-                    <p>No tickets found for this User ID.</p>
+                    <p>No tickets found for User ID: <strong style="color:#2ecc71;">${userId}</strong></p>
                 </div>
             `;
             return;
@@ -498,6 +539,7 @@ function loadUserTickets(userId) {
             const statusClass = ticket.status || 'open';
             const statusText = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
             const shortId = ticket.id ? ticket.id.substring(0, 8) : '';
+            const ticketNumber = ticket.ticketNumber || `#${shortId}`;
             
             html += `
                 <div class="ticket-item">
@@ -505,7 +547,7 @@ function loadUserTickets(userId) {
                         <div>
                             <span class="ticket-category">${ticket.category || 'General'}</span>
                             <span class="ticket-status ${statusClass}">${statusText}</span>
-                            ${shortId ? `<span class="ticket-id-badge">#${shortId}</span>` : ''}
+                            <span class="ticket-number">${ticketNumber}</span>
                         </div>
                         <span class="ticket-date">${ticket.date || new Date(ticket.timestamp).toLocaleString('en-IN')}</span>
                     </div>
@@ -528,6 +570,49 @@ function loadUserTickets(userId) {
 }
 
 // ============================================================
+// 🔥 SEARCH TICKETS
+// ============================================================
+window.searchTickets = function() {
+    const userId = document.getElementById('searchUserId').value.trim();
+    if (userId) {
+        loadUserTickets(userId);
+        // Also update the form User ID field
+        document.getElementById('supportUserId').value = userId;
+    } else {
+        showToast('❌ Please enter a User ID to search', 'error');
+    }
+};
+
+window.clearSearch = function() {
+    document.getElementById('searchUserId').value = '';
+    document.getElementById('ticketsList').innerHTML = `
+        <div class="no-tickets">
+            <i class="bi bi-inbox"></i>
+            <p>Enter your User ID above to see your tickets.</p>
+        </div>
+    `;
+};
+
+// Enter key support for search
+document.getElementById('searchUserId').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        searchTickets();
+    }
+});
+
+// ============================================================
+// 🔥 GENERATE TICKET NUMBER
+// ============================================================
+function generateTicketNumber() {
+    const date = new Date();
+    const year = date.getFullYear().toString().slice(-2);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return `RND-${year}${month}${day}-${random}`;
+}
+
+// ============================================================
 // 🔥 SUBMIT SUPPORT TICKET
 // ============================================================
 document.getElementById('supportForm').addEventListener('submit', async (e) => {
@@ -540,6 +625,7 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
     const category = document.getElementById('supportCategory').value;
     const subject = document.getElementById('supportSubject').value.trim();
     const message = document.getElementById('supportMessage').value.trim();
+    const ticketNumber = generateTicketNumber();
     
     // Validation
     if (!userId) { showToast('❌ Please enter User ID', 'error'); return; }
@@ -565,6 +651,7 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
             subject: subject,
             message: message,
             status: 'open',
+            ticketNumber: ticketNumber,
             timestamp: Date.now(),
             date: new Date().toLocaleString('en-IN', {
                 day: '2-digit',
@@ -585,16 +672,17 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
         
         console.log('✅ Ticket saved successfully!');
         console.log('📁 Database:', firebaseConfig.databaseURL);
-        console.log('📋 Ticket:', ticketData);
+        console.log('📋 Ticket Number:', ticketNumber);
         
         // Show success message
         document.getElementById('supportFormCard').style.display = 'none';
         document.getElementById('successMessage').style.display = 'block';
         
-        showToast('✅ Support ticket submitted successfully!', 'success');
+        showToast(`✅ Ticket ${ticketNumber} submitted successfully!`, 'success');
         
         // Load tickets for this user
         loadUserTickets(userId);
+        document.getElementById('searchUserId').value = userId;
         
         // Reset form
         document.getElementById('supportForm').reset();
@@ -610,12 +698,13 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
 });
 
 // ============================================================
-// 🔥 AUTO-LOAD TICKETS WHEN USER ID IS TYPED
+// 🔥 AUTO-LOAD TICKETS WHEN USER ID IS TYPED IN FORM
 // ============================================================
 document.getElementById('supportUserId').addEventListener('input', function() {
     const userId = this.value.trim();
     if (userId.length > 2) {
         loadUserTickets(userId);
+        document.getElementById('searchUserId').value = userId;
     } else {
         document.getElementById('ticketsList').innerHTML = `
             <div class="no-tickets">
@@ -626,9 +715,10 @@ document.getElementById('supportUserId').addEventListener('input', function() {
     }
 });
 
-console.log('🛟 Support Center - 100% Independent (No Auth, No Sidebar)');
+console.log('🛟 Support Center - 100% Standalone (No Auth)');
 console.log('📁 Firebase Database URL:', firebaseConfig.databaseURL);
 console.log('📌 Anyone can submit a ticket without login!');
+console.log('📌 Ticket Number format: RND-YYYYMMDD-XXXX');
 </script>
 </body>
 </html>
