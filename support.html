@@ -7,8 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js">
-    </script>
     <style>
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
@@ -142,7 +140,7 @@
         .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
         
         .support-container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 30px 20px;
         }
@@ -166,6 +164,7 @@
             border-radius: 20px;
             padding: 2rem;
             transition: all 0.3s ease;
+            margin-bottom: 20px;
         }
         .support-card:hover { border-color: rgba(46,204,113,0.25); }
         
@@ -271,9 +270,87 @@
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
+        .ticket-item {
+            background: rgba(8,14,26,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+        .ticket-item:hover { border-color: rgba(46,204,113,0.2); }
+        
+        .ticket-item .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .ticket-item .ticket-category {
+            font-size: 0.75rem;
+            background: rgba(46,204,113,0.1);
+            color: #2ecc71;
+            padding: 2px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(46,204,113,0.15);
+        }
+        
+        .ticket-item .ticket-status {
+            font-size: 0.7rem;
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+        .ticket-item .ticket-status.open { background: rgba(251,191,36,0.1); color: #fbbf24; border: 1px solid rgba(251,191,36,0.15); }
+        .ticket-item .ticket-status.in-progress { background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.15); }
+        .ticket-item .ticket-status.resolved { background: rgba(46,204,113,0.1); color: #2ecc71; border: 1px solid rgba(46,204,113,0.15); }
+        .ticket-item .ticket-status.closed { background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.15); }
+        
+        .ticket-item .ticket-subject {
+            font-weight: 600;
+            color: #fff;
+            font-size: 0.95rem;
+        }
+        .ticket-item .ticket-message {
+            color: #8899bb;
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+        .ticket-item .ticket-date {
+            color: #556688;
+            font-size: 0.65rem;
+        }
+        
+        .ticket-item .admin-reply {
+            background: rgba(46,204,113,0.05);
+            border-left: 3px solid #2ecc71;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        .ticket-item .admin-reply .reply-label {
+            color: #2ecc71;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .ticket-item .admin-reply .reply-text {
+            color: #a0b8d0;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        .no-tickets {
+            text-align: center;
+            padding: 30px;
+            color: #556688;
+        }
+        .no-tickets i { font-size: 2.5rem; display: block; margin-bottom: 15px; opacity: 0.5; }
+        
         @media (max-width: 768px) {
             .support-container { padding: 15px; }
             .support-card { padding: 1.2rem; }
+            .ticket-item .ticket-header { flex-direction: column; align-items: flex-start; }
         }
         @media (max-width: 480px) {
             .sidebar-panel { width: 100%; right: -100%; }
@@ -352,34 +429,27 @@
 <div class="support-container" id="supportContent">
     <div class="support-header">
         <h2>🛟 <span>Support Center</span></h2>
-        <p>We're here to help. Fill in the form below and our team will get back to you within 24 hours.</p>
+        <p>Submit your issue below and track its status. Our team will respond within 24 hours.</p>
     </div>
 
+    <!-- ====== NEW TICKET FORM ====== -->
     <div class="support-card" id="supportFormCard">
-        <div class="card-title"><i class="bi bi-envelope-paper"></i> Submit a Support Request</div>
+        <div class="card-title"><i class="bi bi-envelope-paper"></i> Create New Support Ticket</div>
         
         <form id="supportForm">
-            <!-- Auto-filled fields (hidden from user but submitted) -->
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label"><i class="bi bi-person-badge me-1"></i> User ID</label>
-                    <input type="text" id="supportUserId" class="form-control form-control-custom" disabled>
+                    <label class="form-label"><i class="bi bi-person-badge me-1"></i> User ID <span class="text-danger">*</span></label>
+                    <input type="text" id="supportUserId" class="form-control form-control-custom" placeholder="Enter your User ID" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label"><i class="bi bi-person me-1"></i> Username</label>
-                    <input type="text" id="supportUsername" class="form-control form-control-custom" disabled>
+                    <label class="form-label"><i class="bi bi-person-circle me-1"></i> Name <span class="text-danger">*</span></label>
+                    <input type="text" id="supportName" class="form-control form-control-custom" placeholder="Enter your Full Name" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label"><i class="bi bi-person-circle me-1"></i> Name</label>
-                    <input type="text" id="supportName" class="form-control form-control-custom" disabled>
+                    <label class="form-label"><i class="bi bi-envelope me-1"></i> Registered Email <span class="text-danger">*</span></label>
+                    <input type="email" id="supportEmail" class="form-control form-control-custom" placeholder="Enter your Registered Email" required>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label"><i class="bi bi-envelope me-1"></i> Registered Email</label>
-                    <input type="email" id="supportEmail" class="form-control form-control-custom" disabled>
-                </div>
-            </div>
-
-            <div class="row g-3 mt-2">
                 <div class="col-md-6">
                     <label class="form-label"><i class="bi bi-tag me-1"></i> Category <span class="text-danger">*</span></label>
                     <select id="supportCategory" class="form-select form-control-custom" required>
@@ -391,7 +461,6 @@
                         <option value="Referral">👥 Referral</option>
                         <option value="Login Problem">🔐 Login Problem</option>
                         <option value="Registration Problem">📝 Registration Problem</option>
-                        <option value="KYC / Verification">🆔 KYC / Verification</option>
                         <option value="RND Release Issue">🪙 RND Release Issue</option>
                         <option value="Wallet Balance Issue">💼 Wallet Balance Issue</option>
                         <option value="Transaction Issue">📄 Transaction Issue</option>
@@ -401,7 +470,10 @@
                         <option value="Other">📌 Other</option>
                     </select>
                 </div>
-                <div class="col-md-6">
+            </div>
+
+            <div class="row g-3 mt-2">
+                <div class="col-12">
                     <label class="form-label"><i class="bi bi-pencil me-1"></i> Subject <span class="text-danger">*</span></label>
                     <input type="text" id="supportSubject" class="form-control form-control-custom" placeholder="Brief subject" required>
                 </div>
@@ -422,7 +494,7 @@
         </form>
     </div>
 
-    <!-- Success Message (hidden initially) -->
+    <!-- ====== SUCCESS MESSAGE ====== -->
     <div class="support-card" id="successMessage" style="display:none;">
         <div class="success-message">
             <span class="icon"><i class="bi bi-check-circle-fill"></i></span>
@@ -430,15 +502,29 @@
             <p>Our team will contact you within 24 hours.</p>
             <div class="sub-text">
                 <i class="bi bi-clock me-1"></i> Support requests are processed Monday to Saturday, 9 AM - 6 PM IST.
+                <br>
+                <i class="bi bi-arrow-right me-1"></i> You can track your ticket status below.
             </div>
-            <a href="dashboard.html" class="btn-primary-custom mt-3" style="width:auto;padding:10px 30px;">
-                <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
-            </a>
+            <button class="btn-primary-custom mt-3" style="width:auto;padding:10px 30px;" onclick="location.reload()">
+                <i class="bi bi-arrow-left me-1"></i> Back to Support
+            </button>
+        </div>
+    </div>
+
+    <!-- ====== MY TICKETS ====== -->
+    <div class="support-card" id="ticketsCard">
+        <div class="card-title"><i class="bi bi-ticket-detailed"></i> My Support Tickets</div>
+        <div id="ticketsList">
+            <div class="no-tickets">
+                <i class="bi bi-inbox"></i>
+                <p>No support tickets yet. Submit your first request above.</p>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
 <script type="importmap">
 {
     "imports": {
@@ -448,37 +534,33 @@
     }
 }
 </script>
+
 <script type="module">
+// ============================================================
+// 🔥 FIREBASE IMPORT - SUPPORT SYSTEM (NEW ACCOUNT)
+// ============================================================
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, push, set, onValue, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
-// 🔥 FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG - NEW ACCOUNT (ONLY FOR SUPPORT)
 // ============================================================
 const firebaseConfig = {
-    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-    authDomain: "rnd2-70080.firebaseapp.com",
-    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "rnd2-70080",
-    storageBucket: "rnd2-70080.firebasestorage.app",
-    messagingSenderId: "468625887938",
-    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-    measurementId: "G-ELVJD5NQKB"
+    apiKey: "AIzaSyBshAGZScyo7PJegLHMzORbkkrCLGD6U5s",
+    authDomain: "mywebsite-600d3.firebaseapp.com",
+    databaseURL: "https://mywebsite-600d3-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "mywebsite-600d3",
+    storageBucket: "mywebsite-600d3.firebasestorage.app",
+    messagingSenderId: "584485288598",
+    appId: "1:584485288598:web:01856eaa18ba5ada49e0b7",
+    measurementId: "G-GQ9J9QH42J"
 };
 
 // ============================================================
-// 🔥 EMAILJS CONFIG - FREE VERSION COMPATIBLE
+// 🔥 INITIALIZE FIREBASE (SUPPORT APP)
 // ============================================================
-const EMAILJS_PUBLIC_KEY = "OhvXvDtUyZpxMH9iU";
-const EMAILJS_SERVICE_ID = "service_px476zv";
-const EMAILJS_TEMPLATE_ID = "template_svl054f";
-const ADMIN_EMAIL = "support@randigital.in";
-
-// ✅ Initialize EmailJS with Public Key
-emailjs.init(EMAILJS_PUBLIC_KEY);
-
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig, "supportApp");
 const auth = getAuth(app);
 const db = getDatabase(app);
 
@@ -529,7 +611,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 LOAD USER DATA & FILL FORM
+// 🔥 LOAD USER DATA & TICKETS
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -538,160 +620,172 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
-        const userSnap = await get(ref(db, 'users/' + user.uid));
+        // Fill sidebar
+        document.getElementById('sidebarName').textContent = user.displayName || 'User';
+        document.getElementById('sidebarUserId').textContent = 'ID: ' + user.uid.substring(0, 15) + '...';
+        document.getElementById('sidebarAvatar').textContent = (user.displayName || 'U').charAt(0).toUpperCase();
         
-        if (!userSnap.exists()) {
-            document.getElementById('supportContent').innerHTML = `
-                <div class="text-center py-5">
-                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                    <h4>Profile Not Found</h4>
-                    <p class="text-muted">Please register first to access support.</p>
-                    <a href="register.html" class="btn btn-primary-custom mt-3">Register Now</a>
+        // Auto-fill form with user data
+        document.getElementById('supportUserId').value = user.uid;
+        document.getElementById('supportName').value = user.displayName || 'User';
+        document.getElementById('supportEmail').value = user.email || '';
+        
+        // Store user data
+        window._currentUser = {
+            uid: user.uid,
+            name: user.displayName || 'User',
+            email: user.email || ''
+        };
+        
+        // Load user's tickets
+        loadUserTickets(user.uid);
+        
+    } catch (error) {
+        console.error('Error loading support page:', error);
+    }
+});
+
+// ============================================================
+// 🔥 LOAD USER TICKETS FROM FIREBASE
+// ============================================================
+function loadUserTickets(userId) {
+    const ticketsRef = ref(db, 'support_tickets');
+    const userTicketsQuery = query(ticketsRef, orderByChild('userId'), equalTo(userId));
+    
+    onValue(userTicketsQuery, (snapshot) => {
+        const ticketsList = document.getElementById('ticketsList');
+        
+        if (!snapshot.exists()) {
+            ticketsList.innerHTML = `
+                <div class="no-tickets">
+                    <i class="bi bi-inbox"></i>
+                    <p>No support tickets yet. Submit your first request above.</p>
                 </div>
             `;
             return;
         }
         
-        const u = userSnap.val();
+        let html = '';
+        const tickets = [];
+        snapshot.forEach((childSnapshot) => {
+            const ticket = childSnapshot.val();
+            ticket.id = childSnapshot.key;
+            tickets.push(ticket);
+        });
         
-        if (u && u.banned === true) {
-            alert('Your account has been banned.');
-            await signOut(auth);
-            window.location.href = 'login.html';
-            return;
-        }
+        // Sort by date (newest first)
+        tickets.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         
-        // Fill sidebar
-        const name = u.name || 'User';
-        const username = u.username || u.referralCode || 'USER';
-        document.getElementById('sidebarName').textContent = name;
-        document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
-        document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
+        tickets.forEach((ticket) => {
+            const statusClass = ticket.status || 'open';
+            const statusText = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+            
+            html += `
+                <div class="ticket-item">
+                    <div class="ticket-header">
+                        <div>
+                            <span class="ticket-category">${ticket.category || 'General'}</span>
+                            <span class="ticket-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <span class="ticket-date">${ticket.date || new Date(ticket.timestamp).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div class="ticket-subject">${ticket.subject || 'No Subject'}</div>
+                    <div class="ticket-message">${ticket.message || ''}</div>
+                    
+                    ${ticket.adminReply ? `
+                        <div class="admin-reply">
+                            <div class="reply-label"><i class="bi bi-person-badge me-1"></i> Admin Reply</div>
+                            <div class="reply-text">${ticket.adminReply}</div>
+                            ${ticket.adminReplyDate ? `<div class="ticket-date mt-1">${new Date(ticket.adminReplyDate).toLocaleString('en-IN')}</div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
         
-        // Fill form fields (auto-fill - user cannot edit)
-        document.getElementById('supportUserId').value = username;
-        document.getElementById('supportUsername').value = username;
-        document.getElementById('supportName').value = name;
-        document.getElementById('supportEmail').value = u.email || user.email || 'Not provided';
-        
-        // Store user data for email submission
-        window._supportUser = {
-            userId: username,
-            username: username,
-            name: name,
-            email: u.email || user.email || 'Not provided',
-            uid: user.uid
-        };
-        
-    } catch (error) {
-        console.error('Error loading support page:', error);
-        document.getElementById('supportContent').innerHTML = `
-            <div class="text-center py-5">
-                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>Error Loading Page</h4>
-                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
-                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-            </div>
-        `;
-    }
-});
+        ticketsList.innerHTML = html;
+    });
+}
 
 // ============================================================
-// 🔥 SUPPORT FORM SUBMISSION WITH EMAILJS - FREE VERSION
+// 🔥 SUBMIT SUPPORT TICKET
 // ============================================================
 document.getElementById('supportForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const submitBtn = document.getElementById('submitBtn');
+    const userId = document.getElementById('supportUserId').value.trim();
+    const name = document.getElementById('supportName').value.trim();
+    const email = document.getElementById('supportEmail').value.trim();
     const category = document.getElementById('supportCategory').value;
     const subject = document.getElementById('supportSubject').value.trim();
     const message = document.getElementById('supportMessage').value.trim();
     
     // Validation
-    if (!category) {
-        showToast('❌ Please select a category', 'error');
-        return;
-    }
-    if (!subject) {
-        showToast('❌ Please enter a subject', 'error');
-        return;
-    }
+    if (!userId) { showToast('❌ Please enter User ID', 'error'); return; }
+    if (!name) { showToast('❌ Please enter your Name', 'error'); return; }
+    if (!email) { showToast('❌ Please enter your Email', 'error'); return; }
+    if (!category) { showToast('❌ Please select a category', 'error'); return; }
+    if (!subject) { showToast('❌ Please enter a subject', 'error'); return; }
     if (!message || message.length < 10) {
         showToast('❌ Please describe your issue in detail (minimum 10 characters)', 'error');
         return;
     }
     
-    const userData = window._supportUser;
-    if (!userData) {
-        showToast('❌ User data not loaded. Please refresh the page.', 'error');
-        return;
-    }
-    
     // Disable button
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
     
     try {
-        // ✅ FREE VERSION: Template variables with Reply-To for user email
-        const templateParams = {
-            user_name: userData.name,
-            user_email: userData.email,
-            user_id: userData.userId,
+        const ticketData = {
+            userId: userId,
+            name: name,
+            email: email,
             category: category,
             subject: subject,
             message: message,
-            date: new Date().toLocaleString('en-IN', { 
-                day: '2-digit', 
-                month: 'long', 
+            status: 'open',
+            timestamp: Date.now(),
+            date: new Date().toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'long',
                 year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
             }),
-            // FREE VERSION: These help identify user
-            from_name: userData.name,
-            reply_to: userData.email,
-            to_email: ADMIN_EMAIL
+            adminReply: null,
+            adminReplyDate: null
         };
         
-        const response = await emailjs.send(
-            EMAILJS_SERVICE_ID,
-            EMAILJS_TEMPLATE_ID,
-            templateParams
-        );
+        // Save to Firebase
+        const ticketsRef = ref(db, 'support_tickets');
+        const newTicketRef = push(ticketsRef);
+        await set(newTicketRef, ticketData);
         
-        console.log('✅ Email sent successfully:', response);
+        console.log('✅ Ticket saved successfully!');
         
         // Show success message
         document.getElementById('supportFormCard').style.display = 'none';
         document.getElementById('successMessage').style.display = 'block';
         
-        showToast('✅ Support request sent successfully!', 'success');
+        showToast('✅ Support ticket submitted successfully!', 'success');
+        
+        // Reset form
+        document.getElementById('supportForm').reset();
+        document.getElementById('supportMessage').value = '';
         
     } catch (error) {
-        console.error('❌ Error sending email:', error);
+        console.error('❌ Error submitting ticket:', error);
+        showToast('❌ Failed to submit ticket. Please try again.', 'error');
         
-        showToast('❌ Failed to send email. Please try again.', 'error');
-        
-        console.error('EmailJS Error Details:', {
-            publicKey: EMAILJS_PUBLIC_KEY,
-            serviceId: EMAILJS_SERVICE_ID,
-            templateId: EMAILJS_TEMPLATE_ID,
-            error: error
-        });
-        
-        // Re-enable button
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="bi bi-send me-2"></i> Submit Request';
     }
 });
 
-console.log('🛟 Support Center loaded successfully!');
-console.log('📧 EmailJS Configuration:');
-console.log('   Public Key:', EMAILJS_PUBLIC_KEY);
-console.log('   Service ID:', EMAILJS_SERVICE_ID);
-console.log('   Template ID:', EMAILJS_TEMPLATE_ID);
-console.log('   Admin Email:', ADMIN_EMAIL);
+console.log('🛟 Support Center with Firebase Database loaded successfully!');
+console.log('📁 Firebase Database URL:', firebaseConfig.databaseURL);
 </script>
 </body>
 </html>
