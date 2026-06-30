@@ -22,6 +22,8 @@
         }
         .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
         .navbar-custom .navbar-brand i { color: #2ecc71; }
+        .navbar-custom .nav-link { color: #8899bb; font-size: 0.9rem; }
+        .navbar-custom .nav-link:hover { color: #2ecc71; }
         
         .support-container {
             max-width: 900px;
@@ -112,14 +114,14 @@
         .btn-outline-custom {
             border: 2px solid rgba(46,204,113,0.3);
             color: #a0b8d0;
-            padding: 10px 24px;
-            border-radius: 12px;
+            padding: 8px 20px;
+            border-radius: 10px;
             transition: all 0.3s ease;
             text-decoration: none;
             display: inline-block;
             font-weight: 500;
             background: transparent;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         .btn-outline-custom:hover { border-color: #2ecc71; color: #2ecc71; }
         
@@ -254,17 +256,16 @@
             border: 1px solid rgba(46,204,113,0.08);
         }
         
-        /* Dashboard Back Button */
-        .back-to-dashboard {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #8899bb;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
+        .powered-by {
+            text-align: center;
+            color: #556688;
+            font-size: 0.7rem;
+            margin-top: 20px;
+            padding: 10px;
         }
-        .back-to-dashboard:hover {
+        .powered-by a {
             color: #2ecc71;
+            text-decoration: none;
         }
         
         @media (max-width: 768px) {
@@ -281,15 +282,17 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR (No Sidebar, No Auth) ====== -->
+<!-- ====== NAVBAR (Simple - No Sidebar, No Auth) ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
         <a class="navbar-brand fw-bold" href="dashboard.html">
             <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
         </a>
-        <a href="dashboard.html" class="btn-outline-custom" style="padding:6px 16px;font-size:0.8rem;">
-            <i class="bi bi-arrow-left me-1"></i> Dashboard
-        </a>
+        <div>
+            <a href="dashboard.html" class="btn-outline-custom me-2">
+                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+        </div>
     </div>
 </nav>
 
@@ -385,9 +388,13 @@
         <div id="ticketsList">
             <div class="no-tickets">
                 <i class="bi bi-inbox"></i>
-                <p>No support tickets yet. Submit your first request above.</p>
+                <p>Enter your User ID above to see your tickets.</p>
             </div>
         </div>
+    </div>
+
+    <div class="powered-by">
+        Powered by <a href="#">RND Staking Support System</a>
     </div>
 </div>
 
@@ -619,7 +626,7 @@ document.getElementById('supportUserId').addEventListener('input', function() {
     }
 });
 
-console.log('🛟 Support Center - 100% Independent (No Auth)');
+console.log('🛟 Support Center - 100% Independent (No Auth, No Sidebar)');
 console.log('📁 Firebase Database URL:', firebaseConfig.databaseURL);
 console.log('📌 Anyone can submit a ticket without login!');
 </script>
