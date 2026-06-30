@@ -7,8 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js">
-    </script>
     <style>
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
@@ -168,6 +166,7 @@
         }
         .toast-custom.success { border-left: 4px solid #2ecc71; }
         .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom.info { border-left: 4px solid #60a5fa; }
         .toast-custom i { font-size: 1.5rem; }
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -181,6 +180,10 @@
             transition: all 0.3s ease;
         }
         .ticket-item:hover { border-color: rgba(46,204,113,0.2); }
+        .ticket-item.has-new-reply {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 20px rgba(46,204,113,0.1);
+        }
         
         .ticket-item .ticket-header {
             display: flex;
@@ -230,6 +233,11 @@
             padding: 10px 15px;
             margin-top: 10px;
             border-radius: 8px;
+            animation: replyFadeIn 0.5s ease;
+        }
+        @keyframes replyFadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .ticket-item .admin-reply .reply-label {
             color: #2ecc71;
@@ -240,6 +248,21 @@
             color: #a0b8d0;
             font-size: 0.85rem;
             margin-top: 4px;
+        }
+        
+        .ticket-item .new-reply-badge {
+            background: #2ecc71;
+            color: #080e1a;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
         
         .no-tickets {
@@ -258,19 +281,6 @@
             border: 1px solid rgba(46,204,113,0.08);
         }
         
-        .powered-by {
-            text-align: center;
-            color: #556688;
-            font-size: 0.7rem;
-            margin-top: 20px;
-            padding: 10px;
-        }
-        .powered-by a {
-            color: #2ecc71;
-            text-decoration: none;
-        }
-        
-        /* Ticket Number Display */
         .ticket-number {
             font-size: 0.8rem;
             color: #2ecc71;
@@ -295,6 +305,42 @@
             padding: 12px 20px;
         }
         
+        .powered-by {
+            text-align: center;
+            color: #556688;
+            font-size: 0.7rem;
+            margin-top: 20px;
+            padding: 10px;
+        }
+        .powered-by a {
+            color: #2ecc71;
+            text-decoration: none;
+        }
+        
+        /* Live Indicator */
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(46,204,113,0.08);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            color: #2ecc71;
+            border: 1px solid rgba(46,204,113,0.15);
+        }
+        .live-indicator .dot {
+            width: 8px;
+            height: 8px;
+            background: #2ecc71;
+            border-radius: 50%;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+        
         @media (max-width: 768px) {
             .support-container { padding: 15px; }
             .support-card { padding: 1.2rem; }
@@ -310,13 +356,16 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR (Simple - No Sidebar, No Auth) ====== -->
+<!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
         <a class="navbar-brand fw-bold" href="dashboard.html">
             <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
         </a>
         <div>
+            <span class="live-indicator">
+                <span class="dot"></span> Live
+            </span>
             <a href="dashboard.html" class="btn-outline-custom me-2">
                 <i class="bi bi-speedometer2 me-1"></i> Dashboard
             </a>
@@ -403,6 +452,8 @@
                 <i class="bi bi-clock me-1"></i> Support requests are processed Monday to Saturday, 9 AM - 6 PM IST.
                 <br>
                 <i class="bi bi-arrow-right me-1"></i> You can track your ticket status below.
+                <br>
+                <i class="bi bi-bell me-1"></i> <strong style="color:#2ecc71;">Live updates:</strong> Admin replies will appear automatically!
             </div>
             <button class="btn-primary-custom mt-3" style="width:auto;padding:10px 30px;" onclick="location.reload()">
                 <i class="bi bi-arrow-left me-1"></i> Back to Support
@@ -412,9 +463,8 @@
 
     <!-- ====== MY TICKETS ====== -->
     <div class="support-card" id="ticketsCard">
-        <div class="card-title"><i class="bi bi-ticket-detailed"></i> My Support Tickets</div>
+        <div class="card-title"><i class="bi bi-ticket-detailed"></i> My Support Tickets <span style="font-size:0.7rem;color:#556688;font-weight:400;">(Live Updates)</span></div>
         
-        <!-- Search Section -->
         <div class="search-section">
             <input type="text" id="searchUserId" class="form-control form-control-custom" placeholder="Enter User ID to view tickets...">
             <button class="btn-outline-custom" onclick="searchTickets()">
@@ -429,13 +479,17 @@
             <div class="no-tickets">
                 <i class="bi bi-inbox"></i>
                 <p>Enter your User ID above to see your tickets.</p>
+                <p style="font-size:0.75rem;color:#556688;margin-top:10px;">
+                    <i class="bi bi-bell me-1"></i> Admin replies will appear here automatically!
+                </p>
             </div>
         </div>
     </div>
 
     <div class="powered-by">
         Powered by <a href="#">RND Staking Support System</a> | 
-        <span style="color:#556688;">v2.0</span>
+        <span style="color:#556688;">v2.0</span> | 
+        <span style="color:#2ecc71;"><i class="bi bi-broadcast me-1"></i> Live</span>
     </div>
 </div>
 
@@ -458,7 +512,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, push, set, onValue, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
-// 🔥 FIREBASE CONFIG - NEW ACCOUNT (ONLY FOR SUPPORT)
+// 🔥 FIREBASE CONFIG
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyBshAGZScyo7PJegLHMzORbkkrCLGD6U5s",
@@ -471,11 +525,14 @@ const firebaseConfig = {
     measurementId: "G-GQ9J9QH42J"
 };
 
-// ============================================================
-// 🔥 INITIALIZE FIREBASE (ONLY DATABASE - NO AUTH)
-// ============================================================
 const app = initializeApp(firebaseConfig, "supportApp");
 const db = getDatabase(app);
+
+// ============================================================
+// 🔥 GLOBAL VARIABLES
+// ============================================================
+let currentUserId = '';
+let previousTickets = new Map(); // Store previous state to detect changes
 
 // ============================================================
 // 🔥 TOAST NOTIFICATION
@@ -484,18 +541,61 @@ function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
+    const iconMap = {
+        'success': 'bi-check-circle-fill text-success',
+        'error': 'bi-exclamation-triangle-fill text-danger',
+        'info': 'bi-info-circle-fill text-info'
+    };
+    const icon = iconMap[type] || iconMap['success'];
     toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
-    }, 5000);
+    }, 8000);
 }
 
 // ============================================================
-// 🔥 LOAD USER TICKETS FROM FIREBASE
+// 🔥 CHECK FOR NEW REPLIES
+// ============================================================
+function checkForNewReplies(tickets) {
+    let hasNewReply = false;
+    
+    tickets.forEach(ticket => {
+        const previous = previousTickets.get(ticket.id);
+        if (previous) {
+            // Check if adminReply is new or changed
+            if (ticket.adminReply && (!previous.adminReply || ticket.adminReply !== previous.adminReply)) {
+                hasNewReply = true;
+                showToast(
+                    `📩 New reply from Admin for ticket: ${ticket.subject || 'No Subject'}`,
+                    'info'
+                );
+                // Play notification sound effect (if you want)
+                // playNotificationSound();
+            }
+            // Check if status changed
+            if (ticket.status !== previous.status) {
+                const statusText = ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1);
+                showToast(
+                    `🔄 Ticket status updated to: ${statusText}`,
+                    'info'
+                );
+            }
+        }
+        // Store current state for next comparison
+        previousTickets.set(ticket.id, {
+            adminReply: ticket.adminReply,
+            status: ticket.status
+        });
+    });
+    
+    return hasNewReply;
+}
+
+// ============================================================
+// 🔥 LOAD USER TICKETS FROM FIREBASE (REAL-TIME)
 // ============================================================
 function loadUserTickets(userId) {
     if (!userId || userId.length < 3) {
@@ -503,14 +603,19 @@ function loadUserTickets(userId) {
             <div class="no-tickets">
                 <i class="bi bi-inbox"></i>
                 <p>Enter your User ID above to see your tickets.</p>
+                <p style="font-size:0.75rem;color:#556688;margin-top:10px;">
+                    <i class="bi bi-bell me-1"></i> Admin replies will appear here automatically!
+                </p>
             </div>
         `;
         return;
     }
     
+    currentUserId = userId;
     const ticketsRef = ref(db, 'support_tickets');
     const userTicketsQuery = query(ticketsRef, orderByChild('userId'), equalTo(userId));
     
+    // 🔥 REAL-TIME LISTENER - onValue() keeps listening for changes
     onValue(userTicketsQuery, (snapshot) => {
         const ticketsList = document.getElementById('ticketsList');
         
@@ -519,8 +624,12 @@ function loadUserTickets(userId) {
                 <div class="no-tickets">
                     <i class="bi bi-inbox"></i>
                     <p>No tickets found for User ID: <strong style="color:#2ecc71;">${userId}</strong></p>
+                    <p style="font-size:0.75rem;color:#556688;margin-top:10px;">
+                        <i class="bi bi-plus-circle me-1"></i> Submit a new ticket above.
+                    </p>
                 </div>
             `;
+            previousTickets.clear();
             return;
         }
         
@@ -535,19 +644,27 @@ function loadUserTickets(userId) {
         // Sort by date (newest first)
         tickets.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         
+        // 🔥 Check for new replies
+        checkForNewReplies(tickets);
+        
         tickets.forEach((ticket) => {
             const statusClass = ticket.status || 'open';
             const statusText = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
             const shortId = ticket.id ? ticket.id.substring(0, 8) : '';
             const ticketNumber = ticket.ticketNumber || `#${shortId}`;
             
+            // Check if this ticket has a new reply (for visual indicator)
+            const prev = previousTickets.get(ticket.id);
+            const hasNewReply = prev && ticket.adminReply && (!prev.adminReply || ticket.adminReply !== prev.adminReply);
+            
             html += `
-                <div class="ticket-item">
+                <div class="ticket-item ${hasNewReply ? 'has-new-reply' : ''}">
                     <div class="ticket-header">
                         <div>
                             <span class="ticket-category">${ticket.category || 'General'}</span>
                             <span class="ticket-status ${statusClass}">${statusText}</span>
                             <span class="ticket-number">${ticketNumber}</span>
+                            ${hasNewReply ? '<span class="new-reply-badge"><i class="bi bi-bell-fill me-1"></i>New Reply</span>' : ''}
                         </div>
                         <span class="ticket-date">${ticket.date || new Date(ticket.timestamp).toLocaleString('en-IN')}</span>
                     </div>
@@ -576,7 +693,6 @@ window.searchTickets = function() {
     const userId = document.getElementById('searchUserId').value.trim();
     if (userId) {
         loadUserTickets(userId);
-        // Also update the form User ID field
         document.getElementById('supportUserId').value = userId;
     } else {
         showToast('❌ Please enter a User ID to search', 'error');
@@ -585,15 +701,18 @@ window.searchTickets = function() {
 
 window.clearSearch = function() {
     document.getElementById('searchUserId').value = '';
+    previousTickets.clear();
     document.getElementById('ticketsList').innerHTML = `
         <div class="no-tickets">
             <i class="bi bi-inbox"></i>
             <p>Enter your User ID above to see your tickets.</p>
+            <p style="font-size:0.75rem;color:#556688;margin-top:10px;">
+                <i class="bi bi-bell me-1"></i> Admin replies will appear here automatically!
+            </p>
         </div>
     `;
 };
 
-// Enter key support for search
 document.getElementById('searchUserId').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         searchTickets();
@@ -627,7 +746,6 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
     const message = document.getElementById('supportMessage').value.trim();
     const ticketNumber = generateTicketNumber();
     
-    // Validation
     if (!userId) { showToast('❌ Please enter User ID', 'error'); return; }
     if (!name) { showToast('❌ Please enter your Name', 'error'); return; }
     if (!email) { showToast('❌ Please enter your Email', 'error'); return; }
@@ -638,7 +756,6 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
         return;
     }
     
-    // Disable button
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
     
@@ -665,40 +782,31 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
             adminReplyDate: null
         };
         
-        // Save to Firebase
         const ticketsRef = ref(db, 'support_tickets');
         const newTicketRef = push(ticketsRef);
         await set(newTicketRef, ticketData);
         
-        console.log('✅ Ticket saved successfully!');
-        console.log('📁 Database:', firebaseConfig.databaseURL);
-        console.log('📋 Ticket Number:', ticketNumber);
-        
-        // Show success message
         document.getElementById('supportFormCard').style.display = 'none';
         document.getElementById('successMessage').style.display = 'block';
         
         showToast(`✅ Ticket ${ticketNumber} submitted successfully!`, 'success');
         
-        // Load tickets for this user
         loadUserTickets(userId);
         document.getElementById('searchUserId').value = userId;
         
-        // Reset form
         document.getElementById('supportForm').reset();
         document.getElementById('supportMessage').value = '';
         
     } catch (error) {
         console.error('❌ Error submitting ticket:', error);
         showToast('❌ Failed to submit ticket. Please try again.', 'error');
-        
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="bi bi-send me-2"></i> Submit Request';
     }
 });
 
 // ============================================================
-// 🔥 AUTO-LOAD TICKETS WHEN USER ID IS TYPED IN FORM
+// 🔥 AUTO-LOAD TICKETS
 // ============================================================
 document.getElementById('supportUserId').addEventListener('input', function() {
     const userId = this.value.trim();
@@ -706,19 +814,22 @@ document.getElementById('supportUserId').addEventListener('input', function() {
         loadUserTickets(userId);
         document.getElementById('searchUserId').value = userId;
     } else {
+        previousTickets.clear();
         document.getElementById('ticketsList').innerHTML = `
             <div class="no-tickets">
                 <i class="bi bi-inbox"></i>
                 <p>Enter your User ID above to see your tickets.</p>
+                <p style="font-size:0.75rem;color:#556688;margin-top:10px;">
+                    <i class="bi bi-bell me-1"></i> Admin replies will appear here automatically!
+                </p>
             </div>
         `;
     }
 });
 
-console.log('🛟 Support Center - 100% Standalone (No Auth)');
-console.log('📁 Firebase Database URL:', firebaseConfig.databaseURL);
-console.log('📌 Anyone can submit a ticket without login!');
-console.log('📌 Ticket Number format: RND-YYYYMMDD-XXXX');
+console.log('🛟 Support Center - Live Updates Active!');
+console.log('📁 Firebase Database:', firebaseConfig.databaseURL);
+console.log('📌 Admin replies will appear automatically without refresh!');
 </script>
 </body>
 </html>
