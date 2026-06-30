@@ -347,6 +347,16 @@
         }
         .no-tickets i { font-size: 2.5rem; display: block; margin-bottom: 15px; opacity: 0.5; }
         
+        /* Ticket ID Badge */
+        .ticket-id-badge {
+            font-size: 0.65rem;
+            background: rgba(46,204,113,0.08);
+            color: #556688;
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(46,204,113,0.08);
+        }
+        
         @media (max-width: 768px) {
             .support-container { padding: 15px; }
             .support-card { padding: 1.2rem; }
@@ -432,7 +442,7 @@
         <p>Submit your issue below and track its status. Our team will respond within 24 hours.</p>
     </div>
 
-    <!-- ====== NEW TICKET FORM ====== -->
+    <!-- ====== NEW TICKET FORM (100% MANUAL) ====== -->
     <div class="support-card" id="supportFormCard">
         <div class="card-title"><i class="bi bi-envelope-paper"></i> Create New Support Ticket</div>
         
@@ -537,14 +547,14 @@
 
 <script type="module">
 // ============================================================
-// 🔥 FIREBASE IMPORT - SUPPORT SYSTEM (NEW ACCOUNT)
+// 🔥 FIREBASE IMPORT - NEW ACCOUNT (ONLY FOR SUPPORT)
 // ============================================================
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, push, set, onValue, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
-// 🔥 FIREBASE CONFIG - NEW ACCOUNT (ONLY FOR SUPPORT)
+// 🔥 FIREBASE CONFIG - NEW ACCOUNT
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyBshAGZScyo7PJegLHMzORbkkrCLGD6U5s",
@@ -611,44 +621,11 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 LOAD USER DATA & TICKETS
-// ============================================================
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    try {
-        // Fill sidebar
-        document.getElementById('sidebarName').textContent = user.displayName || 'User';
-        document.getElementById('sidebarUserId').textContent = 'ID: ' + user.uid.substring(0, 15) + '...';
-        document.getElementById('sidebarAvatar').textContent = (user.displayName || 'U').charAt(0).toUpperCase();
-        
-        // Auto-fill form with user data
-        document.getElementById('supportUserId').value = user.uid;
-        document.getElementById('supportName').value = user.displayName || 'User';
-        document.getElementById('supportEmail').value = user.email || '';
-        
-        // Store user data
-        window._currentUser = {
-            uid: user.uid,
-            name: user.displayName || 'User',
-            email: user.email || ''
-        };
-        
-        // Load user's tickets
-        loadUserTickets(user.uid);
-        
-    } catch (error) {
-        console.error('Error loading support page:', error);
-    }
-});
-
-// ============================================================
-// 🔥 LOAD USER TICKETS FROM FIREBASE
+// 🔥 LOAD USER TICKETS FROM FIREBASE (BY USER ID)
 // ============================================================
 function loadUserTickets(userId) {
+    if (!userId) return;
+    
     const ticketsRef = ref(db, 'support_tickets');
     const userTicketsQuery = query(ticketsRef, orderByChild('userId'), equalTo(userId));
     
@@ -679,6 +656,7 @@ function loadUserTickets(userId) {
         tickets.forEach((ticket) => {
             const statusClass = ticket.status || 'open';
             const statusText = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+            const shortId = ticket.id ? ticket.id.substring(0, 8) : '';
             
             html += `
                 <div class="ticket-item">
@@ -686,6 +664,7 @@ function loadUserTickets(userId) {
                         <div>
                             <span class="ticket-category">${ticket.category || 'General'}</span>
                             <span class="ticket-status ${statusClass}">${statusText}</span>
+                            ${shortId ? `<span class="ticket-id-badge">#${shortId}</span>` : ''}
                         </div>
                         <span class="ticket-date">${ticket.date || new Date(ticket.timestamp).toLocaleString('en-IN')}</span>
                     </div>
@@ -708,7 +687,7 @@ function loadUserTickets(userId) {
 }
 
 // ============================================================
-// 🔥 SUBMIT SUPPORT TICKET
+// 🔥 SUBMIT SUPPORT TICKET (100% MANUAL - NO AUTO-FILL)
 // ============================================================
 document.getElementById('supportForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -758,18 +737,23 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
             adminReplyDate: null
         };
         
-        // Save to Firebase
+        // Save to Firebase (NEW ACCOUNT)
         const ticketsRef = ref(db, 'support_tickets');
         const newTicketRef = push(ticketsRef);
         await set(newTicketRef, ticketData);
         
-        console.log('✅ Ticket saved successfully!');
+        console.log('✅ Ticket saved successfully to NEW Firebase!');
+        console.log('📁 Database:', firebaseConfig.databaseURL);
+        console.log('📋 Ticket:', ticketData);
         
         // Show success message
         document.getElementById('supportFormCard').style.display = 'none';
         document.getElementById('successMessage').style.display = 'block';
         
         showToast('✅ Support ticket submitted successfully!', 'success');
+        
+        // Load tickets for this user
+        loadUserTickets(userId);
         
         // Reset form
         document.getElementById('supportForm').reset();
@@ -784,8 +768,27 @@ document.getElementById('supportForm').addEventListener('submit', async (e) => {
     }
 });
 
-console.log('🛟 Support Center with Firebase Database loaded successfully!');
+// ============================================================
+// 🔥 CHECK FOR TICKETS BY USER ID (When user types User ID)
+// ============================================================
+document.getElementById('supportUserId').addEventListener('input', function() {
+    const userId = this.value.trim();
+    if (userId.length > 5) {
+        loadUserTickets(userId);
+    }
+});
+
+// Also load tickets when page loads if User ID is already filled
+setTimeout(() => {
+    const userIdInput = document.getElementById('supportUserId');
+    if (userIdInput.value.trim().length > 5) {
+        loadUserTickets(userIdInput.value.trim());
+    }
+}, 500);
+
+console.log('🛟 Support Center - 100% Manual + NEW Firebase!');
 console.log('📁 Firebase Database URL:', firebaseConfig.databaseURL);
+console.log('📌 All fields are manual - No auto-fill!');
 </script>
 </body>
 </html>
