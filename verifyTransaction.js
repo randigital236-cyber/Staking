@@ -1,4 +1,3 @@
-// verifyTransaction.js
 import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
 import { WALLET_CONFIG } from "./wallet.js";
 import { 
@@ -8,7 +7,8 @@ import {
     set, 
     push, 
     runTransaction, 
-    remove
+    remove,
+    update
 } from "./firebase.js";
 
 // ERC20 ABI for USDT transfer events
@@ -19,9 +19,9 @@ const ERC20_ABI = [
 // Browser memory cache for active verifications
 const activeVerifications = new Map();
 
-/**
- * Get RPC Provider with Failover and Timeout
- */
+// ============================================================
+// 🔒 GET RPC PROVIDER WITH FAILOVER
+// ============================================================
 async function getProvider() {
     let lastError = null;
     
@@ -48,19 +48,22 @@ async function getProvider() {
     throw new Error(`All RPC endpoints failed. Last error: ${lastError?.message}`);
 }
 
-/**
- * Acquire processing lock using atomic runTransaction
- */
+// ============================================================
+// 🔒 ACQUIRE PROCESSING LOCK - ATOMIC
+// ============================================================
 async function acquireProcessingLock(txHash, uid, amount) {
     const lockRef = ref(db, `processingTransactions/${txHash}`);
     
     try {
         const result = await runTransaction(lockRef, (currentData) => {
+            // If lock exists
             if (currentData !== null) {
                 const now = Date.now();
                 const lockTime = currentData.timestamp || 0;
                 
+                // Check if lock is stale (older than timeout)
                 if (now - lockTime > WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
+                    // Override stale lock
                     return {
                         uid: uid,
                         timestamp: now,
@@ -68,9 +71,11 @@ async function acquireProcessingLock(txHash, uid, amount) {
                         amount: amount
                     };
                 }
+                // Lock is active - reject
                 return;
             }
             
+            // No lock exists - create new
             return {
                 uid: uid,
                 timestamp: Date.now(),
@@ -79,24 +84,19 @@ async function acquireProcessingLock(txHash, uid, amount) {
             };
         });
         
-        if (result.committed) {
-            return true;
-        }
-        return false;
-        
+        return result.committed;
     } catch (error) {
         console.error('Error acquiring processing lock:', error);
         return false;
     }
 }
 
-/**
- * Release processing lock
- */
+// ============================================================
+// 🔒 RELEASE PROCESSING LOCK
+// ============================================================
 async function releaseProcessingLock(txHash) {
     try {
-        const lockRef = ref(db, `processingTransactions/${txHash}`);
-        await remove(lockRef);
+        await remove(ref(db, `processingTransactions/${txHash}`));
         return true;
     } catch (error) {
         console.error('Error releasing processing lock:', error);
@@ -104,9 +104,9 @@ async function releaseProcessingLock(txHash) {
     }
 }
 
-/**
- * Check if transaction hash already used
- */
+// ============================================================
+// 🔒 CHECK DUPLICATE TRANSACTION
+// ============================================================
 export async function checkDuplicateTransaction(txHash) {
     try {
         const snap = await get(ref(db, `usedTransactions/${txHash}`));
@@ -123,10 +123,11 @@ export async function checkDuplicateTransaction(txHash) {
     }
 }
 
-/**
- * Verify USDT Transfer on Blockchain
- */
+// ============================================================
+// 🔒 VERIFY TRANSACTION ON BLOCKCHAIN
+// ============================================================
 export async function verifyTransaction(txHash, expectedAmount) {
+    // Check if already being verified
     if (activeVerifications.has(txHash)) {
         return {
             success: false,
@@ -139,6 +140,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
     try {
         const provider = await getProvider();
         
+        // Get transaction receipt with retry
         let receipt = null;
         let retries = 3;
         while (retries > 0 && !receipt) {
@@ -164,6 +166,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
+        // Check transaction status
         if (receipt.status !== 1) {
             return {
                 success: false,
@@ -171,6 +174,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
+        // Check confirmations
         const currentBlock = await provider.getBlockNumber();
         const confirmations = currentBlock - receipt.blockNumber;
         
@@ -185,6 +189,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
+        // Parse USDT Transfer event
         const iface = new ethers.Interface(ERC20_ABI);
         let transferEvent = null;
         let fromAddress = null;
@@ -193,6 +198,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
         let tokenContract = null;
         
         for (const log of receipt.logs) {
+            // Check if log is from USDT contract
             if (log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
                 continue;
             }
@@ -212,6 +218,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             }
         }
         
+        // No USDT transfer found
         if (!transferEvent) {
             return {
                 success: false,
@@ -219,6 +226,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
+        // Validate token contract
         if (tokenContract?.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
             return {
                 success: false,
@@ -226,6 +234,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
+        // Validate receiver wallet
         if (toAddress?.toLowerCase() !== WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()) {
             return {
                 success: false,
@@ -233,17 +242,22 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
-        const amountInUSDT = parseFloat(ethers.formatUnits(transferAmount, 18));
+        // Get actual amount from blockchain
+        const actualAmount = parseFloat(ethers.formatUnits(transferAmount, 18));
         const expectedAmountNum = parseFloat(expectedAmount);
         
+        // Validate amount with tolerance
         const tolerance = 0.001;
-        if (Math.abs(amountInUSDT - expectedAmountNum) > tolerance) {
+        if (Math.abs(actualAmount - expectedAmountNum) > tolerance) {
             return {
                 success: false,
-                error: `Amount mismatch. Expected ${expectedAmountNum} USDT but received ${amountInUSDT.toFixed(2)} USDT.`
+                error: `Amount mismatch. Expected ${expectedAmountNum} USDT but blockchain shows ${actualAmount.toFixed(2)} USDT.`
             };
         }
         
+        // ============================================================
+        // 🔒 ALL VALIDATIONS PASSED
+        // ============================================================
         return {
             success: true,
             verified: true,
@@ -252,7 +266,7 @@ export async function verifyTransaction(txHash, expectedAmount) {
                 confirmations: confirmations,
                 from: fromAddress,
                 to: toAddress,
-                amount: amountInUSDT,
+                amount: actualAmount,
                 tokenContract: tokenContract,
                 txHash: txHash,
                 blockHash: receipt.blockHash,
@@ -272,60 +286,113 @@ export async function verifyTransaction(txHash, expectedAmount) {
     }
 }
 
-/**
- * Process deposit - SIMPLIFIED to avoid permission issues
- */
+// ============================================================
+// 🔒 PROCESS DEPOSIT - ATOMIC
+// ============================================================
 export async function processDeposit(uid, txHash, amount, receipt) {
     try {
-        console.log('Processing deposit for user:', uid);
-        console.log('Amount:', amount);
-        
-        // Get current user data
         const userRef = ref(db, `users/${uid}`);
-        const userSnap = await get(userRef);
         
-        if (!userSnap.exists()) {
-            throw new Error("User not found");
+        // 🔥 ALL OPERATIONS INSIDE runTransaction()
+        const result = await runTransaction(userRef, (currentData) => {
+            if (!currentData) {
+                return { ...currentData };
+            }
+            
+            // ============================================================
+            // 🔒 STEP 1: Check for duplicate one more time inside transaction
+            // ============================================================
+            const transactions = currentData.transactions || {};
+            for (let key in transactions) {
+                const tx = transactions[key];
+                if (tx.type === 'deposit' && tx.txHash === txHash && tx.status === 'success') {
+                    // Already processed
+                    return { ...currentData };
+                }
+            }
+            
+            // ============================================================
+            // 🔒 STEP 2: Update balance
+            // ============================================================
+            const currentBalance = currentData.depositWallet || 0;
+            const newBalance = currentBalance + amount;
+            
+            // ============================================================
+            // 🔒 STEP 3: Create transaction record
+            // ============================================================
+            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            const transactionRecord = {
+                type: 'deposit',
+                status: 'success',
+                amount: amount,
+                txHash: txHash,
+                blockNumber: receipt.blockNumber,
+                from: receipt.from,
+                to: receipt.to,
+                tokenContract: receipt.tokenContract,
+                confirmations: receipt.confirmations,
+                timestamp: Date.now(),
+                date: new Date().toDateString(),
+                description: `Deposit of $${amount.toFixed(2)} USDT verified on blockchain`
+            };
+            
+            // Add to transactions
+            transactions[txId] = transactionRecord;
+            
+            // ============================================================
+            // 🔒 STEP 4: Update user data
+            // ============================================================
+            return {
+                ...currentData,
+                depositWallet: newBalance,
+                transactions: transactions
+            };
+        });
+        
+        if (!result.committed) {
+            throw new Error("Transaction failed - duplicate or insufficient balance");
         }
         
-        const userData = userSnap.val();
-        const currentBalance = userData.depositWallet || 0;
-        const newBalance = currentBalance + amount;
+        // ============================================================
+        // 🔒 STEP 5: Mark as used (outside transaction - second layer)
+        // ============================================================
+        try {
+            await set(ref(db, `usedTransactions/${txHash}`), {
+                uid: uid,
+                amount: amount,
+                timestamp: Date.now(),
+                blockNumber: receipt.blockNumber,
+                status: 'completed'
+            });
+        } catch (err) {
+            console.warn('Warning: Could not mark transaction as used:', err);
+            // Non-critical - transaction already processed
+        }
         
-        console.log('Current balance:', currentBalance);
-        console.log('New balance:', newBalance);
-        
-        // Update deposit wallet
-        await set(ref(db, `users/${uid}/depositWallet`), newBalance);
-        
-        // Create transaction record
-        const transactionsRef = ref(db, `users/${uid}/transactions`);
-        const newTxRef = push(transactionsRef);
-        await set(newTxRef, {
-            type: 'deposit',
-            status: 'success',
-            amount: amount,
-            txHash: txHash,
-            blockNumber: receipt.blockNumber,
-            from: receipt.from,
-            to: receipt.to,
-            tokenContract: receipt.tokenContract,
-            confirmations: receipt.confirmations,
-            timestamp: Date.now(),
-            description: `Deposit of $${amount} USDT verified on blockchain`
-        });
-        
-        // Mark transaction as used
-        await set(ref(db, `usedTransactions/${txHash}`), {
-            uid: uid,
-            amount: amount,
-            timestamp: Date.now(),
-            blockNumber: receipt.blockNumber
-        });
+        // ============================================================
+        // 🔒 STEP 6: Save to deposit history (for admin)
+        // ============================================================
+        try {
+            const historyRef = ref(db, `depositHistory`);
+            const newHistoryRef = push(historyRef);
+            await set(newHistoryRef, {
+                uid: uid,
+                txHash: txHash,
+                amount: amount,
+                blockNumber: receipt.blockNumber,
+                from: receipt.from,
+                to: receipt.to,
+                timestamp: Date.now(),
+                status: 'success'
+            });
+        } catch (err) {
+            console.warn('Warning: Could not save deposit history:', err);
+            // Non-critical
+        }
         
         return {
             success: true,
-            newBalance: newBalance
+            newBalance: result.snapshot.val().depositWallet
         };
         
     } catch (error) {
@@ -334,39 +401,45 @@ export async function processDeposit(uid, txHash, amount, receipt) {
     }
 }
 
-/**
- * Complete deposit flow
- */
+// ============================================================
+// 🔒 COMPLETE DEPOSIT FLOW
+// ============================================================
 export async function completeDeposit(uid, txHash, amount, onPending, onSuccess, onError) {
-    console.log('Starting complete deposit flow...');
-    console.log('UID:', uid);
-    console.log('TxHash:', txHash);
-    console.log('Amount:', amount);
+    console.log('🔒 Starting secure deposit flow...');
     
     try {
-        // Step 1: Check duplicate first (fastest check)
+        // ============================================================
+        // 🔒 STEP 1: Check duplicate first (fastest check)
+        // ============================================================
         const duplicateCheck = await checkDuplicateTransaction(txHash);
         if (duplicateCheck.isDuplicate) {
             return {
                 success: false,
-                error: "This transaction hash has already been used. Duplicate deposits are not allowed."
+                error: "❌ This transaction hash has already been used. Duplicate deposits are not allowed."
             };
         }
         
-        // Step 2: Acquire lock
+        // ============================================================
+        // 🔒 STEP 2: Acquire processing lock
+        // ============================================================
         const lockAcquired = await acquireProcessingLock(txHash, uid, amount);
         if (!lockAcquired) {
             return {
                 success: false,
-                error: "This transaction is already being processed. Please wait."
+                error: "⏳ This transaction is already being processed. Please wait."
             };
         }
         
         try {
-            // Step 3: Verify on blockchain
+            // ============================================================
+            // 🔒 STEP 3: Verify on blockchain
+            // ============================================================
             const verification = await verifyTransaction(txHash, amount);
             console.log('Verification result:', verification);
             
+            // ============================================================
+            // 🔒 STEP 4: Handle pending (auto-polling)
+            // ============================================================
             if (verification.pending) {
                 if (onPending) {
                     onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
@@ -378,12 +451,17 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
                 return pollingResult;
             }
             
+            // ============================================================
+            // 🔒 STEP 5: Handle verification failure
+            // ============================================================
             if (!verification.success) {
                 await releaseProcessingLock(txHash);
                 return verification;
             }
             
-            // Step 4: Process deposit
+            // ============================================================
+            // 🔒 STEP 6: Process deposit atomically
+            // ============================================================
             try {
                 const result = await processDeposit(uid, txHash, amount, verification.receipt);
                 await releaseProcessingLock(txHash);
@@ -418,9 +496,9 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
     }
 }
 
-/**
- * Auto-polling for pending transactions
- */
+// ============================================================
+// 🔒 AUTO-POLLING FOR PENDING TRANSACTIONS
+// ============================================================
 async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError) {
     let attempts = 0;
     
@@ -429,6 +507,7 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
             attempts++;
             
             try {
+                // Check if lock still exists
                 const lockSnap = await get(ref(db, `processingTransactions/${txHash}`));
                 if (!lockSnap.exists()) {
                     clearInterval(pollInterval);
@@ -439,13 +518,16 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
                     return;
                 }
                 
+                // Verify again
                 const verification = await verifyTransaction(txHash, amount);
                 
+                // Still pending
                 if (verification.pending) {
                     if (onPending) {
                         onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
                     }
                     
+                    // Max attempts reached
                     if (attempts >= WALLET_CONFIG.MAX_POLLING_ATTEMPTS) {
                         clearInterval(pollInterval);
                         resolve({
@@ -458,13 +540,16 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
                     return;
                 }
                 
+                // Verification done
                 clearInterval(pollInterval);
                 
+                // Verification failed
                 if (!verification.success) {
                     resolve(verification);
                     return;
                 }
                 
+                // Process deposit
                 try {
                     const result = await processDeposit(uid, txHash, amount, verification.receipt);
                     if (onSuccess) {
@@ -492,9 +577,9 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
     });
 }
 
-/**
- * Clean up stale processing locks
- */
+// ============================================================
+// 🔒 CLEANUP STALE LOCKS
+// ============================================================
 export async function cleanupStaleLocks() {
     try {
         const locksSnap = await get(ref(db, 'processingTransactions'));
@@ -506,7 +591,7 @@ export async function cleanupStaleLocks() {
         for (const [txHash, lockData] of Object.entries(locks)) {
             if (now - lockData.timestamp > WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
                 await remove(ref(db, `processingTransactions/${txHash}`));
-                console.log(`Cleaned up stale lock for ${txHash}`);
+                console.log(`🧹 Cleaned up stale lock for ${txHash}`);
             }
         }
     } catch (error) {
@@ -514,9 +599,9 @@ export async function cleanupStaleLocks() {
     }
 }
 
-/**
- * Check pending verifications
- */
+// ============================================================
+// 🔒 CHECK PENDING VERIFICATIONS
+// ============================================================
 export async function checkPendingVerifications(uid) {
     try {
         const locksSnap = await get(ref(db, 'processingTransactions'));
@@ -527,6 +612,7 @@ export async function checkPendingVerifications(uid) {
         
         for (const [txHash, lockData] of Object.entries(locks)) {
             if (lockData.uid === uid) {
+                // Check if already used
                 const usedSnap = await get(ref(db, `usedTransactions/${txHash}`));
                 if (usedSnap.exists()) {
                     await remove(ref(db, `processingTransactions/${txHash}`));
