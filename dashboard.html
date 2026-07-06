@@ -443,6 +443,40 @@
             color: #fbbf24;
         }
         
+        /* Real-time update indicator */
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(46,204,113,0.15);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            color: #2ecc71;
+        }
+        .live-indicator .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2ecc71;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        /* Service worker status */
+        .sw-status {
+            font-size: 0.65rem;
+            color: #556688;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: rgba(46,204,113,0.05);
+        }
+        .sw-status.active { color: #2ecc71; background: rgba(46,204,113,0.1); }
+        
         @media (max-width: 992px) {
             .network-stats { grid-template-columns: repeat(2, 1fr); }
             .level-stats { grid-template-columns: repeat(3, 1fr); }
@@ -482,9 +516,14 @@
         <a class="navbar-brand fw-bold" href="dashboard.html">
             <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
         </a>
-        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
-            <i class="bi bi-list"></i>
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <span class="live-indicator d-none d-md-flex">
+                <span class="pulse"></span> Live
+            </span>
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
+                <i class="bi bi-list"></i>
+            </button>
+        </div>
     </div>
 </nav>
 
@@ -528,9 +567,10 @@
     </a>
     <a href="profile.html" class="nav-item">
         <i class="bi bi-person"></i> Profile
-  <a href="#" onclick="window.open('support.html', '_blank'); return false;" class="nav-item">
-    <i class="bi bi-headset"></i> Support Center
-</a>
+    </a>
+    <a href="#" onclick="window.open('support.html', '_blank'); return false;" class="nav-item">
+        <i class="bi bi-headset"></i> Support Center
+    </a>
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
             <i class="bi bi-box-arrow-right"></i> Logout
@@ -546,6 +586,21 @@
     </div>
 </div>
 
+<!-- ====== SERVICE WORKER REGISTRATION ====== -->
+<script>
+    // Register Service Worker for background sync
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('✅ Service Worker registered');
+                document.querySelector('.sw-status')?.classList.add('active');
+            })
+            .catch(err => {
+                console.log('❌ Service Worker registration failed:', err);
+            });
+    }
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script type="importmap">
 {
@@ -559,8 +614,11 @@
 <script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update, runTransaction } from "firebase/database";
+import { getDatabase, ref, get, update, runTransaction, onValue } from "firebase/database";
 
+// ============================================================
+// FIREBASE CONFIG
+// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -580,7 +638,12 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 let rndPrice = 1.00;
+let currentUserData = null;
+let currentUserId = null;
 
+// ============================================================
+// TOAST NOTIFICATION
+// ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -595,6 +658,9 @@ function showToast(message, type = 'success') {
     }, 5000);
 }
 
+// ============================================================
+// SIDEBAR CONTROLS
+// ============================================================
 const sidebarPanel = document.getElementById('sidebarPanel');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -621,6 +687,9 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
     window.location.href = 'login.html';
 });
 
+// ============================================================
+// FETCH LIVE RATE
+// ============================================================
 async function fetchLiveRate() {
     try {
         const settingsRef = ref(db, 'settings/rate');
@@ -637,6 +706,9 @@ async function fetchLiveRate() {
     return rndPrice;
 }
 
+// ============================================================
+// GET USER BY USERNAME
+// ============================================================
 async function getUserByUsername(username) {
     try {
         const usersSnap = await get(ref(db, 'users'));
@@ -655,6 +727,9 @@ async function getUserByUsername(username) {
     }
 }
 
+// ============================================================
+// GET GREETING
+// ============================================================
 function getGreeting() {
     const hour = new Date().getHours();
     if (hour < 12) return 'Morning';
@@ -663,10 +738,274 @@ function getGreeting() {
 }
 
 // ============================================================
-// 🔥 FIX 1: ATOMIC TRANSFER USING runTransaction()
+// 🔥 PROCESS DAILY RELEASE (AUTOMATIC - RUNS EVERY TIME USER OPENS)
+// ============================================================
+async function processDailyRelease(userId) {
+    try {
+        const userRef = ref(db, 'users/' + userId);
+        const today = new Date().toDateString();
+        
+        const result = await runTransaction(userRef, (currentData) => {
+            if (!currentData) return currentData;
+            
+            // Check if already released today
+            const lastReleaseDate = currentData.lastReleaseDate || '';
+            if (lastReleaseDate === today) {
+                return currentData;
+            }
+            
+            const packages = currentData.packages || {};
+            let updatedPackages = {};
+            let releaseTransactions = [];
+            let totalReleaseToday = 0;
+            let hasActivePackages = false;
+            
+            // Process each package
+            for (const [pkgKey, pkg] of Object.entries(packages)) {
+                if (pkg.status !== 'active') {
+                    updatedPackages[pkgKey] = pkg;
+                    continue;
+                }
+                
+                hasActivePackages = true;
+                const remainingRND = pkg.remainingRND || 0;
+                const dailyRelease = pkg.dailyRelease || 0;
+                
+                if (dailyRelease <= 0 || remainingRND <= 0) {
+                    if (remainingRND <= 0) {
+                        pkg.status = 'completed';
+                        pkg.remainingRND = 0;
+                    }
+                    updatedPackages[pkgKey] = pkg;
+                    continue;
+                }
+                
+                let releaseAmount = Math.min(dailyRelease, remainingRND);
+                
+                // Update package
+                pkg.remainingRND = remainingRND - releaseAmount;
+                pkg.releasedRND = (pkg.releasedRND || 0) + releaseAmount;
+                
+                if (pkg.remainingRND <= 0) {
+                    pkg.remainingRND = 0;
+                    pkg.status = 'completed';
+                }
+                
+                updatedPackages[pkgKey] = pkg;
+                totalReleaseToday += releaseAmount;
+                
+                // Create transaction
+                releaseTransactions.push({
+                    type: 'daily_release',
+                    amount: releaseAmount,
+                    currency: 'RND',
+                    packageId: pkgKey,
+                    planName: pkg.planName || 'Package',
+                    timestamp: Date.now(),
+                    date: today,
+                    status: 'completed',
+                    description: `Daily release of ${releaseAmount.toFixed(4)} RND from ${pkg.planName || 'Package'}`
+                });
+            }
+            
+            if (!hasActivePackages || totalReleaseToday === 0) {
+                currentData.lastReleaseDate = today;
+                return currentData;
+            }
+            
+            // Update wallets
+            currentData.rndWallet = (currentData.rndWallet || 0) + totalReleaseToday;
+            currentData.lockedRND = (currentData.lockedRND || 0) - totalReleaseToday;
+            currentData.totalReleased = (currentData.totalReleased || 0) + totalReleaseToday;
+            currentData.lastReleaseDate = today;
+            currentData.packages = updatedPackages;
+            
+            // Add transactions
+            const transactions = currentData.transactions || {};
+            releaseTransactions.forEach(tx => {
+                const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                transactions[txId] = tx;
+            });
+            currentData.transactions = transactions;
+            
+            return currentData;
+        });
+        
+        if (result.committed && result.snapshot.exists()) {
+            const data = result.snapshot.val();
+            console.log('✅ Daily release processed successfully');
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('❌ Error processing daily release:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 PROCESS REFERRAL COMMISSION (WHEN PACKAGE IS PURCHASED)
+// ============================================================
+async function processReferralCommission(userId, packageId, packageData) {
+    try {
+        // Check if commission already processed
+        if (packageData.commissionProcessed === true) return null;
+        if (packageData.status !== 'active') return null;
+        
+        const userSnapshot = await get(ref(db, 'users/' + userId));
+        if (!userSnapshot.exists()) return null;
+        
+        const userData = userSnapshot.val();
+        const referralCode = userData.referralCode;
+        const packageAmount = packageData.usdtAmount || 0;
+        
+        if (packageAmount <= 0) return null;
+        
+        const commissionLevels = [
+            { level: 1, percent: 0.08 },
+            { level: 2, percent: 0.04 },
+            { level: 3, percent: 0.02 },
+            { level: 4, percent: 0.01 },
+            { level: 5, percent: 0.01 }
+        ];
+        
+        let currentRefCode = referralCode;
+        let level = 1;
+        
+        while (currentRefCode && level <= 5) {
+            const usersSnapshot = await get(ref(db, 'users'));
+            if (!usersSnapshot.exists()) break;
+            
+            let referrerUid = null;
+            let referrerData = null;
+            
+            for (const [uid, user] of Object.entries(usersSnapshot.val())) {
+                if (user.referralCode === currentRefCode && uid !== userId) {
+                    referrerUid = uid;
+                    referrerData = user;
+                    break;
+                }
+            }
+            
+            if (!referrerUid || !referrerData) break;
+            
+            const commissionPercent = commissionLevels.find(l => l.level === level)?.percent || 0;
+            const commissionAmount = packageAmount * commissionPercent;
+            
+            if (commissionAmount > 0) {
+                const referrerRef = ref(db, 'users/' + referrerUid);
+                await runTransaction(referrerRef, (currentData) => {
+                    if (!currentData) return currentData;
+                    
+                    currentData.referralWallet = (currentData.referralWallet || 0) + commissionAmount;
+                    const levelKey = `level${level}Earnings`;
+                    currentData[levelKey] = (currentData[levelKey] || 0) + commissionAmount;
+                    currentData.referralEarnings = (currentData.referralEarnings || 0) + commissionAmount;
+                    currentData.teamBusiness = (currentData.teamBusiness || 0) + packageAmount;
+                    
+                    const commissionHistory = currentData.commissionHistory || [];
+                    commissionHistory.push({
+                        type: 'referral_commission',
+                        level: level,
+                        percent: commissionPercent * 100,
+                        amount: commissionAmount,
+                        fromUser: userData.username || userData.referralCode || userId,
+                        packageId: packageId,
+                        timestamp: Date.now(),
+                        description: `${commissionPercent * 100}% commission from Level ${level} referral`
+                    });
+                    currentData.commissionHistory = commissionHistory;
+                    
+                    const transactions = currentData.transactions || {};
+                    const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    transactions[txId] = {
+                        type: 'referral_commission',
+                        amount: commissionAmount,
+                        currency: 'USDT',
+                        level: level,
+                        percent: commissionPercent * 100,
+                        fromUser: userData.username || userData.referralCode || userId,
+                        timestamp: Date.now(),
+                        date: new Date().toDateString(),
+                        status: 'completed',
+                        description: `Received ${commissionPercent * 100}% commission ($${commissionAmount.toFixed(2)}) from Level ${level} referral`
+                    };
+                    currentData.transactions = transactions;
+                    
+                    return currentData;
+                });
+            }
+            
+            currentRefCode = referrerData.referredBy || null;
+            level++;
+        }
+        
+        // Mark commission as processed
+        await update(ref(db, 'users/' + userId + '/packages/' + packageId), {
+            commissionProcessed: true
+        });
+        
+        console.log('✅ Commission processed for package ' + packageId);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error processing commission:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 RECALCULATE USER DATA
+// ============================================================
+async function recalculateUserData(userId) {
+    try {
+        const userSnap = await get(ref(db, 'users/' + userId));
+        if (!userSnap.exists()) return null;
+        
+        const userData = userSnap.val();
+        const packages = userData.packages || {};
+        
+        let totalLockedRND = 0;
+        let totalDailyRelease = 0;
+        let activePackages = 0;
+        let totalStake = 0;
+        
+        for (let key in packages) {
+            const pkg = packages[key];
+            if (pkg.status === 'active') {
+                totalLockedRND += (pkg.remainingRND || 0);
+                totalDailyRelease += (pkg.dailyRelease || 0);
+                activePackages++;
+                totalStake += (pkg.usdtAmount || 0);
+            }
+        }
+        
+        // Check for new packages that need commission processing
+        for (let key in packages) {
+            const pkg = packages[key];
+            if (pkg.status === 'active' && !pkg.commissionProcessed) {
+                await processReferralCommission(userId, key, pkg);
+            }
+        }
+        
+        await update(ref(db, 'users/' + userId), {
+            lockedRND: totalLockedRND,
+            releaseWallet: totalDailyRelease,
+            activePackages: activePackages,
+            totalStake: totalStake
+        });
+        
+        return { totalLockedRND, totalDailyRelease, activePackages, totalStake };
+    } catch (error) {
+        console.error('Error recalculating user data:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// 🔥 ATOMIC TRANSFER
 // ============================================================
 async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, senderUsername, recipientUsername) {
-    // Step 1: Deduct from sender
     const senderRef = ref(db, 'users/' + senderUid);
     const senderResult = await runTransaction(senderRef, (currentData) => {
         if (!currentData) return { ...currentData };
@@ -676,7 +1015,6 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         }
         const newBalance = balance - amount;
         
-        // Add transfer to history
         const transferHistory = currentData.transferHistory || [];
         transferHistory.push({
             type: 'sent',
@@ -687,7 +1025,6 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
             timestamp: Date.now()
         });
         
-        // Add transaction
         const transactions = currentData.transactions || {};
         const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
         transactions[txId] = {
@@ -714,14 +1051,12 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         return { success: false, error: 'Insufficient balance or sender update failed' };
     }
     
-    // Step 2: Credit to recipient
     const recipientRef = ref(db, 'users/' + recipientUid);
     const recipientResult = await runTransaction(recipientRef, (currentData) => {
         if (!currentData) return { ...currentData };
         const balance = currentData[walletType] || 0;
         const newBalance = balance + amount;
         
-        // Add to history
         const transferHistory = currentData.transferHistory || [];
         transferHistory.push({
             type: 'received',
@@ -732,7 +1067,6 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
             timestamp: Date.now()
         });
         
-        // Add transaction
         const transactions = currentData.transactions || {};
         const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
         transactions[txId] = {
@@ -774,289 +1108,59 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
 }
 
 // ============================================================
-// 🔥 FIX 3: DAILY RELEASE WITH TRANSACTION SAVE
+// 🔥 SETUP REAL-TIME LISTENERS
 // ============================================================
-async function processDailyReleases(userId) {
-    try {
-        const userRef = ref(db, 'users/' + userId);
+function setupRealtimeListeners(userId) {
+    // Listen for package changes (for commission)
+    const packagesRef = ref(db, 'users/' + userId + '/packages');
+    onValue(packagesRef, async (snapshot) => {
+        if (!snapshot.exists()) return;
+        const packages = snapshot.val();
         
-        const result = await runTransaction(userRef, (currentData) => {
-            if (!currentData) return { ...currentData };
-            
-            const packages = currentData.packages || {};
-            const today = new Date().toDateString();
-            const lastReleaseDate = currentData.lastReleaseDate || '';
-            
-            if (lastReleaseDate === today) {
-                return { ...currentData };
+        for (let [key, pkg] of Object.entries(packages)) {
+            if (pkg.status === 'active' && !pkg.commissionProcessed) {
+                await processReferralCommission(userId, key, pkg);
+                // Reload dashboard to show updated data
+                loadDashboardData(userId);
             }
-            
-            let totalReleaseToday = 0;
-            let updatedPackages = {};
-            let rndWallet = currentData.rndWallet || 0;
-            let lockedRND = currentData.lockedRND || 0;
-            let totalReleased = currentData.totalReleased || 0;
-            let totalDailyRelease = 0;
-            let releaseTransactions = [];
-            
-            for (let key in packages) {
-                const pkg = packages[key];
-                if (pkg.status !== 'active') {
-                    updatedPackages[key] = pkg;
-                    continue;
-                }
-                
-                const remainingRND = pkg.remainingRND || 0;
-                const dailyRelease = pkg.dailyRelease || 0;
-                let releaseAmount = dailyRelease;
-                
-                if (releaseAmount > remainingRND) {
-                    releaseAmount = remainingRND;
-                }
-                
-                pkg.remainingRND = remainingRND - releaseAmount;
-                pkg.releasedRND = (pkg.releasedRND || 0) + releaseAmount;
-                
-                rndWallet += releaseAmount;
-                lockedRND -= releaseAmount;
-                totalReleased += releaseAmount;
-                totalReleaseToday += releaseAmount;
-                totalDailyRelease += dailyRelease;
-                
-                if (pkg.remainingRND <= 0) {
-                    pkg.remainingRND = 0;
-                    pkg.status = 'completed';
-                }
-                
-                updatedPackages[key] = pkg;
-                
-                // 🔥 Save daily release transaction
-                releaseTransactions.push({
-                    type: 'daily_release',
-                    amount: releaseAmount,
-                    currency: 'RND',
-                    packageId: key,
-                    planName: pkg.planName || 'Package',
-                    timestamp: Date.now(),
-                    date: today,
-                    status: 'completed',
-                    description: `Daily release of ${releaseAmount.toFixed(4)} RND from ${pkg.planName || 'Package'}`
-                });
-            }
-            
-            if (totalReleaseToday > 0) {
-                const transactions = currentData.transactions || {};
-                for (let tx of releaseTransactions) {
-                    const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-                    transactions[txId] = tx;
-                }
-                
-                return {
-                    ...currentData,
-                    packages: updatedPackages,
-                    rndWallet: rndWallet,
-                    lockedRND: lockedRND,
-                    totalReleased: totalReleased,
-                    releaseWallet: totalDailyRelease,
-                    lastReleaseDate: today,
-                    transactions: transactions
-                };
-            }
-            
-            return { ...currentData };
-        });
-        
-        if (result.committed && result.snapshot.exists()) {
-            const data = result.snapshot.val();
-            console.log('✅ Daily release processed:', data.totalReleased || 0);
-            return data;
         }
-        return null;
-    } catch (error) {
-        console.error('Error processing daily releases:', error);
-        return null;
-    }
+    });
 }
 
 // ============================================================
-// 🔥 RECALCULATE USER DATA
+// 🔥 LOAD DASHBOARD DATA
 // ============================================================
-async function recalculateUserData(userId) {
+async function loadDashboardData(userId) {
     try {
+        // Process daily release first (always runs when user opens)
+        const updatedData = await processDailyRelease(userId);
+        
+        // Recalculate user data
+        await recalculateUserData(userId);
+        
+        // Fetch fresh data
         const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) return null;
-        
-        const userData = userSnap.val();
-        const packages = userData.packages || {};
-        
-        let totalLockedRND = 0;
-        let totalDailyRelease = 0;
-        let activePackages = 0;
-        let totalStake = 0;
-        
-        for (let key in packages) {
-            const pkg = packages[key];
-            if (pkg.status === 'active') {
-                totalLockedRND += (pkg.remainingRND || 0);
-                totalDailyRelease += (pkg.dailyRelease || 0);
-                activePackages++;
-                totalStake += (pkg.usdtAmount || 0);
-            }
-        }
-        
-        await update(ref(db, 'users/' + userId), {
-            lockedRND: totalLockedRND,
-            releaseWallet: totalDailyRelease,
-            activePackages: activePackages,
-            totalStake: totalStake
-        });
-        
-        return { totalLockedRND, totalDailyRelease, activePackages, totalStake };
-    } catch (error) {
-        console.error('Error recalculating user data:', error);
-        return null;
-    }
-}
-
-// ============================================================
-// 🔥 RECALCULATE TEAM STRUCTURE
-// ============================================================
-async function recalculateTeamStructure(userId) {
-    try {
-        const usersSnap = await get(ref(db, 'users'));
-        if (!usersSnap.exists()) return null;
-        const allUsers = usersSnap.val();
-        
-        const currentUser = allUsers[userId];
-        if (!currentUser) return null;
-        
-        const userRefCode = currentUser.referralCode;
-        
-        let level1 = [], level2 = [], level3 = [], level4 = [], level5 = [];
-        
-        for (let uid in allUsers) {
-            const u = allUsers[uid];
-            if (u.referredBy === userRefCode) {
-                level1.push({ uid, data: u });
-            }
-        }
-        
-        let currentLevel = level1;
-        let levelNum = 2;
-        
-        while (currentLevel.length > 0 && levelNum <= 5) {
-            let nextLevel = [];
-            for (let item of currentLevel) {
-                const refCode = item.data.referralCode;
-                for (let uid in allUsers) {
-                    const u = allUsers[uid];
-                    if (u.referredBy === refCode) {
-                        const exists = nextLevel.some(x => x.uid === uid);
-                        if (!exists) {
-                            nextLevel.push({ uid, data: u });
-                        }
-                    }
-                }
-            }
-            
-            if (levelNum === 2) level2 = nextLevel;
-            else if (levelNum === 3) level3 = nextLevel;
-            else if (levelNum === 4) level4 = nextLevel;
-            else if (levelNum === 5) level5 = nextLevel;
-            
-            currentLevel = nextLevel;
-            levelNum++;
-        }
-        
-        const uniqueLevel1 = level1.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel2 = level2.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel3 = level3.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel4 = level4.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        const uniqueLevel5 = level5.filter((v, i, a) => a.findIndex(t => t.uid === v.uid) === i);
-        
-        const teamLevels = {
-            level1: uniqueLevel1.length,
-            level2: uniqueLevel2.length,
-            level3: uniqueLevel3.length,
-            level4: uniqueLevel4.length,
-            level5: uniqueLevel5.length
-        };
-        
-        await update(ref(db, 'users/' + userId), {
-            teamStructure: teamLevels,
-            totalReferrals: uniqueLevel1.length,
-            downline: uniqueLevel1.length + uniqueLevel2.length + uniqueLevel3.length + uniqueLevel4.length + uniqueLevel5.length
-        });
-        
-        return teamLevels;
-    } catch (error) {
-        console.error('Error recalculating team structure:', error);
-        return null;
-    }
-}
-
-// ============================================================
-// 🔥 MAIN
-// ============================================================
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    try {
-        await fetchLiveRate();
-        
-        const userSnap = await get(ref(db, 'users/' + user.uid));
-        
-        if (!userSnap.exists()) {
-            document.getElementById('dashboardContent').innerHTML = `
-                <div class="text-center py-5">
-                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                    <h4>Profile Not Found</h4>
-                    <p class="text-muted">Please register first to access your dashboard.</p>
-                    <a href="register.html" class="btn btn-primary-custom mt-3">Register Now</a>
-                </div>
-            `;
-            return;
-        }
+        if (!userSnap.exists()) return;
         
         const u = userSnap.val();
+        currentUserData = u;
+        currentUserId = userId;
         
-        if (u && u.banned === true) {
-            alert('Your account has been banned.');
-            await signOut(auth);
-            window.location.href = 'login.html';
-            return;
-        }
+        // Setup real-time listeners
+        setupRealtimeListeners(userId);
         
-        // 🔥 Process daily releases with transaction save
-        await processDailyReleases(user.uid);
-        await recalculateTeamStructure(user.uid);
-        await recalculateUserData(user.uid);
+        // Load the dashboard UI
+        renderDashboard(u);
         
-        const updatedSnapshot = await get(ref(db, 'users/' + user.uid));
-        if (updatedSnapshot.exists()) {
-            loadDashboard(updatedSnapshot.val());
-        }
-
     } catch (error) {
         console.error('Error loading dashboard:', error);
-        document.getElementById('dashboardContent').innerHTML = `
-            <div class="text-center py-5">
-                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>Error Loading Dashboard</h4>
-                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
-                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-            </div>
-        `;
     }
-});
+}
 
 // ============================================================
-// 🔥 LOAD DASHBOARD
+// 🔥 RENDER DASHBOARD
 // ============================================================
-function loadDashboard(u) {
+function renderDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
     const name = u.name || 'User';
     const rank = u.rank || 'Member';
@@ -1064,7 +1168,6 @@ function loadDashboard(u) {
     
     const directReferrals = u.totalReferrals || 0;
     
-    // 🔥 WALLETS
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
@@ -1087,7 +1190,6 @@ function loadDashboard(u) {
     const packages = u.packages || {};
     const totalPackages = Object.keys(packages).length;
     
-    // 🔥 Calculate days passed
     let daysPassed = 0;
     for (let key in packages) {
         const pkg = packages[key];
@@ -1121,7 +1223,7 @@ function loadDashboard(u) {
                             <div class="d-flex flex-wrap align-items-center gap-3 mt-2">
                                 <span class="user-id-badge">
                                     <i class="bi bi-person-badge me-1"></i>User ID: <strong style="font-size:0.7rem;">${username.substring(0, 20)}...</strong>
-                                    <button class="copy-btn-small" onclick="copyUserId('${username}')"><i class="bi bi-clipboard"></i> Copy</button>
+                                    <button class="copy-btn-small" onclick="window.copyUserId('${username}')"><i class="bi bi-clipboard"></i> Copy</button>
                                 </span>
                                 <span class="${rankClass}"><i class="bi bi-award me-1"></i>${rank}</span>
                                 <span class="rnd-price-badge">
@@ -1131,6 +1233,9 @@ function loadDashboard(u) {
                                     <i class="bi bi-box-seam"></i> ${totalPackages} Packages
                                 </span>
                                 ${daysPassed > 0 ? `<span class="days-remaining"><i class="bi bi-calendar"></i> Day ${daysPassed}</span>` : ''}
+                                <span class="sw-status active">
+                                    <i class="bi bi-check-circle"></i> Auto-Release Active
+                                </span>
                             </div>
                         </div>
                         <div>
@@ -1426,7 +1531,7 @@ window.copyUserId = function(username) {
 };
 
 // ============================================================
-// 🔥 FIX 1 & 2: ATOMIC TRANSFER HANDLER WITH TRANSACTION SAVE
+// 🔥 TRANSFER HANDLER
 // ============================================================
 async function handleTransfer() {
     const toUsername = document.getElementById('transferUserId').value.trim();
@@ -1461,16 +1566,12 @@ async function handleTransfer() {
         return;
     }
     
-    const currency =
-    walletType === 'rndWallet'
-        ? 'RND'
-        : 'USDT';
+    const currency = walletType === 'rndWallet' ? 'RND' : 'USDT';
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
     
     try {
-        // 🔥 ATOMIC TRANSFER - runTransaction() with transaction save
         const result = await atomicTransfer(
             user.uid,
             recipient.uid,
@@ -1485,7 +1586,7 @@ async function handleTransfer() {
             showToast(`✅ ${amount} ${currency} sent successfully to ${toUsername}!`, 'success');
             document.getElementById('transferUserId').value = '';
             document.getElementById('transferAmount').value = '';
-            setTimeout(() => { window.location.reload(); }, 1500);
+            setTimeout(() => { loadDashboardData(user.uid); }, 1000);
         } else {
             showToast('❌ ' + (result.error || 'Transfer failed. Please try again.'), 'error');
         }
@@ -1498,6 +1599,57 @@ async function handleTransfer() {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-send me-1"></i>Send';
 }
+
+// ============================================================
+// 🔥 MAIN AUTH HANDLER
+// ============================================================
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    try {
+        await fetchLiveRate();
+        
+        const userSnap = await get(ref(db, 'users/' + user.uid));
+        
+        if (!userSnap.exists()) {
+            document.getElementById('dashboardContent').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                    <h4>Profile Not Found</h4>
+                    <p class="text-muted">Please register first to access your dashboard.</p>
+                    <a href="register.html" class="btn btn-primary-custom mt-3">Register Now</a>
+                </div>
+            `;
+            return;
+        }
+        
+        const u = userSnap.val();
+        
+        if (u && u.banned === true) {
+            alert('Your account has been banned.');
+            await signOut(auth);
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        // Load dashboard with automatic daily release and commission processing
+        await loadDashboardData(user.uid);
+
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        document.getElementById('dashboardContent').innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                <h4>Error Loading Dashboard</h4>
+                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
+                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+            </div>
+        `;
+    }
+});
 </script>
 </body>
 </html>
