@@ -8,15 +8,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* ============================================================
-           ROOT & BODY
-           ============================================================ */
         * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
         
-        /* ============================================================
-           NAVBAR (Same as Dashboard)
-           ============================================================ */
         .navbar-custom {
             background: rgba(8,14,26,0.95);
             backdrop-filter: blur(20px);
@@ -29,9 +23,6 @@
         .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
         .navbar-custom .navbar-brand i { color: #2ecc71; }
         
-        /* ============================================================
-           SIDEBAR TOGGLE (Same as Dashboard)
-           ============================================================ */
         .sidebar-toggle {
             background: rgba(46,204,113,0.12);
             border: 1px solid rgba(46,204,113,0.2);
@@ -44,9 +35,6 @@
         }
         .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
         
-        /* ============================================================
-           SIDEBAR OVERLAY (Same as Dashboard)
-           ============================================================ */
         .sidebar-overlay {
             position: fixed;
             top: 0;
@@ -62,9 +50,6 @@
         }
         .sidebar-overlay.active { display: block; opacity: 1; }
         
-        /* ============================================================
-           SIDEBAR PANEL (Same as Dashboard)
-           ============================================================ */
         .sidebar-panel {
             position: fixed;
             top: 0;
@@ -144,9 +129,6 @@
         .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
         .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
         
-        /* ============================================================
-           USER PROFILE SIDEBAR (Same as Dashboard)
-           ============================================================ */
         .user-profile-sidebar {
             padding: 10px 20px 20px;
             border-bottom: 1px solid rgba(46,204,113,0.08);
@@ -167,14 +149,8 @@
         .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
         .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
         
-        /* ============================================================
-           DASHBOARD CONTAINER
-           ============================================================ */
         .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
         
-        /* ============================================================
-           CARD GLASS (Same as Dashboard)
-           ============================================================ */
         .card-glass {
             background: rgba(19,34,55,0.8);
             backdrop-filter: blur(10px);
@@ -187,9 +163,6 @@
         .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
         .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
         
-        /* ============================================================
-           REFERRAL BOX (Same as Dashboard)
-           ============================================================ */
         .referral-box {
             background: rgba(8,14,26,0.6);
             border-radius: 12px;
@@ -214,16 +187,10 @@
         }
         .copy-btn:hover { background: rgba(46,204,113,0.1); color: #2ecc71; }
         
-        /* ============================================================
-           TABLE (Same as Dashboard)
-           ============================================================ */
         .table-custom { color: #f0f4ff; border-color: #1f334f; }
         .table-custom th { border-bottom: 2px solid #2a3a5a; color: #a0b8d0; }
         .table-custom td { border-color: #1f334f; }
         
-        /* ============================================================
-           BUTTONS (Same as Dashboard)
-           ============================================================ */
         .btn-primary-custom {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             border: none;
@@ -238,9 +205,6 @@
         }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
         
-        /* ============================================================
-           TOAST (Same as Dashboard)
-           ============================================================ */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -268,9 +232,6 @@
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
-        /* ============================================================
-           EARNINGS BOX
-           ============================================================ */
         .earnings-box {
             background: rgba(251,191,36,0.05);
             border: 1px solid rgba(251,191,36,0.15);
@@ -285,9 +246,6 @@
         .earnings-box .label { color: #8899bb; font-size: 0.85rem; }
         .earnings-box .value { color: #fbbf24; font-weight: 700; font-size: 1.1rem; }
         
-        /* ============================================================
-           LEVEL BADGE
-           ============================================================ */
         .level-badge {
             display: inline-block;
             background: rgba(46,204,113,0.08);
@@ -298,9 +256,6 @@
             color: #2ecc71;
         }
         
-        /* ============================================================
-           STATS GRID
-           ============================================================ */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -318,9 +273,6 @@
         .stats-grid .stat-item .label { color: #8899bb; font-size: 0.75rem; font-weight: 500; }
         .stats-grid .stat-item .earnings { color: #fbbf24; font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
         
-        /* ============================================================
-           COMMISSION HISTORY
-           ============================================================ */
         .commission-history-item {
             background: rgba(8,14,26,0.4);
             border-radius: 10px;
@@ -345,9 +297,6 @@
         .commission-history-item .date { color: #556688; font-size: 0.65rem; }
         .commission-history-item .user { color: #a78bfa; font-weight: 500; }
         
-        /* ============================================================
-           SCROLLBARS
-           ============================================================ */
         .history-scroll {
             max-height: 350px;
             overflow-y: auto;
@@ -371,9 +320,6 @@
             border-radius: 10px;
         }
         
-        /* ============================================================
-           LOAD MORE BUTTON
-           ============================================================ */
         .load-more-btn {
             background: rgba(46,204,113,0.08);
             border: 1px solid rgba(46,204,113,0.15);
@@ -386,69 +332,22 @@
         }
         .load-more-btn:hover { background: rgba(46,204,113,0.15); }
         
-        /* ============================================================
-           VERIFICATION BADGE
-           ============================================================ */
-        .verification-badge {
+        .warning-badge {
             display: inline-block;
             padding: 2px 10px;
             border-radius: 12px;
             font-size: 0.6rem;
             font-weight: 600;
+            background: rgba(251,191,36,0.15);
+            color: #fbbf24;
         }
-        .verification-badge.success { background: rgba(46,204,113,0.15); color: #2ecc71; }
-        .verification-badge.warning { background: rgba(251,191,36,0.15); color: #fbbf24; }
         
-        /* ============================================================
-           SKELETON LOADER
-           ============================================================ */
-        .skeleton-loader {
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-        .skeleton-item {
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            height: 40px;
-            margin-bottom: 8px;
-        }
-        .skeleton-card {
-            background: rgba(255,255,255,0.03);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 15px;
-        }
-        .skeleton-card .skeleton-title {
-            height: 20px;
-            width: 60%;
-            background: rgba(255,255,255,0.05);
-            border-radius: 4px;
-            margin-bottom: 15px;
-        }
-        .skeleton-card .skeleton-line {
-            height: 12px;
-            width: 100%;
-            background: rgba(255,255,255,0.04);
-            border-radius: 4px;
-            margin-bottom: 8px;
-        }
-        .skeleton-card .skeleton-line.short { width: 70%; }
-        .skeleton-card .skeleton-line.medium { width: 85%; }
-        
-        /* ============================================================
-           RESPONSIVE
-           ============================================================ */
         @media (max-width: 768px) {
             .dashboard-container { padding: 15px; }
             .sidebar-panel { width: 280px; right: -300px; }
             .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
             .stats-grid .stat-item .number { font-size: 1.3rem; }
-            /* Mobile table scroll */
             .level-members-table { max-height: 200px; }
             .level-members-table table { font-size: 0.75rem; }
             .level-members-table td, .level-members-table th { padding: 4px 6px; }
@@ -512,54 +411,9 @@
 
 <!-- ====== CONTENT ====== -->
 <div class="dashboard-container" id="referralContent">
-    <!-- Skeleton Loader -->
-    <div class="skeleton-loader" id="skeletonLoader">
-        <div class="row g-4">
-            <div class="col-12">
-                <div class="skeleton-card">
-                    <div class="skeleton-title"></div>
-                    <div class="skeleton-line"></div>
-                    <div class="skeleton-line short"></div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="skeleton-card">
-                    <div class="skeleton-title"></div>
-                    <div class="skeleton-line"></div>
-                    <div class="skeleton-line medium"></div>
-                    <div class="skeleton-line short"></div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="skeleton-card">
-                    <div class="skeleton-title"></div>
-                    <div class="skeleton-line"></div>
-                    <div class="skeleton-line medium"></div>
-                    <div class="skeleton-line short"></div>
-                </div>
-            </div>
-            <div class="col-12">
-                <div class="skeleton-card">
-                    <div class="skeleton-title"></div>
-                    <div class="row g-3">
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                        <div class="col-md-2 col-6"><div class="skeleton-item" style="height:60px;"></div></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12">
-                <div class="skeleton-card">
-                    <div class="skeleton-title"></div>
-                    <div class="skeleton-item"></div>
-                    <div class="skeleton-item"></div>
-                    <div class="skeleton-item"></div>
-                </div>
-            </div>
-        </div>
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="text-muted mt-3">Loading referral data...</p>
     </div>
 </div>
 
