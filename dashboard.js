@@ -1,10 +1,11 @@
 // ============================================================
-// RND STAKING PLATFORM - DASHBOARD.JS (PRODUCTION READY v4)
+// RND STAKING PLATFORM - DASHBOARD.JS (PRODUCTION READY v5)
 // ============================================================
 // 📌 ALL BUSINESS LOGIC HERE:
 // Firebase Init | Auth | Login | Logout | Dashboard Load
 // Wallet | Referral | Team | Transactions | Packages
-// Transfer | Daily Release (Pending Days) | Commission (Duplicate Proof)
+// Transfer (UPDATED - UID + Username + Referral Code Search)
+// Daily Release (Pending Days) | Commission (Duplicate Proof)
 // Backup (Comprehensive) | Recovery (Referral Chain Verify)
 // Validation | Security | Real-time Listener (Debounced)
 // ============================================================
@@ -144,32 +145,42 @@ async function fetchLiveRate() {
 }
 
 // ============================================================
-// GET USER BY USERNAME (Optimized)
+// 🔥 GET USER BY USERNAME, UID OR REFERRAL CODE (UPDATED)
 // ============================================================
-async function getUserByUsername(username) {
+async function getUserByIdentifier(identifier) {
     try {
-        const usersRef = ref(db, 'users');
-        const usernameQuery = query(usersRef, orderByChild('username'), equalTo(username));
-        const snapshot = await get(usernameQuery);
+        if (!identifier) return null;
         
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            const uid = Object.keys(data)[0];
-            return { uid: uid, data: data[uid] };
+        const usersRef = ref(db, 'users');
+        
+        // 1. Try by UID (Direct lookup)
+        const uidSnap = await get(ref(db, 'users/' + identifier));
+        if (uidSnap.exists()) {
+            const data = uidSnap.val();
+            return { uid: identifier, data: data, source: 'uid' };
         }
         
-        const referralQuery = query(usersRef, orderByChild('referralCode'), equalTo(username));
-        const refSnapshot = await get(referralQuery);
-        
-        if (refSnapshot.exists()) {
-            const data = refSnapshot.val();
+        // 2. Try by Username
+        const usernameQuery = query(usersRef, orderByChild('username'), equalTo(identifier));
+        const usernameSnap = await get(usernameQuery);
+        if (usernameSnap.exists()) {
+            const data = usernameSnap.val();
             const uid = Object.keys(data)[0];
-            return { uid: uid, data: data[uid] };
+            return { uid: uid, data: data[uid], source: 'username' };
+        }
+        
+        // 3. Try by Referral Code
+        const referralQuery = query(usersRef, orderByChild('referralCode'), equalTo(identifier));
+        const referralSnap = await get(referralQuery);
+        if (referralSnap.exists()) {
+            const data = referralSnap.val();
+            const uid = Object.keys(data)[0];
+            return { uid: uid, data: data[uid], source: 'referralCode' };
         }
         
         return null;
     } catch (error) {
-        console.error('Error getting user:', error);
+        console.error('Error getting user by identifier:', error);
         return null;
     }
 }
@@ -376,7 +387,7 @@ async function recoverUserData(userId, authUser) {
             
             if (recoveredData.referredBy) {
                 console.log('✅ Referred By preserved:', recoveredData.referredBy);
-                const referrer = await getUserByUsername(recoveredData.referredBy);
+                const referrer = await getUserByIdentifier(recoveredData.referredBy);
                 if (!referrer) {
                     console.warn('⚠️ Referrer not found, keeping referral code anyway');
                 }
@@ -492,21 +503,14 @@ async function recoverUserData(userId, authUser) {
         const urlParams = new URLSearchParams(window.location.search);
         const refCode = urlParams.get('ref');
         if (refCode) {
-            const usersRef = ref(db, 'users');
-            const refQuery = query(usersRef, orderByChild('referralCode'), equalTo(refCode));
-            const refSnap = await get(refQuery);
-            
-            if (refSnap.exists()) {
-                const data = refSnap.val();
-                const uid = Object.keys(data)[0];
-                if (uid !== userId) {
-                    newUserData.referredBy = refCode;
-                    await runTransaction(ref(db, 'users/' + uid), (currentData) => {
-                        if (!currentData) return currentData;
-                        currentData.totalReferrals = (currentData.totalReferrals || 0) + 1;
-                        return currentData;
-                    });
-                }
+            const refResult = await getUserByIdentifier(refCode);
+            if (refResult && refResult.uid !== userId) {
+                newUserData.referredBy = refCode;
+                await runTransaction(ref(db, 'users/' + refResult.uid), (currentData) => {
+                    if (!currentData) return currentData;
+                    currentData.totalReferrals = (currentData.totalReferrals || 0) + 1;
+                    return currentData;
+                });
             }
         }
         
@@ -722,17 +726,12 @@ async function processReferralCommission(userId, packageId, packageData) {
             let commissionProcessed = false;
             
             while (currentRefCode && level <= 5) {
-                const usersRef = ref(db, 'users');
-                const refQuery = query(usersRef, orderByChild('referralCode'), equalTo(currentRefCode));
-                const usersSnapshot = await get(refQuery);
+                const refResult = await getUserByIdentifier(currentRefCode);
                 
-                if (!usersSnapshot.exists()) break;
+                if (!refResult || refResult.uid === userId) break;
                 
-                const data = usersSnapshot.val();
-                const uid = Object.keys(data)[0];
-                const referrerData = data[uid];
-                
-                if (!uid || !referrerData || uid === userId) break;
+                const referrerData = refResult.data;
+                const uid = refResult.uid;
                 
                 const commissionPercent = commissionLevels.find(l => l.level === level)?.percent || 0;
                 const commissionAmount = packageAmount * commissionPercent;
@@ -760,6 +759,7 @@ async function processReferralCommission(userId, packageId, packageData) {
                                 percent: commissionPercent * 100,
                                 amount: commissionAmount,
                                 fromUser: userData.username || userData.referralCode || userId,
+                                fromUid: userId,
                                 packageId: packageId,
                                 timestamp: Date.now(),
                                 date: getTodayDate(),
@@ -775,6 +775,7 @@ async function processReferralCommission(userId, packageId, packageData) {
                                 level: level,
                                 percent: commissionPercent * 100,
                                 fromUser: userData.username || userData.referralCode || userId,
+                                fromUid: userId,
                                 timestamp: Date.now(),
                                 date: getTodayDate(),
                                 status: 'completed',
@@ -844,15 +845,19 @@ function calculateUserStats(userData) {
 }
 
 // ============================================================
-// ATOMIC TRANSFER (With Backup and Rollback)
+// 🔥 ATOMIC TRANSFER (UPDATED - UID + Username + Referral Code Search)
 // ============================================================
-async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, senderUsername, recipientUsername) {
+async function atomicTransfer(senderUid, recipientUid, recipientData, amount, walletType, currency, senderUsername, senderUidForHistory) {
     if (amount <= 0) return { success: false, error: 'Invalid amount' };
     
     const senderRef = ref(db, 'users/' + senderUid);
     const timestamp = Date.now();
     const date = getTodayDate();
     const txId = generateTxId();
+    
+    // Get recipient username and UID
+    const recipientUsername = recipientData.username || recipientData.referralCode || recipientUid;
+    const recipientUidForHistory = recipientUid;
     
     // Create comprehensive backups
     await createComprehensiveBackup(senderUid, 'transfer_sender');
@@ -870,12 +875,14 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         transferHistory.push({
             type: 'sent',
             to: recipientUsername,
+            toUid: recipientUidForHistory,
             amount: amount,
             from: senderUsername,
+            fromUid: senderUidForHistory || senderUid,
             currency: currency,
             timestamp: timestamp,
             txId: txId,
-            status: 'pending'
+            status: 'completed'
         });
         currentData.transferHistory = transferHistory;
         
@@ -885,10 +892,12 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
             amount: amount,
             currency: currency,
             to: recipientUsername,
+            toUid: recipientUidForHistory,
             from: senderUsername,
+            fromUid: senderUidForHistory || senderUid,
             timestamp: timestamp,
             date: date,
-            status: 'pending'
+            status: 'completed'
         };
         currentData.transactions = transactions;
         
@@ -899,7 +908,8 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         return { success: false, error: 'Insufficient balance or sender update failed' };
     }
     
-    const recipientResult = await runTransaction(ref(db, 'users/' + recipientUid), (currentData) => {
+    const recipientRef = ref(db, 'users/' + recipientUid);
+    const recipientResult = await runTransaction(recipientRef, (currentData) => {
         if (!currentData) return currentData;
         currentData[walletType] = (currentData[walletType] || 0) + amount;
         
@@ -907,12 +917,14 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         transferHistory.push({
             type: 'received',
             from: senderUsername,
+            fromUid: senderUidForHistory || senderUid,
             to: recipientUsername,
+            toUid: recipientUidForHistory,
             amount: amount,
             currency: currency,
             timestamp: timestamp,
             txId: txId,
-            status: 'pending'
+            status: 'completed'
         });
         currentData.transferHistory = transferHistory;
         
@@ -922,10 +934,12 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
             amount: amount,
             currency: currency,
             from: senderUsername,
+            fromUid: senderUidForHistory || senderUid,
             to: recipientUsername,
+            toUid: recipientUidForHistory,
             timestamp: timestamp,
             date: date,
-            status: 'pending'
+            status: 'completed'
         };
         currentData.transactions = transactions;
         
@@ -933,6 +947,7 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     });
     
     if (!recipientResult.committed) {
+        // Rollback sender
         await runTransaction(senderRef, (currentData) => {
             if (!currentData) return currentData;
             currentData[walletType] = (currentData[walletType] || 0) + amount;
@@ -945,26 +960,6 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         });
         return { success: false, error: 'Recipient update failed, funds returned' };
     }
-    
-    await runTransaction(senderRef, (currentData) => {
-        if (!currentData) return currentData;
-        const transactions = currentData.transactions || {};
-        if (transactions[txId]) {
-            transactions[txId].status = 'completed';
-        }
-        currentData.transactions = transactions;
-        return currentData;
-    });
-    
-    await runTransaction(ref(db, 'users/' + recipientUid), (currentData) => {
-        if (!currentData) return currentData;
-        const transactions = currentData.transactions || {};
-        if (transactions[txId]) {
-            transactions[txId].status = 'completed';
-        }
-        currentData.transactions = transactions;
-        return currentData;
-    });
     
     return { success: true, txId: txId };
 }
@@ -1316,7 +1311,7 @@ function renderDashboard(u) {
                     <form id="transferForm">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <input type="text" id="transferUserId" class="form-control form-control-custom" placeholder="Recipient User ID" required>
+                                <input type="text" id="transferUserId" class="form-control form-control-custom" placeholder="Recipient User ID / Username / Referral Code" required>
                             </div>
                             <div class="col-md-3">
                                 <input type="number" id="transferAmount" class="form-control form-control-custom" placeholder="Amount" min="0.01" step="0.01" required>
@@ -1345,8 +1340,8 @@ function renderDashboard(u) {
                                 <div class="transfer-item">
                                     <div>
                                         ${t.type === 'sent' ? 
-                                            `<span class="sent"><i class="bi bi-arrow-up-right"></i> Sent to <span class="user">${t.to || 'unknown'}</span></span>` :
-                                            `<span class="received"><i class="bi bi-arrow-down-left"></i> Received from <span class="user">${t.from || 'unknown'}</span></span>`
+                                            `<span class="sent"><i class="bi bi-arrow-up-right"></i> Sent to <span class="user">${t.to || 'unknown'}</span> (${t.toUid ? t.toUid.substring(0, 8) : ''})</span>` :
+                                            `<span class="received"><i class="bi bi-arrow-down-left"></i> Received from <span class="user">${t.from || 'unknown'}</span> (${t.fromUid ? t.fromUid.substring(0, 8) : ''})</span>`
                                         }
                                     </div>
                                     <div>
@@ -1409,15 +1404,15 @@ window.copyUserId = function(username) {
 };
 
 // ============================================================
-// TRANSFER HANDLER
+// 🔥 TRANSFER HANDLER (UPDATED)
 // ============================================================
 async function handleTransfer() {
-    const toUsername = document.getElementById('transferUserId').value.trim();
+    const recipientIdentifier = document.getElementById('transferUserId').value.trim();
     const amount = parseFloat(document.getElementById('transferAmount').value);
     const walletType = document.getElementById('transferWallet').value;
     const btn = document.querySelector('#transferForm button[type="submit"]');
     
-    if (!toUsername) { showToast('❌ Please enter recipient User ID', 'error'); return; }
+    if (!recipientIdentifier) { showToast('❌ Please enter recipient User ID, Username or Referral Code', 'error'); return; }
     if (!amount || amount <= 0) { showToast('❌ Please enter a valid amount', 'error'); return; }
     
     const user = auth.currentUser;
@@ -1427,11 +1422,21 @@ async function handleTransfer() {
     if (!senderSnap.exists()) { showToast('❌ User data not found', 'error'); return; }
     const senderData = senderSnap.val();
     const senderUsername = senderData.username || senderData.referralCode;
+    const senderUid = user.uid;
     
-    if (toUsername === senderUsername) { showToast('❌ You cannot send money to yourself!', 'error'); return; }
+    // 🔥 Search recipient by UID, Username or Referral Code
+    const recipient = await getUserByIdentifier(recipientIdentifier);
+    if (!recipient) { showToast('❌ User not found! Please check the ID, Username or Referral Code.', 'error'); return; }
     
-    const recipient = await getUserByUsername(toUsername);
-    if (!recipient) { showToast('❌ User ID not found!', 'error'); return; }
+    const recipientUid = recipient.uid;
+    const recipientData = recipient.data;
+    const recipientUsername = recipientData.username || recipientData.referralCode;
+    
+    // 🔥 Self Transfer Check - by UID
+    if (recipientUid === senderUid) { 
+        showToast('❌ You cannot send money to yourself!', 'error'); 
+        return; 
+    }
     
     const senderBalance = senderData[walletType] || 0;
     if (senderBalance < amount) {
@@ -1451,17 +1456,18 @@ async function handleTransfer() {
     
     try {
         const result = await atomicTransfer(
-            user.uid,
-            recipient.uid,
+            senderUid,
+            recipientUid,
+            recipientData,
             amount,
             walletType,
             currency,
             senderUsername,
-            toUsername
+            senderUid
         );
         
         if (result.success) {
-            showToast(`✅ ${amount} ${currency} sent successfully to ${toUsername}!`, 'success');
+            showToast(`✅ ${amount} ${currency} sent successfully to ${recipientUsername}!`, 'success');
             document.getElementById('transferUserId').value = '';
             document.getElementById('transferAmount').value = '';
             await loadDashboardData(user.uid);
