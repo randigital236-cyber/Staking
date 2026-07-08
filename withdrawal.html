@@ -202,15 +202,6 @@
       display: inline-block;
       margin-top: 4px;
     }
-    .wallet-box .wallet-enabled-badge {
-      font-size: 0.6rem;
-      background: rgba(46,204,113,0.1);
-      color: #2ecc71;
-      padding: 2px 10px;
-      border-radius: 12px;
-      display: inline-block;
-      margin-top: 4px;
-    }
     
     .form-control-custom {
       background: rgba(8,14,26,0.8) !important;
@@ -329,38 +320,6 @@
     .transaction-item .status-approved { color: #2ecc71; }
     .transaction-item .status-rejected { color: #f87171; }
     
-    /* Processing indicator */
-    .processing-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(5px);
-      z-index: 9998;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .processing-overlay.active { display: flex; }
-    .processing-overlay .spinner {
-      width: 60px;
-      height: 60px;
-      border: 4px solid rgba(46,204,113,0.1);
-      border-top-color: #2ecc71;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .processing-overlay .text {
-      color: #fff;
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-    
     @media (max-width: 768px) {
       .dashboard-container { padding: 15px; }
       .sidebar-panel { width: 280px; right: -300px; }
@@ -376,12 +335,6 @@
 <body>
 
 <div class="toast-container" id="toastContainer"></div>
-
-<!-- ====== PROCESSING OVERLAY ====== -->
-<div class="processing-overlay" id="processingOverlay">
-  <div class="spinner"></div>
-  <div class="text">Processing withdrawal request...</div>
-</div>
 
 <!-- ====== NAVBAR ====== -->
 <nav class="navbar navbar-custom">
@@ -466,15 +419,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// ============================================================
-// 🔒 GLOBALS - Rate Limiting
-// ============================================================
-let isProcessing = false;
-const WITHDRAWAL_COOLDOWN = 3000; // 3 seconds
-
-// ============================================================
-// 🔒 TOAST
-// ============================================================
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -489,9 +433,6 @@ function showToast(message, type = 'success') {
   }, 5000);
 }
 
-// ============================================================
-// 🔒 SIDEBAR
-// ============================================================
 const sidebarPanel = document.getElementById('sidebarPanel');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -518,90 +459,78 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
   window.location.href = 'login.html';
 });
 
-// ============================================================
-// 🔒 GET LATEST USER DATA DIRECTLY FROM FIREBASE
-// ============================================================
-async function getLatestUserData(uid) {
+async function getUserData(uid) {
   const snap = await get(ref(db, 'users/' + uid));
   return snap.exists() ? snap.val() : null;
 }
 
 // ============================================================
-// 🔒 CHECK DUPLICATE WITHDRAWAL ID
+// 🔥 ATOMIC saveTransaction() using runTransaction
 // ============================================================
-async function isDuplicateWithdrawalId(uid, withdrawalId) {
-  const userSnap = await get(ref(db, 'users/' + uid));
-  if (!userSnap.exists()) return false;
-  
-  const userData = userSnap.val();
-  const transactions = userData.transactions || {};
-  
-  for (let key in transactions) {
-    const tx = transactions[key];
-    if (tx.type === 'withdrawal' && tx.withdrawalId === withdrawalId) {
+async function saveTransaction(uid, transactionData) {
+  try {
+    const userRef = ref(db, 'users/' + uid);
+    
+    const result = await runTransaction(userRef, (currentData) => {
+      if (!currentData) {
+        return { ...currentData };
+      }
+      
+      const transactions = currentData.transactions || {};
+      
+      // 🔥 Duplicate check - Withdrawal (withdrawalId se)
+      if (transactionData.type === 'withdrawal' && transactionData.withdrawalId) {
+        for (let key in transactions) {
+          const tx = transactions[key];
+          if (tx.type === 'withdrawal' && tx.withdrawalId === transactionData.withdrawalId) {
+            return { ...currentData };
+          }
+        }
+      }
+      
+      // Generate unique ID
+      const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+      transactions[txId] = transactionData;
+      
+      return {
+        ...currentData,
+        transactions: transactions
+      };
+    });
+    
+    if (result.committed) {
+      console.log('✅ Transaction saved atomically:', transactionData.type);
       return true;
+    } else {
+      console.log('⚠️ Transaction not committed (duplicate or no change)');
+      return false;
     }
+  } catch (error) {
+    console.error('Error saving transaction:', error);
+    return false;
   }
-  return false;
 }
 
 // ============================================================
-// 🔒 ATOMIC WITHDRAWAL - COMPLETE SECURE IMPLEMENTATION
+// 🔥 ATOMIC WITHDRAWAL PROCESS
 // ============================================================
-async function processSecureWithdrawal(uid, walletType, amount, address, currency, withdrawalId) {
+async function processAtomicWithdrawal(uid, walletType, amount, address, currency, withdrawalId) {
   const userRef = ref(db, 'users/' + uid);
   
-  // 🔥 CRITICAL: ALL VALIDATION INSIDE runTransaction()
-  const result = await runTransaction(userRef, async (currentData) => {
-    if (!currentData) {
+  const result = await runTransaction(userRef, (currentData) => {
+    if (!currentData) return { ...currentData };
+    
+    // Check balance
+    const balance = currentData[walletType] || 0;
+    if (balance < amount) {
       return { ...currentData };
     }
     
-    // ============================================================
-    // 🔒 STEP 1: READ LATEST BALANCE FROM DATABASE
-    // ============================================================
-    const currentBalance = currentData[walletType] || 0;
+    // Update balance
+    const newBalance = balance - amount;
     
-    // ============================================================
-    // 🔒 STEP 2: VALIDATE BALANCE - CANNOT EXCEED AVAILABLE
-    // ============================================================
-    if (currentBalance < amount) {
-      console.log('❌ Insufficient balance:', currentBalance, 'Requested:', amount);
-      return { ...currentData }; // Rollback - no changes
-    }
-    
-    // ============================================================
-    // 🔒 STEP 3: VALIDATE MINIMUM AMOUNT
-    // ============================================================
-    if (walletType === 'referralWallet' && amount < 20) {
-      console.log('❌ Minimum 20 USDT required for referral wallet');
-      return { ...currentData };
-    }
-    if (walletType === 'rndWallet' && amount < 5) {
-      console.log('❌ Minimum 5 RND required for RND wallet');
-      return { ...currentData };
-    }
-    
-    // ============================================================
-    // 🔒 STEP 4: CHECK DUPLICATE WITHDRAWAL ID
-    // ============================================================
+    // Create transaction
     const transactions = currentData.transactions || {};
-    for (let key in transactions) {
-      const tx = transactions[key];
-      if (tx.type === 'withdrawal' && tx.withdrawalId === withdrawalId) {
-        console.log('❌ Duplicate withdrawal ID detected:', withdrawalId);
-        return { ...currentData };
-      }
-    }
-    
-    // ============================================================
-    // 🔒 STEP 5: ALL VALIDATIONS PASSED - DEDUCT BALANCE
-    // ============================================================
-    const newBalance = currentBalance - amount;
-    
-    // ============================================================
-    // 🔒 STEP 6: CREATE TRANSACTION RECORD
-    // ============================================================
     const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
     transactions[txId] = {
       type: 'withdrawal',
@@ -616,37 +545,64 @@ async function processSecureWithdrawal(uid, walletType, amount, address, currenc
       description: `Withdrawal of ${amount} ${currency} to ${address.substring(0, 15)}...`
     };
     
-    // ============================================================
-    // 🔒 STEP 7: UPDATE USER DATA ATOMICALLY
-    // ============================================================
     return {
       ...currentData,
-      [walletType]: newBalance,  // Deduct balance
-      transactions: transactions  // Save transaction
+      [walletType]: newBalance,
+      transactions: transactions
     };
   });
   
-  // ============================================================
-  // 🔒 STEP 8: CHECK RESULT
-  // ============================================================
   if (result.committed) {
-    console.log('✅ Atomic withdrawal successful:', withdrawalId);
-    return { 
-      success: true, 
-      withdrawalId: withdrawalId,
-      newBalance: result.snapshot.val()[walletType]
-    };
+    console.log('✅ Atomic withdrawal completed:', withdrawalId);
+    return { success: true, withdrawalId: withdrawalId };
   } else {
-    console.log('⚠️ Atomic withdrawal failed - validation or duplicate');
-    return { 
-      success: false, 
-      error: 'Insufficient balance, invalid amount, or duplicate request'
-    };
+    console.log('⚠️ Atomic withdrawal failed or insufficient balance');
+    return { success: false, error: 'Insufficient balance or transaction failed' };
   }
 }
 
 // ============================================================
-// 🔒 GET WITHDRAWAL HISTORY
+// 🔥 UPDATE WITHDRAWAL STATUS (Admin action)
+// ============================================================
+async function updateWithdrawalStatus(uid, withdrawalId, newStatus, remark = '') {
+  const userRef = ref(db, 'users/' + uid);
+  
+  const result = await runTransaction(userRef, (currentData) => {
+    if (!currentData) return { ...currentData };
+    
+    const transactions = currentData.transactions || {};
+    let found = false;
+    
+    for (let key in transactions) {
+      const tx = transactions[key];
+      if (tx.type === 'withdrawal' && tx.withdrawalId === withdrawalId) {
+        transactions[key].status = newStatus;
+        transactions[key].updatedAt = Date.now();
+        if (remark) transactions[key].remark = remark;
+        found = true;
+        break;
+      }
+    }
+    
+    if (!found) return { ...currentData };
+    
+    return {
+      ...currentData,
+      transactions: transactions
+    };
+  });
+  
+  if (result.committed) {
+    console.log('✅ Withdrawal status updated:', withdrawalId, newStatus);
+    return { success: true };
+  } else {
+    console.log('⚠️ Withdrawal not found or update failed');
+    return { success: false, error: 'Withdrawal not found' };
+  }
+}
+
+// ============================================================
+// 🔥 GET WITHDRAWAL HISTORY
 // ============================================================
 async function getWithdrawalHistory(uid) {
   const userSnap = await get(ref(db, 'users/' + uid));
@@ -671,7 +627,7 @@ async function getWithdrawalHistory(uid) {
 }
 
 // ============================================================
-// 🔒 MAIN
+// 🔥 MAIN
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -680,8 +636,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   try {
-    // 🔥 Get fresh user data from Firebase
-    const userData = await getLatestUserData(user.uid);
+    const userData = await getUserData(user.uid);
     if (!userData) {
       window.location.href = 'dashboard.html';
       return;
@@ -696,10 +651,10 @@ onAuthStateChanged(auth, async (user) => {
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = userData.totalReferrals || 0;
 
-    // 🔥 Get withdrawal history
+    // 🔥 Get withdrawal history from transactions
     const withdrawals = await getWithdrawalHistory(user.uid);
 
-    // 🔥 Read wallets from Firebase (fresh data)
+    // 🔥 Read wallets from Firebase
     const depositWallet = userData.depositWallet || 0;
     const referralWallet = userData.referralWallet || 0;
     const rndWallet = userData.rndWallet || 0;
@@ -732,7 +687,7 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="wallet-label">💰 Referral Wallet</div>
                 <div class="wallet-sub">USDT Balance</div>
                 <div class="min-label referral-min">⚠️ Min: 20 USDT (BEP20)</div>
-                <div class="wallet-enabled-badge">✅ Can Withdraw</div>
+                <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
               </div>
             </div>
             <div class="col-6 col-lg-3">
@@ -742,7 +697,7 @@ onAuthStateChanged(auth, async (user) => {
                 <div class="wallet-label">RND Wallet</div>
                 <div class="wallet-sub">RND Balance</div>
                 <div class="min-label rnd-min">⚠️ Min: 5 RND (BEP20)</div>
-                <div class="wallet-enabled-badge">✅ Can Withdraw</div>
+                <div class="wallet-disabled-badge" style="background:rgba(46,204,113,0.1);color:#2ecc71;">✅ Can Withdraw</div>
               </div>
             </div>
             <div class="col-6 col-lg-3">
@@ -857,7 +812,7 @@ onAuthStateChanged(auth, async (user) => {
     `;
 
     // ============================================================
-    // 🔒 SELECT WITHDRAW OPTION
+    // 🔥 SELECT WITHDRAW OPTION
     // ============================================================
     window.selectWithdrawOption = function(walletType) {
       document.querySelectorAll('.withdraw-option-card').forEach(el => el.classList.remove('selected'));
@@ -878,103 +833,47 @@ onAuthStateChanged(auth, async (user) => {
     };
 
     // ============================================================
-    // 🔒 WITHDRAWAL FORM SUBMIT - FULL SECURE
+    // 🔥 WITHDRAWAL FORM SUBMIT
     // ============================================================
     document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
-      // 🔒 Rate limiting - Prevent multiple submissions
-      if (isProcessing) {
-        showToast('⚠️ Please wait, your previous request is being processed...', 'error');
-        return;
-      }
       
       const walletType = document.getElementById('selectedWallet').value;
       const amount = parseFloat(document.getElementById('withAmount').value);
       const address = document.getElementById('withAddr').value.trim();
       const btn = document.getElementById('withdrawBtn');
-      const overlay = document.getElementById('processingOverlay');
 
-      // ============================================================
-      // 🔒 FRONTEND VALIDATION (For user convenience only)
-      // ============================================================
-      
-      // Validate amount
-      if (!amount || isNaN(amount) || amount <= 0) {
-        showToast('❌ Please enter a valid amount!', 'error');
+      // 🔥 Validation - Different minimums for different wallets
+      if (walletType === 'referralWallet') {
+        if (!amount || amount < 20) { 
+          showToast('❌ Minimum withdrawal for Referral Wallet is 20 USDT (BEP20)!', 'error'); 
+          return; 
+        }
+      } else if (walletType === 'rndWallet') {
+        if (!amount || amount < 5) { 
+          showToast('❌ Minimum withdrawal for RND Wallet is 5 RND (BEP20)!', 'error'); 
+          return; 
+        }
+      } else {
+        showToast('❌ Please select a valid wallet!', 'error');
         return;
       }
-      
-      // Validate wallet address
+
       if (!address || !address.startsWith('0x') || address.length < 10) {
         showToast('❌ Please enter a valid BEP20 wallet address starting with 0x', 'error');
         return;
       }
-      
-      // 🔥 CRITICAL: Get fresh data from Firebase for validation
-      const freshUserData = await getLatestUserData(user.uid);
-      if (!freshUserData) {
-        showToast('❌ Unable to fetch user data. Please try again.', 'error');
-        return;
-      }
-      
-      const currentBalance = freshUserData[walletType] || 0;
-      
-      // ============================================================
-      // 🔒 BACKEND VALIDATION (CRITICAL - Must pass)
-      // ============================================================
-      
-      // Validate minimum amount
-      if (walletType === 'referralWallet') {
-        if (amount < 20) {
-          showToast('❌ Minimum withdrawal for Referral Wallet is 20 USDT!', 'error');
-          return;
-        }
-        if (amount > currentBalance) {
-          showToast(`❌ Insufficient balance! You have ${currentBalance.toFixed(2)} USDT`, 'error');
-          return;
-        }
-      } else if (walletType === 'rndWallet') {
-        if (amount < 5) {
-          showToast('❌ Minimum withdrawal for RND Wallet is 5 RND!', 'error');
-          return;
-        }
-        if (amount > currentBalance) {
-          showToast(`❌ Insufficient balance! You have ${currentBalance.toFixed(4)} RND`, 'error');
-          return;
-        }
-      } else {
-        showToast('❌ Invalid wallet selected!', 'error');
-        return;
-      }
-      
-      // ============================================================
-      // 🔒 GENERATE UNIQUE WITHDRAWAL ID
-      // ============================================================
-      const withdrawalId = 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-      
-      // 🔒 Check for duplicate (extra safety)
-      const isDuplicate = await isDuplicateWithdrawalId(user.uid, withdrawalId);
-      if (isDuplicate) {
-        showToast('❌ Duplicate request detected! Please try again.', 'error');
-        return;
-      }
-      
+
+      // 🔥 Currency based on wallet type
       const currency = walletType === 'referralWallet' ? 'USDT' : 'RND';
-      
-      // ============================================================
-      // 🔒 SET PROCESSING STATE - Prevent multiple submissions
-      // ============================================================
-      isProcessing = true;
+      const withdrawalId = 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-      overlay.classList.add('active');
-      
+
       try {
-        // ============================================================
-        // 🔒 ATOMIC WITHDRAWAL - All validation inside transaction
-        // ============================================================
-        const result = await processSecureWithdrawal(
+        // 🔥 ATOMIC WITHDRAWAL - Sab ek saath
+        const result = await processAtomicWithdrawal(
           user.uid,
           walletType,
           amount,
@@ -984,17 +883,13 @@ onAuthStateChanged(auth, async (user) => {
         );
         
         if (!result.success) {
-          showToast('❌ ' + (result.error || 'Withdrawal failed. Insufficient balance or invalid request.'), 'error');
+          showToast('❌ Insufficient balance or transaction failed!', 'error');
           btn.disabled = false;
           btn.innerHTML = '<i class="bi bi-arrow-up-circle me-2"></i>Submit Withdrawal';
-          overlay.classList.remove('active');
-          isProcessing = false;
           return;
         }
-        
-        // ============================================================
-        // 🔒 SAVE TO ROOT WITHDRAWALS FOR ADMIN (Non-critical)
-        // ============================================================
+
+        // 🔥 Also save to root withdrawals node for admin visibility
         try {
           await push(ref(db, 'withdrawals'), {
             uid: user.uid,
@@ -1007,29 +902,22 @@ onAuthStateChanged(auth, async (user) => {
             timestamp: Date.now()
           });
         } catch (err) {
-          console.warn('Root withdrawal save warning:', err);
-          // Non-critical, continue
+          console.warn('Root withdrawal save warning (non-critical):', err);
         }
-        
-        // ============================================================
-        // 🔒 SUCCESS
-        // ============================================================
+
         showToast(`✅ Withdrawal request submitted successfully! ${amount} ${currency} will be processed by admin.`, 'success');
         document.getElementById('withAmount').value = '';
         document.getElementById('withAddr').value = '';
         
-        // Reload after delay to show updated balance
         setTimeout(() => { 
           window.location.reload(); 
-        }, 2500);
-        
+        }, 2000);
+
       } catch (error) {
         console.error('Withdrawal error:', error);
         showToast('❌ Error submitting withdrawal. Please try again.', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-arrow-up-circle me-2"></i>Submit Withdrawal';
-        overlay.classList.remove('active');
-        isProcessing = false;
       }
     });
 
