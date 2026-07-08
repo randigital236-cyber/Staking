@@ -1,13 +1,5 @@
 // ============================================================
-// RND STAKING PLATFORM - WITHDRAWAL.JS (PRODUCTION READY v2)
-// ============================================================
-// 📌 ONLY WITHDRAWAL MODULE UPDATED:
-// - Balance Validation (No Balance → No Transaction)
-// - Admin Panel Data (Complete User Info)
-// - User History (Transaction History)
-// - Atomic Transaction (runTransaction)
-// - No Double Deduction
-// - No Data Loss
+// RND STAKING PLATFORM - WITHDRAWAL.JS (PRODUCTION READY v3)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -87,12 +79,17 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 // GET USER DATA
 // ============================================================
 async function getUserData(uid) {
-    const snap = await get(ref(db, 'users/' + uid));
-    return snap.exists() ? snap.val() : null;
+    try {
+        const snap = await get(ref(db, 'users/' + uid));
+        return snap.exists() ? snap.val() : null;
+    } catch (error) {
+        console.error('Error getting user data:', error);
+        return null;
+    }
 }
 
 // ============================================================
-// 🔥 ATOMIC WITHDRAWAL - COMPLETE SECURE
+// 🔥 ATOMIC WITHDRAWAL
 // ============================================================
 async function processAtomicWithdrawal(uid, userData, walletType, amount, address, currency, withdrawalId) {
     const userRef = ref(db, 'users/' + uid);
@@ -100,22 +97,13 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
     const result = await runTransaction(userRef, (currentData) => {
         if (!currentData) return { ...currentData };
         
-        // ============================================================
-        // 🔒 STEP 1: READ CURRENT BALANCE
-        // ============================================================
         const balance = currentData[walletType] || 0;
         
-        // ============================================================
-        // 🔒 STEP 2: CHECK BALANCE - NO BALANCE = NO TRANSACTION
-        // ============================================================
         if (balance < amount) {
             console.log('❌ Insufficient balance:', balance, 'Requested:', amount);
             return { ...currentData };
         }
         
-        // ============================================================
-        // 🔒 STEP 3: CHECK MINIMUM AMOUNT
-        // ============================================================
         if (walletType === 'referralWallet' && amount < 20) {
             console.log('❌ Minimum 20 USDT required');
             return { ...currentData };
@@ -125,9 +113,6 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
             return { ...currentData };
         }
         
-        // ============================================================
-        // 🔒 STEP 4: CHECK DUPLICATE WITHDRAWAL
-        // ============================================================
         const transactions = currentData.transactions || {};
         for (let key in transactions) {
             const tx = transactions[key];
@@ -137,14 +122,7 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
             }
         }
         
-        // ============================================================
-        // 🔒 STEP 5: DEDUCT BALANCE - ONLY ONCE
-        // ============================================================
         const newBalance = balance - amount;
-        
-        // ============================================================
-        // 🔒 STEP 6: CREATE TRANSACTION FOR USER HISTORY
-        // ============================================================
         const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
         transactions[txId] = {
             type: 'withdrawal',
@@ -156,28 +134,19 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
             timestamp: Date.now(),
             date: new Date().toDateString(),
             status: 'pending',
-            description: `Withdrawal of ${amount} ${currency} to ${address.substring(0, 15)}...`
+            description: `Withdrawal of ${amount} ${currency}`
         };
         
-        // ============================================================
-        // 🔒 STEP 7: UPDATE USER DATA ATOMICALLY
-        // ============================================================
         return {
             ...currentData,
-            [walletType]: newBalance,      // Deduct balance
-            transactions: transactions      // Save transaction history
+            [walletType]: newBalance,
+            transactions: transactions
         };
     });
     
-    // ============================================================
-    // 🔒 STEP 8: CHECK RESULT
-    // ============================================================
     if (result.committed) {
         console.log('✅ Atomic withdrawal completed:', withdrawalId);
         
-        // ============================================================
-        // 🔒 STEP 9: SAVE TO ADMIN PANEL (Root /withdrawals)
-        // ============================================================
         try {
             const adminRef = ref(db, 'withdrawals');
             const newAdminRef = push(adminRef);
@@ -200,7 +169,7 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
             
             console.log('✅ Admin withdrawal record created');
         } catch (err) {
-            console.warn('⚠️ Admin withdrawal save warning (non-critical):', err);
+            console.warn('⚠️ Admin withdrawal save warning:', err);
         }
         
         return { 
@@ -221,40 +190,60 @@ async function processAtomicWithdrawal(uid, userData, walletType, amount, addres
 // GET WITHDRAWAL HISTORY
 // ============================================================
 async function getWithdrawalHistory(uid) {
-    const userSnap = await get(ref(db, 'users/' + uid));
-    if (!userSnap.exists()) return [];
-    
-    const userData = userSnap.val();
-    const transactions = userData.transactions || {};
-    const withdrawals = [];
-    
-    for (let key in transactions) {
-        const tx = transactions[key];
-        if (tx.type === 'withdrawal') {
-            withdrawals.push({ id: key, ...tx });
+    try {
+        const userSnap = await get(ref(db, 'users/' + uid));
+        if (!userSnap.exists()) return [];
+        
+        const userData = userSnap.val();
+        const transactions = userData.transactions || {};
+        const withdrawals = [];
+        
+        for (let key in transactions) {
+            const tx = transactions[key];
+            if (tx.type === 'withdrawal') {
+                withdrawals.push({ id: key, ...tx });
+            }
         }
+        
+        withdrawals.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        return withdrawals;
+    } catch (error) {
+        console.error('Error getting withdrawal history:', error);
+        return [];
     }
-    
-    withdrawals.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return withdrawals;
 }
 
 // ============================================================
-// 🔥 MAIN
+// 🔥 MAIN AUTH HANDLER - WITH ERROR HANDLING
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
+    // ============================================================
+    // STEP 1: CHECK USER LOGIN
+    // ============================================================
     if (!user) {
+        console.log('❌ No user logged in, redirecting to login...');
         window.location.href = 'login.html';
         return;
     }
 
     try {
+        console.log('✅ User logged in:', user.uid);
+        
+        // ============================================================
+        // STEP 2: GET USER DATA
+        // ============================================================
         const userData = await getUserData(user.uid);
+        console.log('📊 User data:', userData ? 'Found' : 'Not Found');
+        
         if (!userData) {
+            console.log('⚠️ User data not found, redirecting to dashboard...');
             window.location.href = 'dashboard.html';
             return;
         }
         
+        // ============================================================
+        // STEP 3: UPDATE SIDEBAR
+        // ============================================================
         const username = userData.username || userData.referralCode || 'USER';
         const name = userData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
@@ -264,20 +253,29 @@ onAuthStateChanged(auth, async (user) => {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = userData.totalReferrals || 0;
 
+        // ============================================================
+        // STEP 4: GET WITHDRAWAL HISTORY
+        // ============================================================
         const withdrawals = await getWithdrawalHistory(user.uid);
 
+        // ============================================================
+        // STEP 5: READ WALLETS
+        // ============================================================
         const depositWallet = userData.depositWallet || 0;
         const referralWallet = userData.referralWallet || 0;
         const rndWallet = userData.rndWallet || 0;
         const lockedRND = userData.lockedRND || 0;
 
         // ============================================================
-        // BALANCE CHECK
+        // STEP 6: BALANCE CHECK
         // ============================================================
         const isReferralSufficient = referralWallet >= 20;
         const isRNDSufficient = rndWallet >= 5;
         const canWithdraw = isReferralSufficient || isRNDSufficient;
 
+        // ============================================================
+        // STEP 7: RENDER HTML
+        // ============================================================
         document.getElementById('withdrawalContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -463,7 +461,7 @@ onAuthStateChanged(auth, async (user) => {
         `;
 
         // ============================================================
-        // SELECT WITHDRAW OPTION
+        // STEP 8: SELECT WITHDRAW OPTION
         // ============================================================
         window.selectWithdrawOption = function(walletType) {
             const isReferralSufficient = ${referralWallet >= 20};
@@ -496,7 +494,7 @@ onAuthStateChanged(auth, async (user) => {
         };
 
         // ============================================================
-        // 🔥 FORM SUBMIT - COMPLETE SECURE
+        // STEP 9: FORM SUBMIT
         // ============================================================
         document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -516,17 +514,11 @@ onAuthStateChanged(auth, async (user) => {
                 return;
             }
 
-            // ============================================================
-            // 🔒 FRONTEND VALIDATION
-            // ============================================================
-            
-            // Validate amount
             if (!amount || isNaN(amount) || amount <= 0) {
                 showToast('❌ Please enter a valid amount!', 'error');
                 return;
             }
 
-            // Get fresh data from Firebase
             const freshUserData = await getUserData(user.uid);
             if (!freshUserData) {
                 showToast('❌ Unable to fetch user data. Please try again.', 'error');
@@ -536,7 +528,7 @@ onAuthStateChanged(auth, async (user) => {
             const currentBalance = freshUserData[walletType] || 0;
 
             // ============================================================
-            // 🔒 BALANCE VALIDATION - NO BALANCE = NO TRANSACTION
+            // 🔒 BALANCE VALIDATION
             // ============================================================
             if (walletType === 'referralWallet') {
                 if (amount < 20) {
@@ -561,7 +553,6 @@ onAuthStateChanged(auth, async (user) => {
                 return;
             }
 
-            // Validate address
             if (!address || !address.startsWith('0x') || address.length < 10) {
                 showToast('❌ Please enter a valid BEP20 wallet address starting with 0x', 'error');
                 return;
@@ -570,17 +561,11 @@ onAuthStateChanged(auth, async (user) => {
             const currency = walletType === 'referralWallet' ? 'USDT' : 'RND';
             const withdrawalId = 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
-            // ============================================================
-            // 🔒 PROCESSING STATE
-            // ============================================================
             isProcessing = true;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
             try {
-                // ============================================================
-                // 🔒 ATOMIC WITHDRAWAL
-                // ============================================================
                 const result = await processAtomicWithdrawal(
                     user.uid,
                     freshUserData,
@@ -592,9 +577,6 @@ onAuthStateChanged(auth, async (user) => {
                 );
                 
                 if (!result.success) {
-                    // ============================================================
-                    // 🔒 FAILURE - NO TRANSACTION SAVED
-                    // ============================================================
                     showToast('❌ ' + (result.error || 'Withdrawal failed. Please try again.'), 'error');
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-arrow-up-circle me-2"></i>Submit Withdrawal';
@@ -602,14 +584,10 @@ onAuthStateChanged(auth, async (user) => {
                     return;
                 }
 
-                // ============================================================
-                // 🔒 SUCCESS - WITHDRAWAL COMPLETED
-                // ============================================================
                 showToast(`✅ Withdrawal request submitted successfully! ${amount} ${currency} is pending admin approval.`, 'success');
                 document.getElementById('withAmount').value = '';
                 document.getElementById('withAddr').value = '';
                 
-                // Reload after 2.5 seconds to show updated balance
                 setTimeout(() => {
                     window.location.reload();
                 }, 2500);
@@ -624,13 +602,15 @@ onAuthStateChanged(auth, async (user) => {
         });
 
     } catch (error) {
-        console.error('Error loading withdrawal page:', error);
+        console.error('❌ Error loading withdrawal page:', error);
         document.getElementById('withdrawalContent').innerHTML = `
             <div class="text-center py-5">
                 <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
                 <h4>Error Loading Page</h4>
                 <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
                 <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
+                <br>
+                <a href="dashboard.html" class="btn-outline-custom mt-3">Back to Dashboard</a>
             </div>
         `;
     }
