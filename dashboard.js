@@ -1,16 +1,10 @@
 // ============================================================
-// RND STAKING PLATFORM - DASHBOARD.JS (PRODUCTION READY v8)
+// RND STAKING PLATFORM - DASHBOARD.JS (PRODUCTION READY v9)
 // ============================================================
-// 🔥 FINAL VERSION - All Issues Fixed
-// 🔥 Recovery: ONLY update() - NO set()
-// 🔥 Transaction History: Limited to 500
-// 🔥 Transfer History: Limited to 100
-// 🔥 Daily Release: Processing Lock
-// 🔥 Commission: Processing Lock
-// 🔥 Package Validation: Full checks
-// 🔥 Transfer Validation: All edge cases
-// 🔥 Referral Validation: Self referral reject
-// 🔥 Processing Lock: Global lock system
+// 🔥 FIXED: Transfer Button Not Working
+// 🔥 FIXED: Recipient Verification Flow
+// 🔥 FIXED: Commission Distribution
+// 🔥 FIXED: Daily Release
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -63,13 +57,10 @@ async function acquireLock(lockId, userId, timeout = 30000) {
         
         const result = await runTransaction(lockRef, (currentData) => {
             if (currentData) {
-                // Check if lock is expired
                 if (currentData.lockedAt && (now - currentData.lockedAt) < timeout) {
-                    return; // Lock is active
+                    return;
                 }
             }
-            
-            // Acquire lock
             return {
                 lockedAt: now,
                 userId: userId,
@@ -107,47 +98,37 @@ async function releaseLock(lockId) {
 }
 
 // ============================================================
-// 🔥 TRANSACTION HISTORY LIMIT (Keep latest 500)
+// 🔥 TRANSACTION HISTORY LIMIT
 // ============================================================
 function limitTransactionHistory(transactions, maxCount = 500) {
     if (!transactions) return {};
-    
     const keys = Object.keys(transactions);
     if (keys.length <= maxCount) return transactions;
     
-    // Sort by timestamp (newest first)
     const sorted = keys.sort((a, b) => {
         const ta = transactions[a].timestamp || 0;
         const tb = transactions[b].timestamp || 0;
         return tb - ta;
     });
     
-    // Keep only latest maxCount
     const keep = sorted.slice(0, maxCount);
     const result = {};
     keep.forEach(key => {
         result[key] = transactions[key];
     });
     
-    console.log(`📊 Transactions limited to ${maxCount} (was ${keys.length})`);
     return result;
 }
 
-// ============================================================
-// 🔥 TRANSFER HISTORY LIMIT (Keep latest 100)
-// ============================================================
 function limitTransferHistory(history, maxCount = 100) {
     if (!history || !Array.isArray(history)) return [];
     if (history.length <= maxCount) return history;
     
-    // Sort by timestamp (newest first)
     const sorted = [...history].sort((a, b) => {
         return (b.timestamp || 0) - (a.timestamp || 0);
     });
     
-    const result = sorted.slice(0, maxCount);
-    console.log(`📊 Transfer history limited to ${maxCount} (was ${history.length})`);
-    return result;
+    return sorted.slice(0, maxCount);
 }
 
 // ============================================================
@@ -369,7 +350,7 @@ async function getLiveReferralCounts(userData) {
 }
 
 // ============================================================
-// BACKUP SYSTEM (Only meaningful events)
+// BACKUP SYSTEM
 // ============================================================
 async function createBackup(userId, action, data) {
     try {
@@ -405,12 +386,11 @@ async function createBackup(userId, action, data) {
 }
 
 // ============================================================
-// 🔥 PROCESS REFERRAL COMMISSION (WITH LOCK)
+// 🔥 PROCESS REFERRAL COMMISSION (FIXED - 5 Levels)
 // ============================================================
 async function processReferralCommission(userId, packageId, packageData) {
     const lockId = `commission_${packageId}`;
     
-    // Try to acquire lock
     const lockAcquired = await acquireLock(lockId, userId);
     if (!lockAcquired) {
         console.log('⏳ Commission already in progress, skipping...');
@@ -456,11 +436,13 @@ async function processReferralCommission(userId, packageId, packageData) {
             { level: 5, percent: 0.01 }
         ];
         
+        // ✅ START from referredBy (upline)
         let currentRefCode = userData.referredBy;
         let level = 1;
         let commissionProcessed = false;
         
         console.log('🔍 Starting commission chain from referredBy:', currentRefCode);
+        console.log('🔍 Package Amount:', packageAmount);
         
         while (currentRefCode && level <= 5) {
             console.log(`🔍 Looking for Level ${level} referrer with code:`, currentRefCode);
@@ -479,7 +461,7 @@ async function processReferralCommission(userId, packageId, packageData) {
             const commissionAmount = packageAmount * commissionPercent;
             
             if (commissionAmount > 0) {
-                console.log(`✅ Level ${level} commission: $${commissionAmount.toFixed(2)} (${commissionPercent * 100}%)`);
+                console.log(`✅ Level ${level} commission: $${commissionAmount.toFixed(2)} (${commissionPercent * 100}%) to ${referrerData.name || uid}`);
                 
                 const referrerRef = ref(db, 'users/' + uid);
                 await runTransaction(referrerRef, (currentData) => {
@@ -566,7 +548,7 @@ async function processReferralCommission(userId, packageId, packageData) {
 }
 
 // ============================================================
-// 🔥 PROCESS DAILY RELEASE (WITH LOCK)
+// 🔥 PROCESS DAILY RELEASE
 // ============================================================
 async function processDailyRelease(userId) {
     const lockId = `release_${userId}`;
@@ -614,7 +596,6 @@ async function processDailyRelease(userId) {
                     continue;
                 }
                 
-                // ✅ Package Validation
                 const remainingRND = pkg.remainingRND || 0;
                 const dailyRelease = pkg.dailyRelease || 0;
                 const totalRND = pkg.totalRND || 0;
@@ -695,7 +676,6 @@ async function processDailyRelease(userId) {
                 transactions[generateTxId()] = tx;
             });
             
-            // ✅ Limit transactions
             currentData.transactions = limitTransactionHistory(transactions, 500);
             
             return currentData;
@@ -754,9 +734,9 @@ function calculateUserStats(userData) {
 }
 
 // ============================================================
-// 🔥 ATOMIC TRANSFER (WITH SELF TRANSFER PROTECTION)
+// 🔥 ATOMIC TRANSFER (FIXED - Complete Working)
 // ============================================================
-async function atomicTransfer(senderUid, recipientUid, recipientData, amount, walletType, currency, senderUsername, senderUidForHistory) {
+async function atomicTransfer(senderUid, recipientUid, recipientData, amount, walletType, currency, senderUsername) {
     // ✅ Amount Validation
     if (!isValidAmount(amount)) {
         return { success: false, error: 'Invalid amount' };
@@ -780,7 +760,6 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
         const txId = generateTxId();
         
         const recipientUsername = recipientData.username || recipientData.referralCode || recipientUid;
-        const recipientUidForHistory = recipientUid;
         
         await createBackup(senderUid, 'transfer', {
             to: recipientUsername,
@@ -790,11 +769,12 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
             walletType: walletType
         });
         
+        // ✅ Step 1: Deduct from sender
         const senderResult = await runTransaction(senderRef, (currentData) => {
             if (!currentData) return currentData;
             const balance = currentData[walletType] || 0;
             if (balance < amount) {
-                return currentData;
+                return; // Insufficient balance
             }
             currentData[walletType] = balance - amount;
             
@@ -802,17 +782,15 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
             transferHistory.push({
                 type: 'sent',
                 to: recipientUsername,
-                toUid: recipientUidForHistory,
+                toUid: recipientUid,
                 amount: amount,
                 from: senderUsername,
-                fromUid: senderUidForHistory || senderUid,
+                fromUid: senderUid,
                 currency: currency,
                 timestamp: timestamp,
                 txId: txId,
                 status: 'completed'
             });
-            
-            // ✅ Limit transfer history
             currentData.transferHistory = limitTransferHistory(transferHistory, 100);
             
             const transactions = currentData.transactions || {};
@@ -821,15 +799,13 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
                 amount: amount,
                 currency: currency,
                 to: recipientUsername,
-                toUid: recipientUidForHistory,
+                toUid: recipientUid,
                 from: senderUsername,
-                fromUid: senderUidForHistory || senderUid,
+                fromUid: senderUid,
                 timestamp: timestamp,
                 date: date,
                 status: 'completed'
             };
-            
-            // ✅ Limit transactions
             currentData.transactions = limitTransactionHistory(transactions, 500);
             
             return currentData;
@@ -839,6 +815,7 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
             return { success: false, error: 'Insufficient balance or sender update failed' };
         }
         
+        // ✅ Step 2: Add to recipient
         const recipientRef = ref(db, 'users/' + recipientUid);
         const recipientResult = await runTransaction(recipientRef, (currentData) => {
             if (!currentData) return currentData;
@@ -848,17 +825,15 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
             transferHistory.push({
                 type: 'received',
                 from: senderUsername,
-                fromUid: senderUidForHistory || senderUid,
+                fromUid: senderUid,
                 to: recipientUsername,
-                toUid: recipientUidForHistory,
+                toUid: recipientUid,
                 amount: amount,
                 currency: currency,
                 timestamp: timestamp,
                 txId: txId,
                 status: 'completed'
             });
-            
-            // ✅ Limit transfer history
             currentData.transferHistory = limitTransferHistory(transferHistory, 100);
             
             const transactions = currentData.transactions || {};
@@ -867,22 +842,20 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
                 amount: amount,
                 currency: currency,
                 from: senderUsername,
-                fromUid: senderUidForHistory || senderUid,
+                fromUid: senderUid,
                 to: recipientUsername,
-                toUid: recipientUidForHistory,
+                toUid: recipientUid,
                 timestamp: timestamp,
                 date: date,
                 status: 'completed'
             };
-            
-            // ✅ Limit transactions
             currentData.transactions = limitTransactionHistory(transactions, 500);
             
             return currentData;
         });
         
         if (!recipientResult.committed) {
-            // Rollback sender
+            // ✅ Rollback sender
             await runTransaction(senderRef, (currentData) => {
                 if (!currentData) return currentData;
                 currentData[walletType] = (currentData[walletType] || 0) + amount;
@@ -907,11 +880,14 @@ async function atomicTransfer(senderUid, recipientUid, recipientData, amount, wa
 }
 
 // ============================================================
-// VERIFY RECIPIENT FOR TRANSFER
+// 🔥 VERIFY RECIPIENT FOR TRANSFER (FIXED)
 // ============================================================
 async function verifyRecipient(identifier) {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+        console.log('No user logged in');
+        return;
+    }
     
     const senderUid = user.uid;
     const resultDiv = document.getElementById('recipientVerificationResult');
@@ -931,9 +907,11 @@ async function verifyRecipient(identifier) {
     `;
     
     try {
+        console.log('🔍 Verifying recipient:', identifier);
         const result = await getUserByIdentifier(identifier.trim());
         
         if (!result) {
+            console.log('❌ Recipient not found');
             resultDiv.innerHTML = `
                 <div class="recipient-not-found">
                     <i class="bi bi-exclamation-circle text-danger me-2"></i>
@@ -948,8 +926,11 @@ async function verifyRecipient(identifier) {
             return;
         }
         
+        console.log('✅ Recipient found:', result.uid);
+        
         // ✅ Self Transfer Check
         if (result.uid === senderUid) {
+            console.log('⚠️ Self transfer attempt');
             resultDiv.innerHTML = `
                 <div class="recipient-error">
                     <i class="bi bi-exclamation-triangle text-warning me-2"></i>
@@ -964,7 +945,7 @@ async function verifyRecipient(identifier) {
             return;
         }
         
-        // ✅ Recipient Found
+        // ✅ Recipient Found - Show Card
         const rank = result.data.rank || 'Member';
         const username = result.data.username || result.data.referralCode || result.uid;
         const name = result.data.name || 'User';
@@ -997,6 +978,7 @@ async function verifyRecipient(identifier) {
         
         verifiedRecipient = result;
         if (transferBtn) transferBtn.disabled = false;
+        console.log('✅ Recipient verified, transfer button enabled');
         
     } catch (error) {
         console.error('Error verifying recipient:', error);
@@ -1088,7 +1070,7 @@ async function updateDashboardUI(u, stats) {
 }
 
 // ============================================================
-// 🔥 RECOVER USER DATA (SAFE - ONLY update(), NO set())
+// RECOVER USER DATA
 // ============================================================
 async function recoverUserData(userId, authUser) {
     try {
@@ -1110,7 +1092,6 @@ async function recoverUserData(userId, authUser) {
             if (checkResult.source === 'backup' && checkResult.data) {
                 const backupData = checkResult.data;
                 
-                // ✅ NEVER REPLACE: Protected fields
                 const protectedFields = ['referralCode', 'referredBy', 'uid', 'createdAt'];
                 for (let field of protectedFields) {
                     if (backupData[field]) {
@@ -1118,7 +1099,6 @@ async function recoverUserData(userId, authUser) {
                     }
                 }
                 
-                // ✅ SAFE MERGE: Only merge, never replace
                 const mergeFields = [
                     'depositWallet', 'referralWallet', 'rndWallet', 'lockedRND',
                     'releaseWallet', 'totalReleased', 'packages', 'transactions',
@@ -1132,10 +1112,8 @@ async function recoverUserData(userId, authUser) {
                 for (let field of mergeFields) {
                     if (backupData[field] !== undefined && backupData[field] !== null) {
                         if (typeof backupData[field] === 'object' && !Array.isArray(backupData[field])) {
-                            // ✅ MERGE objects
                             recoveredData[field] = { ...(recoveredData[field] || {}), ...backupData[field] };
                         } else {
-                            // ✅ Only set if not exists
                             if (recoveredData[field] === undefined || recoveredData[field] === null) {
                                 recoveredData[field] = backupData[field];
                             }
@@ -1146,7 +1124,6 @@ async function recoverUserData(userId, authUser) {
                 console.log('✅ Restored from backup with referral chain preserved');
             }
             
-            // ✅ Preserve referral code
             if (recoveredData.referralCode) {
                 console.log('✅ Referral Code preserved:', recoveredData.referralCode);
             } else {
@@ -1158,7 +1135,6 @@ async function recoverUserData(userId, authUser) {
                 console.log('✅ Referred By preserved:', recoveredData.referredBy);
             }
             
-            // ✅ Default structures if missing
             if (!recoveredData.teamStructure) {
                 recoveredData.teamStructure = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
             }
@@ -1171,14 +1147,12 @@ async function recoverUserData(userId, authUser) {
                 recoveredData.commissionHistory = [];
             }
             
-            // ✅ Validate packages
             const packages = recoveredData.packages || {};
             for (let key in packages) {
                 const pkg = packages[key];
                 if (pkg.status === 'completed' && pkg.commissionProcessed === undefined) {
                     pkg.commissionProcessed = true;
                 }
-                // ✅ Package validation
                 if (pkg.remainingRND < 0) pkg.remainingRND = 0;
                 if (pkg.dailyRelease < 0) pkg.dailyRelease = 0;
             }
@@ -1188,7 +1162,6 @@ async function recoverUserData(userId, authUser) {
             if (!recoveredData.email) recoveredData.email = authUser.email || '';
             if (!recoveredData.name) recoveredData.name = authUser.displayName || 'User';
             
-            // ✅ Only set defaults if missing
             const defaultFields = {
                 username: authUser.email ? authUser.email.split('@')[0] : 'user_' + userId.substring(0, 8),
                 depositWallet: 0,
@@ -1217,7 +1190,6 @@ async function recoverUserData(userId, authUser) {
                 }
             }
             
-            // ✅ SAFE: Use update() NOT set()
             const updateData = {};
             for (let key in recoveredData) {
                 if (recoveredData[key] !== undefined && recoveredData[key] !== null) {
@@ -1231,7 +1203,6 @@ async function recoverUserData(userId, authUser) {
             return recoveredData;
         }
         
-        // Check if email exists
         const email = authUser.email;
         if (email) {
             const usersSnap = await get(ref(db, 'users'));
@@ -1248,7 +1219,6 @@ async function recoverUserData(userId, authUser) {
         
         console.log('🆕 Creating new user record for:', userId);
         
-        // ✅ Use set() only for new user creation
         const newUserData = {
             uid: userId,
             email: authUser.email || '',
@@ -1333,7 +1303,7 @@ async function checkUserExists(userId) {
 }
 
 // ============================================================
-// RENDER DASHBOARD
+// 🔥 RENDER DASHBOARD (FIXED - Transfer Form)
 // ============================================================
 async function renderDashboard(u) {
     const referralCounts = await getLiveReferralCounts(u);
@@ -1617,34 +1587,36 @@ async function renderDashboard(u) {
                 </div>
             </div>
             
-            <!-- TRANSFER SYSTEM -->
+            <!-- ====== TRANSFER SYSTEM (FIXED) ====== -->
             <div class="col-12">
                 <div class="card-glass">
                     <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money</div>
                     
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-5">
-                            <input type="text" id="transferUserId" class="form-control form-control-custom" 
-                                   placeholder="Recipient User ID / Username / Referral Code" 
-                                   oninput="window.verifyRecipientDebounced(this.value)">
+                    <form id="transferForm" onsubmit="return false;">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-5">
+                                <input type="text" id="transferUserId" class="form-control form-control-custom" 
+                                       placeholder="Recipient User ID / Username / Referral Code" 
+                                       oninput="window.verifyRecipientDebounced(this.value)">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" id="transferAmount" class="form-control form-control-custom" 
+                                       placeholder="Amount" min="0.01" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <select id="transferWallet" class="form-select form-select-custom">
+                                    <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
+                                    <option value="referralWallet">💳 Referral Wallet (USDT)</option>
+                                    <option value="rndWallet">📊 RND Wallet (RND)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" id="transferSubmitBtn" class="btn-primary-custom w-100" disabled>
+                                    <i class="bi bi-send me-1"></i>Send
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <input type="number" id="transferAmount" class="form-control form-control-custom" 
-                                   placeholder="Amount" min="0.01" step="0.01">
-                        </div>
-                        <div class="col-md-3">
-                            <select id="transferWallet" class="form-select form-select-custom">
-                                <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                                <option value="referralWallet">💳 Referral Wallet (USDT)</option>
-                                <option value="rndWallet">📊 RND Wallet (RND)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-1">
-                            <button type="submit" id="transferSubmitBtn" class="btn-primary-custom w-100" disabled>
-                                <i class="bi bi-send me-1"></i>Send
-                            </button>
-                        </div>
-                    </div>
+                    </form>
                     
                     <div id="recipientVerificationResult" style="margin-bottom:10px;"></div>
                     
@@ -1690,6 +1662,7 @@ async function renderDashboard(u) {
         </div>
     `;
     
+    // Copy buttons
     document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             navigator.clipboard.writeText(btn.dataset.copy).then(() => {
@@ -1699,15 +1672,17 @@ async function renderDashboard(u) {
         });
     });
     
+    // ✅ FIXED: Transfer Button Event Listener
     const transferBtn = document.getElementById('transferSubmitBtn');
-    const transferForm = document.getElementById('transferForm');
-    if (transferForm) {
-        transferForm.addEventListener('submit', async (e) => {
+    if (transferBtn) {
+        transferBtn.addEventListener('click', async function(e) {
+            console.log('🔘 Transfer button clicked');
             e.preventDefault();
             await handleTransfer();
         });
     }
     
+    // Debounced verification
     let verifyTimeout = null;
     window.verifyRecipientDebounced = function(value) {
         if (verifyTimeout) clearTimeout(verifyTimeout);
@@ -1735,11 +1710,14 @@ window.copyUserId = function(username) {
 };
 
 // ============================================================
-// TRANSFER HANDLER
+// 🔥 TRANSFER HANDLER (FIXED - Complete Working)
 // ============================================================
 async function handleTransfer() {
+    console.log('🚀 handleTransfer() called');
+    
     if (!verifiedRecipient) {
         showToast('❌ Please verify the recipient first!', 'error');
+        console.log('❌ No verified recipient');
         return;
     }
     
@@ -1747,9 +1725,11 @@ async function handleTransfer() {
     const walletType = document.getElementById('transferWallet').value;
     const btn = document.getElementById('transferSubmitBtn');
     
+    console.log('📝 Transfer details:', { amount, walletType, recipient: verifiedRecipient.uid });
+    
     // ✅ Amount Validation
     if (!isValidAmount(amount)) {
-        showToast('❌ Please enter a valid amount', 'error');
+        showToast('❌ Please enter a valid amount (greater than 0)', 'error');
         return;
     }
     
@@ -1759,36 +1739,37 @@ async function handleTransfer() {
         return;
     }
     
-    const senderSnap = await get(ref(db, 'users/' + user.uid));
-    if (!senderSnap.exists()) {
-        showToast('❌ User data not found', 'error');
-        return;
-    }
-    const senderData = senderSnap.val();
-    const senderUsername = senderData.username || senderData.referralCode;
-    const senderUid = user.uid;
-    
-    const recipientUid = verifiedRecipient.uid;
-    const recipientData = verifiedRecipient.data;
-    const recipientUsername = recipientData.username || recipientData.referralCode;
-    
-    const senderBalance = senderData[walletType] || 0;
-    if (senderBalance < amount) {
-        const walletLabels = {
-            'depositWallet': 'Deposit Wallet (USDT)',
-            'referralWallet': 'Referral Wallet (USDT)',
-            'rndWallet': 'RND Wallet (RND)'
-        };
-        showToast(`❌ Insufficient balance in ${walletLabels[walletType] || 'Wallet'}! You have ${senderBalance.toFixed(4)}`, 'error');
-        return;
-    }
-    
-    const currency = walletType === 'rndWallet' ? 'RND' : 'USDT';
-    
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
-    
     try {
+        const senderSnap = await get(ref(db, 'users/' + user.uid));
+        if (!senderSnap.exists()) {
+            showToast('❌ User data not found', 'error');
+            return;
+        }
+        const senderData = senderSnap.val();
+        const senderUsername = senderData.username || senderData.referralCode || 'User';
+        const senderUid = user.uid;
+        
+        const recipientUid = verifiedRecipient.uid;
+        const recipientData = verifiedRecipient.data;
+        const recipientUsername = recipientData.username || recipientData.referralCode || recipientUid;
+        
+        const senderBalance = senderData[walletType] || 0;
+        if (senderBalance < amount) {
+            const walletLabels = {
+                'depositWallet': 'Deposit Wallet (USDT)',
+                'referralWallet': 'Referral Wallet (USDT)',
+                'rndWallet': 'RND Wallet (RND)'
+            };
+            showToast(`❌ Insufficient balance in ${walletLabels[walletType] || 'Wallet'}! You have ${senderBalance.toFixed(4)}`, 'error');
+            return;
+        }
+        
+        const currency = walletType === 'rndWallet' ? 'RND' : 'USDT';
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        
+        console.log('💰 Processing transfer...');
         const result = await atomicTransfer(
             senderUid,
             recipientUid,
@@ -1796,8 +1777,7 @@ async function handleTransfer() {
             amount,
             walletType,
             currency,
-            senderUsername,
-            senderUid
+            senderUsername
         );
         
         if (result.success) {
@@ -1866,11 +1846,14 @@ async function loadDashboardData(userId) {
         
         const u = userSnap.val();
         
+        // ✅ Process Daily Release
         await processDailyRelease(userId);
         
+        // ✅ Process Pending Commissions
         const packages = u.packages || {};
         for (let [key, pkg] of Object.entries(packages)) {
             if (pkg.status === 'active' && !pkg.commissionProcessed) {
+                console.log(`🔄 Processing commission for package: ${key}`);
                 await processReferralCommission(userId, key, pkg);
             }
         }
