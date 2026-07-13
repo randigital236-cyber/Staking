@@ -1,9 +1,9 @@
 // ============================================================
-// RND STAKING - REFERRALS.JS (PRODUCTION READY v12)
+// RND STAKING - REFERRALS.JS (PRODUCTION READY v13)
 // ============================================================
-// 📌 COMBINES v5 (Working Cache Logic) + v11 (Modern Features)
-// ✅ getAllUsers() - One-time read (Fast)
-// ✅ getLevelMembersFromCache() - Cache based (Reliable)
+// 🔥 USING PURE v5 LOGIC (Which Works) + Modern Features
+// ✅ getAllUsers() - One-time read
+// ✅ findMembers() - Recursive traversal (WORKING)
 // ✅ directReferrals for Level 1 (Dashboard Compatible)
 // ✅ Database Commissions (No Calculation)
 // ✅ Email Masking | Status Badge | Share Buttons
@@ -156,7 +156,7 @@ function getLiveReferralCounts(userData) {
             return result;
         }
         
-        // ✅ Level 1: ONLY from directReferrals (Same as Dashboard)
+        // ✅ Level 1: ONLY from directReferrals
         if (userData.directReferrals) {
             const directKeys = Object.keys(userData.directReferrals);
             result.level1 = directKeys.length;
@@ -189,7 +189,7 @@ function getLiveReferralCounts(userData) {
 }
 
 // ============================================================
-// 🔥 GET ALL USERS (Cached - One Time Read) - WORKING v5 LOGIC
+// 🔥 GET ALL USERS (Cached - One Time Read) - v5 LOGIC
 // ============================================================
 async function getAllUsers() {
     if (allUsersCache) return allUsersCache;
@@ -207,7 +207,7 @@ async function getAllUsers() {
 }
 
 // ============================================================
-// 🔥 GET LEVEL MEMBERS (Using Cache) - WORKING v5 LOGIC
+// 🔥 GET LEVEL MEMBERS (PURE v5 LOGIC - WORKING)
 // ============================================================
 function getLevelMembersFromCache(userId, referralCode, level) {
     const members = [];
@@ -229,7 +229,7 @@ function getLevelMembersFromCache(userId, referralCode, level) {
         return members;
     }
     
-    // ✅ Level 2-5: Recursive traversal using cache
+    // ✅ Level 2-5: v5 Recursive traversal (THIS WORKS!)
     function findMembers(refCode, targetLevel, currentLevel) {
         const result = [];
         for (let uid in allUsersCache) {
@@ -246,6 +246,7 @@ function getLevelMembersFromCache(userId, referralCode, level) {
         
         let allNext = [];
         for (let member of result) {
+            // ✅ Pass member.uid as refCode (because UID is the referral code)
             const next = findMembers(member.uid, targetLevel, currentLevel + 1);
             allNext = [...allNext, ...next];
         }
@@ -267,7 +268,7 @@ async function renderReferralData(u) {
         const username = u.username || u.referralCode || 'USER';
         const name = u.name || 'User';
         
-        // ✅ Get live referral counts (Same as Dashboard)
+        // ✅ Get live referral counts
         const counts = getLiveReferralCounts(u);
         
         const directReferrals = counts.level1 || 0;
@@ -301,7 +302,7 @@ async function renderReferralData(u) {
         // ✅ Get all users (one-time read)
         await getAllUsers();
         
-        // ✅ Get Level Members using working cache logic
+        // ✅ Get Level Members using v5 working logic
         const level1Members = getLevelMembersFromCache(currentUserId, u.referralCode, 1);
         const level2Members = getLevelMembersFromCache(currentUserId, u.referralCode, 2);
         const level3Members = getLevelMembersFromCache(currentUserId, u.referralCode, 3);
@@ -442,7 +443,7 @@ async function renderReferralData(u) {
                     </div>
                 </div>
                 
-                <!-- ====== LEVEL 1 MEMBERS ====== -->
+                <!-- ====== LEVEL TABLES (All levels always show) ====== -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-list-ul text-success me-2"></i>Level 1 - Direct Referrals (${level1Count}) <span class="level-badge">8%</span></div>
@@ -488,169 +489,189 @@ async function renderReferralData(u) {
                     </div>
                 </div>
                 
-                <!-- ====== LEVEL 2 MEMBERS ====== -->
-                ${level2Count > 0 ? `
+                <!-- Level 2 -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 2 Referrals (${level2Count}) <span class="level-badge">4%</span></div>
-                        <div class="level-members-table">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>User ID</th>
-                                        <th>Stake</th>
-                                        <th>Business</th>
-                                        <th>Commission</th>
-                                        <th>Status</th>
-                                        <th>Joined</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${level2Members.map((r, i) => `
+                        ${level2Members.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p>No referrals at this level yet.</p>
+                            </div>
+                        ` : `
+                            <div class="level-members-table">
+                                <table class="table table-custom">
+                                    <thead>
                                         <tr>
-                                            <td>${i + 1}</td>
-                                            <td>${r.name || 'N/A'}</td>
-                                            <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                            <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                            <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                            <td style="color:#60a5fa;">$${(r.level2Earnings || 0).toFixed(2)}</td>
-                                            <td>${getStatusBadge(r)}</td>
-                                            <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>User ID</th>
+                                            <th>Stake</th>
+                                            <th>Business</th>
+                                            <th>Commission</th>
+                                            <th>Status</th>
+                                            <th>Joined</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        ${level2Members.map((r, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td>${r.name || 'N/A'}</td>
+                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
+                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
+                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
+                                                <td style="color:#60a5fa;">$${(r.level2Earnings || 0).toFixed(2)}</td>
+                                                <td>${getStatusBadge(r)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `}
                     </div>
                 </div>
-                ` : ''}
                 
-                <!-- ====== LEVEL 3 MEMBERS ====== -->
-                ${level3Count > 0 ? `
+                <!-- Level 3 -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 3 Referrals (${level3Count}) <span class="level-badge">2%</span></div>
-                        <div class="level-members-table">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>User ID</th>
-                                        <th>Stake</th>
-                                        <th>Business</th>
-                                        <th>Commission</th>
-                                        <th>Status</th>
-                                        <th>Joined</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${level3Members.map((r, i) => `
+                        ${level3Members.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p>No referrals at this level yet.</p>
+                            </div>
+                        ` : `
+                            <div class="level-members-table">
+                                <table class="table table-custom">
+                                    <thead>
                                         <tr>
-                                            <td>${i + 1}</td>
-                                            <td>${r.name || 'N/A'}</td>
-                                            <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                            <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                            <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                            <td style="color:#a78bfa;">$${(r.level3Earnings || 0).toFixed(2)}</td>
-                                            <td>${getStatusBadge(r)}</td>
-                                            <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>User ID</th>
+                                            <th>Stake</th>
+                                            <th>Business</th>
+                                            <th>Commission</th>
+                                            <th>Status</th>
+                                            <th>Joined</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        ${level3Members.map((r, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td>${r.name || 'N/A'}</td>
+                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
+                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
+                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
+                                                <td style="color:#a78bfa;">$${(r.level3Earnings || 0).toFixed(2)}</td>
+                                                <td>${getStatusBadge(r)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `}
                     </div>
                 </div>
-                ` : ''}
                 
-                <!-- ====== LEVEL 4 MEMBERS ====== -->
-                ${level4Count > 0 ? `
+                <!-- Level 4 -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 4 Referrals (${level4Count}) <span class="level-badge">1%</span></div>
-                        <div class="level-members-table">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>User ID</th>
-                                        <th>Stake</th>
-                                        <th>Business</th>
-                                        <th>Commission</th>
-                                        <th>Status</th>
-                                        <th>Joined</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${level4Members.map((r, i) => `
+                        ${level4Members.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p>No referrals at this level yet.</p>
+                            </div>
+                        ` : `
+                            <div class="level-members-table">
+                                <table class="table table-custom">
+                                    <thead>
                                         <tr>
-                                            <td>${i + 1}</td>
-                                            <td>${r.name || 'N/A'}</td>
-                                            <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                            <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                            <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                            <td style="color:#f472b6;">$${(r.level4Earnings || 0).toFixed(2)}</td>
-                                            <td>${getStatusBadge(r)}</td>
-                                            <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>User ID</th>
+                                            <th>Stake</th>
+                                            <th>Business</th>
+                                            <th>Commission</th>
+                                            <th>Status</th>
+                                            <th>Joined</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        ${level4Members.map((r, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td>${r.name || 'N/A'}</td>
+                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
+                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
+                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
+                                                <td style="color:#f472b6;">$${(r.level4Earnings || 0).toFixed(2)}</td>
+                                                <td>${getStatusBadge(r)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `}
                     </div>
                 </div>
-                ` : ''}
                 
-                <!-- ====== LEVEL 5 MEMBERS ====== -->
-                ${level5Count > 0 ? `
+                <!-- Level 5 -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 5 Referrals (${level5Count}) <span class="level-badge">1%</span></div>
-                        <div class="level-members-table">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>User ID</th>
-                                        <th>Stake</th>
-                                        <th>Business</th>
-                                        <th>Commission</th>
-                                        <th>Status</th>
-                                        <th>Joined</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${level5Members.map((r, i) => `
+                        ${level5Members.length === 0 ? `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p>No referrals at this level yet.</p>
+                            </div>
+                        ` : `
+                            <div class="level-members-table">
+                                <table class="table table-custom">
+                                    <thead>
                                         <tr>
-                                            <td>${i + 1}</td>
-                                            <td>${r.name || 'N/A'}</td>
-                                            <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                            <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                            <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                            <td style="color:#fb923c;">$${(r.level5Earnings || 0).toFixed(2)}</td>
-                                            <td>${getStatusBadge(r)}</td>
-                                            <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>User ID</th>
+                                            <th>Stake</th>
+                                            <th>Business</th>
+                                            <th>Commission</th>
+                                            <th>Status</th>
+                                            <th>Joined</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        ${level5Members.map((r, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td>${r.name || 'N/A'}</td>
+                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
+                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
+                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
+                                                <td style="color:#fb923c;">$${(r.level5Earnings || 0).toFixed(2)}</td>
+                                                <td>${getStatusBadge(r)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `}
                     </div>
                 </div>
-                ` : ''}
                 
                 <!-- ====== COMMISSION HISTORY ====== -->
                 <div class="col-12">
@@ -733,7 +754,7 @@ function setupRealtimeListener(userId) {
             if (!snapshot.exists()) return;
             const data = snapshot.val();
             currentUserData = data;
-            allUsersCache = null; // Clear cache for fresh data
+            allUsersCache = null;
             renderReferralData(data);
         } catch (error) {
             console.error('Realtime listener error:', error);
