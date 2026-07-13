@@ -1,19 +1,14 @@
 // ============================================================
-// RND STAKING - REFERRALS.JS (PRODUCTION READY v9)
+// RND STAKING - REFERRALS.JS (PRODUCTION READY v10)
 // ============================================================
-// 📌 RULES:
-// 1. NO WARNING MESSAGES TO USER - Clean UI
-// 2. ALL DATA FROM DATABASE - NO CALCULATION
-// 3. SAME AS DASHBOARD - Uses directReferrals for Level 1
-// 4. OPTIMIZED FOR 20000+ USERS
-// 5. NO FULL DATABASE SCAN
-// 6. SMART CACHING WITH VERSION TRACKING
-// 7. PARTIAL DOM UPDATES FOR ALL SECTIONS
+// 🔥 FIXED: Level 2-5 Members Display
+// 🔥 OPTIMIZED: Query Batching
+// 🔥 SMART: Hash-based Version Tracking
 // ============================================================
 
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, onValue, query, orderByChild, equalTo, limitToLast } from "firebase/database";
+import { getDatabase, ref, get, onValue, query, orderByChild, equalTo } from "firebase/database";
 
 // ============================================================
 // FIREBASE CONFIG
@@ -107,7 +102,6 @@ function getStatusBadge(user) {
 }
 
 function getDataHash(data) {
-    // Simple hash for version tracking
     return JSON.stringify({
         directReferrals: Object.keys(data.directReferrals || {}).length,
         teamStructure: data.teamStructure || {},
@@ -152,7 +146,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// 🔥 GET LIVE REFERRAL COUNTS (SAME AS DASHBOARD)
+// GET LIVE REFERRAL COUNTS
 // ============================================================
 function getLiveReferralCounts(userData) {
     try {
@@ -201,13 +195,12 @@ function getLiveReferralCounts(userData) {
 }
 
 // ============================================================
-// 🔥 GET USERS BY REFERRAL CODE (Optimized - No Full Scan)
+// GET USERS BY REFERRAL CODE
 // ============================================================
 async function getUsersByReferralCode(refCode) {
     if (!refCode) return [];
     
     try {
-        // ✅ Only query users with this referral code
         const queryRef = query(
             ref(db, 'users'),
             orderByChild('referredBy'),
@@ -230,19 +223,17 @@ async function getUsersByReferralCode(refCode) {
 }
 
 // ============================================================
-// 🔥 GET LEVEL MEMBERS (Optimized - No Full Scan)
+// 🔥 GET LEVEL MEMBERS (FIXED)
 // ============================================================
 async function getLevelMembersOptimized(uid, referralCode, level) {
     const members = [];
     
     try {
         if (level === 1) {
-            // Level 1: Direct referrals from user's data
             if (currentUserData && currentUserData.directReferrals) {
                 const directUids = Object.keys(currentUserData.directReferrals);
                 for (let memberUid of directUids) {
                     const refData = currentUserData.directReferrals[memberUid];
-                    // Get user data directly (only one read per member)
                     const userSnap = await get(ref(db, 'users/' + memberUid));
                     if (userSnap.exists()) {
                         members.push({ uid: memberUid, ...userSnap.val(), _refData: refData });
@@ -254,28 +245,25 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
             return members;
         }
         
-        // For Level 2-5: Query based approach
-        let currentRefCode = referralCode;
-        let levelMembers = [];
+        // ✅ FIX: Start with Level 1 members
+        let currentLevelMembers = [];
         
-        // Get Level 1 members first
         if (currentUserData && currentUserData.directReferrals) {
             const directUids = Object.keys(currentUserData.directReferrals);
             for (let memberUid of directUids) {
                 const userSnap = await get(ref(db, 'users/' + memberUid));
                 if (userSnap.exists()) {
-                    levelMembers.push({ uid: memberUid, ...userSnap.val() });
+                    currentLevelMembers.push({ uid: memberUid, ...userSnap.val() });
                 }
             }
         }
         
-        // Traverse levels with optimized queries
+        // ✅ Traverse from Level 2 to target level
         for (let l = 2; l <= level; l++) {
             const nextLevel = [];
             
-            // Collect referral codes from current level members
             const refCodes = [];
-            for (let member of levelMembers) {
+            for (let member of currentLevelMembers) {
                 if (member.referralCode) {
                     refCodes.push(member.referralCode);
                 }
@@ -283,9 +271,6 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
             
             if (refCodes.length === 0) break;
             
-            // ✅ Optimized: Get all users for these referral codes in one go
-            // But we still need to query each code due to Firebase limitations
-            // However, we limit the number of queries by batching
             const batchSize = 10;
             for (let i = 0; i < refCodes.length; i += batchSize) {
                 const batch = refCodes.slice(i, i + batchSize);
@@ -295,15 +280,19 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
                 for (let users of results) {
                     for (let user of users) {
                         if (user.uid !== uid) {
-                            nextLevel.push(user);
+                            const exists = nextLevel.some(m => m.uid === user.uid);
+                            if (!exists) {
+                                nextLevel.push(user);
+                            }
                         }
                     }
                 }
             }
             
-            levelMembers = nextLevel;
+            currentLevelMembers = nextLevel;
+            
             if (l === level) {
-                return levelMembers;
+                return currentLevelMembers;
             }
         }
         
@@ -316,7 +305,7 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
 }
 
 // ============================================================
-// 🔥 UPDATE STATS ONLY (Partial Update)
+// UPDATE STATS ONLY
 // ============================================================
 function updateStatsOnly(u, counts) {
     const directReferrals = counts.level1 || 0;
@@ -333,7 +322,6 @@ function updateStatsOnly(u, counts) {
     
     const totalDownlineEarnings = level2Earn + level3Earn + level4Earn + level5Earn;
     
-    // Update stats
     const statsContainer = document.getElementById('referralStats');
     if (statsContainer) {
         statsContainer.innerHTML = `
@@ -357,17 +345,12 @@ function updateStatsOnly(u, counts) {
         `;
     }
     
-    // Update sidebar badge
     const badge = document.getElementById('referralBadge');
     if (badge) badge.textContent = totalReferrals;
-    
-    // Update referral wallet
-    const walletEl = document.querySelector('.referral-wallet-value');
-    if (walletEl) walletEl.textContent = (referralWallet || 0).toFixed(2);
 }
 
 // ============================================================
-// 🔥 GENERATE LEVEL TABLE HTML (Helper)
+// GENERATE LEVEL TABLE HTML
 // ============================================================
 function generateLevelTableHTML(level, count, members, color) {
     const levelNames = {
@@ -381,7 +364,7 @@ function generateLevelTableHTML(level, count, members, color) {
     const percentages = { 1: '8%', 2: '4%', 3: '2%', 4: '1%', 5: '1%' };
     const earningsKey = `level${level}Earnings`;
     
-    if (count === 0) {
+    if (count === 0 || !members || members.length === 0) {
         return `
             <div class="col-12">
                 <div class="card-glass">
@@ -437,7 +420,7 @@ function generateLevelTableHTML(level, count, members, color) {
 }
 
 // ============================================================
-// 🔥 RENDER REFERRAL DATA (With Version Tracking)
+// RENDER REFERRAL DATA
 // ============================================================
 async function renderReferralData(u, forceFull = false) {
     if (isLoading) return;
@@ -447,7 +430,6 @@ async function renderReferralData(u, forceFull = false) {
         const username = u.username || u.referralCode || 'USER';
         const name = u.name || 'User';
         
-        // Get live referral counts
         const counts = getLiveReferralCounts(u);
         
         const directReferrals = counts.level1 || 0;
@@ -458,7 +440,6 @@ async function renderReferralData(u, forceFull = false) {
         const level5Count = counts.level5 || 0;
         const totalReferrals = counts.total || 0;
         
-        // Earnings DIRECTLY from Database
         const referralWallet = safeGet(u, 'referralWallet', 0);
         const referralEarnings = safeGet(u, 'referralEarnings', 0);
         
@@ -471,7 +452,6 @@ async function renderReferralData(u, forceFull = false) {
         const totalDownline = level2Count + level3Count + level4Count + level5Count;
         const totalDownlineEarnings = level2Earn + level3Earn + level4Earn + level5Earn;
         
-        // Commission History - Sorted by timestamp
         const commissionHistory = safeGet(u, 'commissionHistory', []);
         const sortedHistory = [...commissionHistory].sort((a, b) => {
             return (b.timestamp || 0) - (a.timestamp || 0);
@@ -481,7 +461,6 @@ async function renderReferralData(u, forceFull = false) {
         
         const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
         
-        // Update sidebar
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
@@ -489,23 +468,20 @@ async function renderReferralData(u, forceFull = false) {
         const badge = document.getElementById('referralBadge');
         if (badge) badge.textContent = totalReferrals;
         
-        // ✅ Check if we need full render or just partial update
         const newHash = getDataHash(u);
         const needFullRender = forceFull || dataVersion === 0 || newHash !== cachedStats;
         
         if (needFullRender) {
-            // ✅ Full render - Only when structure changes
             cachedStats = newHash;
             dataVersion++;
             
-            // Get Level Members
+            // ✅ Get Level Members - Now works for all levels
             const level1Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 1);
             const level2Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 2);
             const level3Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 3);
             const level4Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 4);
             const level5Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 5);
             
-            // Cache level data
             cachedLevelData = {
                 level1: level1Members,
                 level2: level2Members,
@@ -521,7 +497,6 @@ async function renderReferralData(u, forceFull = false) {
                         <hr class="border-secondary">
                     </div>
                     
-                    <!-- ====== STATS ====== -->
                     <div class="col-12" id="referralStats">
                         <div class="stats-grid">
                             <div class="stat-item">
@@ -542,7 +517,6 @@ async function renderReferralData(u, forceFull = false) {
                         </div>
                     </div>
                     
-                    <!-- ====== REFERRAL LINK WITH SHARE BUTTONS ====== -->
                     <div class="col-md-6">
                         <div class="card-glass">
                             <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -568,7 +542,6 @@ async function renderReferralData(u, forceFull = false) {
                         </div>
                     </div>
                     
-                    <!-- ====== COMMISSION STRUCTURE ====== -->
                     <div class="col-md-6">
                         <div class="card-glass">
                             <div class="card-title"><i class="bi bi-diagram-3"></i>Commission Structure</div>
@@ -589,7 +562,6 @@ async function renderReferralData(u, forceFull = false) {
                         </div>
                     </div>
                     
-                    <!-- ====== 5 LEVEL EARNINGS ====== -->
                     <div class="col-12">
                         <div class="card-glass">
                             <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Earnings</div>
@@ -640,16 +612,14 @@ async function renderReferralData(u, forceFull = false) {
                         </div>
                     </div>
                     
-                    <!-- ====== LEVEL TABLES ====== -->
                     <div id="levelTablesContainer">
                         ${generateLevelTableHTML(1, level1Count, cachedLevelData.level1 || [], 'fbbf24')}
-                        ${level2Count > 0 ? generateLevelTableHTML(2, level2Count, cachedLevelData.level2 || [], '60a5fa') : ''}
-                        ${level3Count > 0 ? generateLevelTableHTML(3, level3Count, cachedLevelData.level3 || [], 'a78bfa') : ''}
-                        ${level4Count > 0 ? generateLevelTableHTML(4, level4Count, cachedLevelData.level4 || [], 'f472b6') : ''}
-                        ${level5Count > 0 ? generateLevelTableHTML(5, level5Count, cachedLevelData.level5 || [], 'fb923c') : ''}
+                        ${generateLevelTableHTML(2, level2Count, cachedLevelData.level2 || [], '60a5fa')}
+                        ${generateLevelTableHTML(3, level3Count, cachedLevelData.level3 || [], 'a78bfa')}
+                        ${generateLevelTableHTML(4, level4Count, cachedLevelData.level4 || [], 'f472b6')}
+                        ${generateLevelTableHTML(5, level5Count, cachedLevelData.level5 || [], 'fb923c')}
                     </div>
                     
-                    <!-- ====== COMMISSION HISTORY ====== -->
                     <div class="col-12" id="commissionHistoryContainer">
                         <div class="card-glass">
                             <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Commission History</div>
@@ -693,7 +663,6 @@ async function renderReferralData(u, forceFull = false) {
                 </div>
             `;
             
-            // Copy buttons
             document.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     navigator.clipboard.writeText(btn.dataset.copy).then(() => {
@@ -703,7 +672,6 @@ async function renderReferralData(u, forceFull = false) {
                 });
             });
             
-            // Load More button
             const loadMoreBtn = document.getElementById('loadMoreHistory');
             if (loadMoreBtn) {
                 loadMoreBtn.addEventListener('click', () => {
@@ -714,7 +682,6 @@ async function renderReferralData(u, forceFull = false) {
                 });
             }
         } else {
-            // ✅ Partial update: Only update stats
             updateStatsOnly(u, counts);
         }
         
@@ -726,7 +693,7 @@ async function renderReferralData(u, forceFull = false) {
 }
 
 // ============================================================
-// 🔥 SETUP REAL-TIME LISTENER (Smart with Version Tracking)
+// SETUP REAL-TIME LISTENER
 // ============================================================
 function setupRealtimeListener(userId) {
     if (listenerOff) {
@@ -742,13 +709,10 @@ function setupRealtimeListener(userId) {
             const newData = snapshot.val();
             currentUserData = newData;
             
-            // ✅ Smart update: Check if structure changed
             const newHash = getDataHash(newData);
             if (newHash !== cachedStats) {
-                // Structure changed - full update
                 renderReferralData(newData, true);
             } else {
-                // Only stats changed - partial update
                 const counts = getLiveReferralCounts(newData);
                 updateStatsOnly(newData, counts);
             }
@@ -822,7 +786,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// Clean up listener on page unload
 window.addEventListener('beforeunload', () => {
     if (listenerOff) {
         listenerOff();
