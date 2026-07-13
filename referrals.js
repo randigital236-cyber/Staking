@@ -1,7 +1,7 @@
 // ============================================================
-// RND STAKING - REFERRALS.JS (PRODUCTION READY v10)
+// RND STAKING - REFERRALS.JS (PRODUCTION READY v11)
 // ============================================================
-// 🔥 FIXED: Level 2-5 Members Display
+// 🔥 FIXED: Level 2-5 Members Display (Using UID as Referral Code)
 // 🔥 OPTIMIZED: Query Batching
 // 🔥 SMART: Hash-based Version Tracking
 // ============================================================
@@ -195,16 +195,17 @@ function getLiveReferralCounts(userData) {
 }
 
 // ============================================================
-// GET USERS BY REFERRAL CODE
+// 🔥 GET USERS BY REFERRAL CODE (UID)
 // ============================================================
-async function getUsersByReferralCode(refCode) {
-    if (!refCode) return [];
+async function getUsersByReferralCode(refUid) {
+    if (!refUid) return [];
     
     try {
+        // ✅ Query where referredBy = this UID
         const queryRef = query(
             ref(db, 'users'),
             orderByChild('referredBy'),
-            equalTo(refCode)
+            equalTo(refUid)
         );
         const snap = await get(queryRef);
         
@@ -217,7 +218,7 @@ async function getUsersByReferralCode(refCode) {
         }
         return result;
     } catch (error) {
-        console.error(`Error getting users by referral code ${refCode}:`, error);
+        console.error(`Error getting users by referral code ${refUid}:`, error);
         return [];
     }
 }
@@ -245,7 +246,7 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
             return members;
         }
         
-        // ✅ FIX: Start with Level 1 members
+        // ✅ Start with Level 1 members
         let currentLevelMembers = [];
         
         if (currentUserData && currentUserData.directReferrals) {
@@ -262,19 +263,21 @@ async function getLevelMembersOptimized(uid, referralCode, level) {
         for (let l = 2; l <= level; l++) {
             const nextLevel = [];
             
-            const refCodes = [];
+            // ✅ Collect UIDs of current level members (these ARE the referral codes)
+            const refUids = [];
             for (let member of currentLevelMembers) {
-                if (member.referralCode) {
-                    refCodes.push(member.referralCode);
+                if (member.uid) {
+                    refUids.push(member.uid);
                 }
             }
             
-            if (refCodes.length === 0) break;
+            if (refUids.length === 0) break;
             
+            // ✅ For each member, find users who have referredBy = their UID
             const batchSize = 10;
-            for (let i = 0; i < refCodes.length; i += batchSize) {
-                const batch = refCodes.slice(i, i + batchSize);
-                const promises = batch.map(code => getUsersByReferralCode(code));
+            for (let i = 0; i < refUids.length; i += batchSize) {
+                const batch = refUids.slice(i, i + batchSize);
+                const promises = batch.map(refUid => getUsersByReferralCode(refUid));
                 const results = await Promise.all(promises);
                 
                 for (let users of results) {
@@ -475,7 +478,7 @@ async function renderReferralData(u, forceFull = false) {
             cachedStats = newHash;
             dataVersion++;
             
-            // ✅ Get Level Members - Now works for all levels
+            // ✅ Get Level Members
             const level1Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 1);
             const level2Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 2);
             const level3Members = await getLevelMembersOptimized(currentUserId, u.referralCode, 3);
