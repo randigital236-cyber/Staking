@@ -1,21 +1,338 @@
-// ============================================================
-// RND STAKING - REFERRALS.JS (PRODUCTION READY v13)
-// ============================================================
-// 🔥 USING PURE v5 LOGIC (Which Works) + Modern Features
-// ✅ getAllUsers() - One-time read
-// ✅ findMembers() - Recursive traversal (WORKING)
-// ✅ directReferrals for Level 1 (Dashboard Compatible)
-// ✅ Database Commissions (No Calculation)
-// ✅ Email Masking | Status Badge | Share Buttons
-// ============================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Referrals - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
+        .navbar-custom {
+            background: rgba(8,14,26,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(46,204,113,0.15);
+            padding: 10px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+        }
+        .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
+        .navbar-custom .navbar-brand i { color: #2ecc71; }
+        .sidebar-toggle {
+            background: rgba(46,204,113,0.12);
+            border: 1px solid rgba(46,204,113,0.2);
+            color: #2ecc71;
+            padding: 8px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+        .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            z-index: 1060;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .sidebar-overlay.active { display: block; opacity: 1; }
+        .sidebar-panel {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100%;
+            background: rgba(12,20,35,0.98);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(46,204,113,0.15);
+            z-index: 1070;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-panel.open { right: 0; }
+        .sidebar-panel .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.1);
+            margin-bottom: 15px;
+        }
+        .sidebar-panel .sidebar-header h5 { color: #fff; font-weight: 700; margin: 0; font-size: 1.1rem; }
+        .sidebar-panel .sidebar-header h5 i { color: #2ecc71; }
+        .sidebar-close {
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: #8899bb;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+        .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .sidebar-panel .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            color: #8899bb;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin: 2px 12px;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+        .sidebar-panel .nav-item:hover { background: rgba(46,204,113,0.08); color: #fff; }
+        .sidebar-panel .nav-item.active { background: rgba(46,204,113,0.12); color: #2ecc71; }
+        .sidebar-panel .nav-item i { font-size: 1.2rem; width: 28px; text-align: center; }
+        .sidebar-panel .nav-item .badge {
+            margin-left: auto;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+        .sidebar-panel .sidebar-footer {
+            margin-top: auto;
+            padding: 20px;
+            border-top: 1px solid rgba(46,204,113,0.08);
+        }
+        .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
+        .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
+        .user-profile-sidebar {
+            padding: 10px 20px 20px;
+            border-bottom: 1px solid rgba(46,204,113,0.08);
+            margin-bottom: 10px;
+        }
+        .user-profile-sidebar .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2ecc71, #1a7a3a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+        .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
+        .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
+        .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .card-glass {
+            background: rgba(19,34,55,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
+        .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
+        .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
+        .referral-box {
+            background: rgba(8,14,26,0.6);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px dashed rgba(46,204,113,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .referral-box code { color: #a0b8d0; font-size: 0.8rem; word-break: break-all; flex: 1; }
+        .copy-btn {
+            cursor: pointer;
+            padding: 4px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(46,204,113,0.2);
+            background: transparent;
+            color: #a0b8d0;
+            transition: all 0.3s ease;
+            font-size: 0.8rem;
+        }
+        .copy-btn:hover { background: rgba(46,204,113,0.1); color: #2ecc71; }
+        .table-custom { color: #f0f4ff; border-color: #1f334f; }
+        .table-custom th { border-bottom: 2px solid #2a3a5a; color: #a0b8d0; }
+        .table-custom td { border-color: #1f334f; }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast-custom {
+            background: rgba(19,34,55,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: #f0f4ff;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.4s ease;
+            margin-bottom: 10px;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom i { font-size: 1.5rem; }
+        .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .earnings-box {
+            background: rgba(251,191,36,0.05);
+            border: 1px solid rgba(251,191,36,0.15);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .earnings-box .label { color: #8899bb; font-size: 0.85rem; }
+        .earnings-box .value { color: #fbbf24; font-weight: 700; font-size: 1.1rem; }
+        .level-badge {
+            display: inline-block;
+            background: rgba(46,204,113,0.08);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 20px;
+            padding: 2px 10px;
+            font-size: 0.65rem;
+            color: #2ecc71;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stats-grid .stat-item {
+            background: rgba(19,34,55,0.6);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 16px;
+            padding: 18px;
+            text-align: center;
+        }
+        .stats-grid .stat-item .number { font-size: 1.8rem; font-weight: 800; color: #2ecc71; }
+        .stats-grid .stat-item .label { color: #8899bb; font-size: 0.75rem; font-weight: 500; }
+        .stats-grid .stat-item .earnings { color: #fbbf24; font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+        @media (max-width: 768px) {
+            .dashboard-container { padding: 15px; }
+            .sidebar-panel { width: 280px; right: -300px; }
+            .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stats-grid .stat-item .number { font-size: 1.3rem; }
+        }
+        @media (max-width: 480px) { 
+            .sidebar-panel { width: 100%; right: -100%; } 
+            .sidebar-panel.open { right: 0; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
 
+<div class="toast-container" id="toastContainer"></div>
+
+<nav class="navbar navbar-custom">
+    <div class="container-fluid px-3">
+        <a class="navbar-brand fw-bold" href="dashboard.html">
+            <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+        </a>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
+            <i class="bi bi-list"></i>
+        </button>
+    </div>
+</nav>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="sidebar-panel" id="sidebarPanel">
+    <div class="sidebar-header">
+        <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
+        <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="user-profile-sidebar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="avatar" id="sidebarAvatar">U</div>
+            <div>
+                <div class="user-name" id="sidebarName">User</div>
+                <div class="user-id" id="sidebarUserId">ID: ---</div>
+            </div>
+        </div>
+    </div>
+    <a href="dashboard.html" class="nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a href="deposit.html" class="nav-item"><i class="bi bi-arrow-down-circle"></i> Deposit</a>
+    <a href="withdrawal.html" class="nav-item"><i class="bi bi-arrow-up-circle"></i> Withdraw</a>
+    <a href="referrals.html" class="nav-item active"><i class="bi bi-people"></i> Referrals <span class="badge" id="referralBadge">0</span></a>
+    <a href="buy-package.html" class="nav-item"><i class="bi bi-box-seam"></i> Buy Package</a>
+    <a href="transactions.html" class="nav-item"><i class="bi bi-receipt"></i> Transactions</a>
+    <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
+    <div class="sidebar-footer">
+        <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    </div>
+</div>
+
+<div class="dashboard-container" id="referralContent">
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="text-muted mt-3">Loading referral data...</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+    }
+}
+</script>
+<script type="module">
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, onValue } from "firebase/database";
+import { getDatabase, ref, get } from "firebase/database";
 
-// ============================================================
-// FIREBASE CONFIG
-// ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
     authDomain: "rnd2-70080.firebaseapp.com",
@@ -34,19 +351,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// ============================================================
-// GLOBAL VARIABLES
-// ============================================================
-let currentUserData = null;
-let currentUserId = null;
-let listenerOff = null;
-let historyLimit = 20;
-let allUsersCache = null;
-let isLoading = false;
-
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -61,50 +365,6 @@ function showToast(message, type = 'success') {
     }, 5000);
 }
 
-function formatDate(timestamp) {
-    if (!timestamp) return 'N/A';
-    return new Date(timestamp).toLocaleDateString('hi-IN');
-}
-
-function safeGet(obj, path, defaultValue = 0) {
-    const keys = path.split('.');
-    let result = obj;
-    for (let key of keys) {
-        if (result === undefined || result === null) return defaultValue;
-        result = result[key];
-    }
-    return result !== undefined && result !== null ? result : defaultValue;
-}
-
-function maskEmail(email) {
-    if (!email) return 'N/A';
-    const parts = email.split('@');
-    if (parts.length !== 2) return email;
-    const name = parts[0];
-    const domain = parts[1];
-    if (name.length <= 2) return email;
-    return name.substring(0, 2) + '***@' + domain;
-}
-
-function getStatusBadge(user) {
-    const packages = user.packages || {};
-    let hasActive = false;
-    let hasCompleted = false;
-    
-    for (let key in packages) {
-        const pkg = packages[key];
-        if (pkg.status === 'active') hasActive = true;
-        if (pkg.status === 'completed') hasCompleted = true;
-    }
-    
-    if (hasActive) return '<span class="status-badge active">Active</span>';
-    if (hasCompleted) return '<span class="status-badge completed">Completed</span>';
-    return '<span class="status-badge inactive">Inactive</span>';
-}
-
-// ============================================================
-// SIDEBAR CONTROLS
-// ============================================================
 const sidebarPanel = document.getElementById('sidebarPanel');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -115,13 +375,11 @@ function openSidebar() {
     sidebarOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
-
 function closeSidebar() {
     sidebarPanel.classList.remove('open');
     sidebarOverlay.classList.remove('active');
     document.body.style.overflow = '';
 }
-
 sidebarToggle.addEventListener('click', openSidebar);
 sidebarClose.addEventListener('click', closeSidebar);
 sidebarOverlay.addEventListener('click', closeSidebar);
@@ -129,194 +387,158 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSideb
 
 document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
     e.preventDefault();
-    try {
-        await signOut(auth);
-        window.location.href = 'login.html';
-    } catch (error) {
-        showToast('❌ Error logging out', 'error');
-    }
+    await signOut(auth);
+    window.location.href = 'login.html';
 });
 
-// ============================================================
-// 🔥 GET LIVE REFERRAL COUNTS (Same as Dashboard)
-// ============================================================
-function getLiveReferralCounts(userData) {
+async function calculateReferralEarnings(userData) {
     try {
-        const result = {
-            level1: 0,
-            level2: 0,
-            level3: 0,
-            level4: 0,
-            level5: 0,
-            total: 0,
-            directReferralsList: []
-        };
+        const allUsersSnapshot = await get(ref(db, 'users'));
+        let directReferrals = [];
+        let level1Users = [], level2Users = [], level3Users = [], level4Users = [], level5Users = [];
+        let level1Earn = 0, level2Earn = 0, level3Earn = 0, level4Earn = 0, level5Earn = 0;
+        let teamLevels = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
         
-        if (!userData || !userData.referralCode) {
-            return result;
-        }
-        
-        // ✅ Level 1: ONLY from directReferrals
-        if (userData.directReferrals) {
-            const directKeys = Object.keys(userData.directReferrals);
-            result.level1 = directKeys.length;
-            result.directReferralsList = directKeys.map(key => userData.directReferrals[key]);
-        }
-        
-        // ✅ Level 2-5: from teamStructure
-        if (userData.teamStructure) {
-            result.level2 = userData.teamStructure.level2 || 0;
-            result.level3 = userData.teamStructure.level3 || 0;
-            result.level4 = userData.teamStructure.level4 || 0;
-            result.level5 = userData.teamStructure.level5 || 0;
-        }
-        
-        result.total = result.level1 + result.level2 + result.level3 + result.level4 + result.level5;
-        return result;
-        
-    } catch (error) {
-        console.error('Error getting referral counts:', error);
-        return {
-            level1: userData.totalReferrals || 0,
-            level2: userData.teamStructure?.level2 || 0,
-            level3: userData.teamStructure?.level3 || 0,
-            level4: userData.teamStructure?.level4 || 0,
-            level5: userData.teamStructure?.level5 || 0,
-            total: userData.totalReferrals || 0,
-            directReferralsList: []
-        };
-    }
-}
-
-// ============================================================
-// 🔥 GET ALL USERS (Cached - One Time Read) - v5 LOGIC
-// ============================================================
-async function getAllUsers() {
-    if (allUsersCache) return allUsersCache;
-    try {
-        const snapshot = await get(ref(db, 'users'));
-        if (snapshot.exists()) {
-            allUsersCache = snapshot.val();
-            return allUsersCache;
-        }
-        return {};
-    } catch (error) {
-        console.error('Error getting all users:', error);
-        return {};
-    }
-}
-
-// ============================================================
-// 🔥 GET LEVEL MEMBERS (PURE v5 LOGIC - WORKING)
-// ============================================================
-function getLevelMembersFromCache(userId, referralCode, level) {
-    const members = [];
-    if (!allUsersCache) return members;
-    
-    // ✅ Level 1: Direct referrals from user's data
-    if (level === 1) {
-        if (currentUserData && currentUserData.directReferrals) {
-            const directUids = Object.keys(currentUserData.directReferrals);
-            for (let uid of directUids) {
-                if (allUsersCache[uid]) {
-                    const refData = currentUserData.directReferrals[uid];
-                    members.push({ uid, ...allUsersCache[uid], _refData: refData });
-                } else if (currentUserData.directReferrals[uid]) {
-                    members.push({ uid, ...currentUserData.directReferrals[uid] });
+        if (allUsersSnapshot.exists()) {
+            const allUsers = allUsersSnapshot.val();
+            const referralCode = userData.referralCode || userData.username;
+            
+            for (let key in allUsers) {
+                const u = allUsers[key];
+                if (u.referredBy === referralCode) {
+                    directReferrals.push(u);
+                    teamLevels.level1++;
+                    const stake = u.totalStake || 0;
+                    level1Earn += (stake * 0.08);
+                    
+                    for (let k2 in allUsers) {
+                        const u2 = allUsers[k2];
+                        if (u2.referredBy === u.referralCode) {
+                            const exists = level2Users.some(x => x.uid === u2.uid);
+                            if (!exists) {
+                                level2Users.push(u2);
+                                teamLevels.level2++;
+                                const stake2 = u2.totalStake || 0;
+                                level2Earn += (stake2 * 0.04);
+                            }
+                            
+                            for (let k3 in allUsers) {
+                                const u3 = allUsers[k3];
+                                if (u3.referredBy === u2.referralCode) {
+                                    const exists3 = level3Users.some(x => x.uid === u3.uid);
+                                    if (!exists3) {
+                                        level3Users.push(u3);
+                                        teamLevels.level3++;
+                                        const stake3 = u3.totalStake || 0;
+                                        level3Earn += (stake3 * 0.02);
+                                    }
+                                    
+                                    for (let k4 in allUsers) {
+                                        const u4 = allUsers[k4];
+                                        if (u4.referredBy === u3.referralCode) {
+                                            const exists4 = level4Users.some(x => x.uid === u4.uid);
+                                            if (!exists4) {
+                                                level4Users.push(u4);
+                                                teamLevels.level4++;
+                                                const stake4 = u4.totalStake || 0;
+                                                level4Earn += (stake4 * 0.01);
+                                            }
+                                            
+                                            for (let k5 in allUsers) {
+                                                const u5 = allUsers[k5];
+                                                if (u5.referredBy === u4.referralCode) {
+                                                    const exists5 = level5Users.some(x => x.uid === u5.uid);
+                                                    if (!exists5) {
+                                                        level5Users.push(u5);
+                                                        teamLevels.level5++;
+                                                        const stake5 = u5.totalStake || 0;
+                                                        level5Earn += (stake5 * 0.01);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        return members;
-    }
-    
-    // ✅ Level 2-5: v5 Recursive traversal (THIS WORKS!)
-    function findMembers(refCode, targetLevel, currentLevel) {
-        const result = [];
-        for (let uid in allUsersCache) {
-            const user = allUsersCache[uid];
-            // ✅ referredBy contains UID
-            if (user.referredBy === refCode && uid !== userId) {
-                result.push({ uid, ...user });
-            }
-        }
         
-        if (currentLevel === targetLevel) {
-            return result;
-        }
-        
-        let allNext = [];
-        for (let member of result) {
-            // ✅ Pass member.uid as refCode (because UID is the referral code)
-            const next = findMembers(member.uid, targetLevel, currentLevel + 1);
-            allNext = [...allNext, ...next];
-        }
-        return allNext;
+        return {
+            directReferrals,
+            level1Users: directReferrals,
+            level2Users,
+            level3Users,
+            level4Users,
+            level5Users,
+            level1Count: directReferrals.length,
+            level2Count: level2Users.length,
+            level3Count: level3Users.length,
+            level4Count: level4Users.length,
+            level5Count: level5Users.length,
+            level1Earn,
+            level2Earn,
+            level3Earn,
+            level4Earn,
+            level5Earn,
+            totalEarnings: level1Earn + level2Earn + level3Earn + level4Earn + level5Earn,
+            teamLevels
+        };
+    } catch (error) {
+        console.error('Error calculating referral earnings:', error);
+        return { 
+            directReferrals: [], level1Users: [], level2Users: [], level3Users: [], level4Users: [], level5Users: [], 
+            level1Count: 0, level2Count: 0, level3Count: 0, level4Count: 0, level5Count: 0,
+            level1Earn: 0, level2Earn: 0, level3Earn: 0, level4Earn: 0, level5Earn: 0,
+            totalEarnings: 0, teamLevels: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 }
+        };
     }
-    
-    // ✅ Start with current user's referral code (UID)
-    return findMembers(referralCode, level, 1);
 }
 
-// ============================================================
-// 🔥 RENDER REFERRAL DATA
-// ============================================================
-async function renderReferralData(u) {
-    if (isLoading) return;
-    isLoading = true;
-    
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
     try {
-        const username = u.username || u.referralCode || 'USER';
-        const name = u.name || 'User';
+        const userSnapshot = await get(ref(db, 'users/' + user.uid));
+        if (!userSnapshot.exists()) {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+        const userData = userSnapshot.val();
         
-        // ✅ Get live referral counts
-        const counts = getLiveReferralCounts(u);
-        
-        const directReferrals = counts.level1 || 0;
-        const level1Count = counts.level1 || 0;
-        const level2Count = counts.level2 || 0;
-        const level3Count = counts.level3 || 0;
-        const level4Count = counts.level4 || 0;
-        const level5Count = counts.level5 || 0;
-        const totalReferrals = counts.total || 0;
-        
-        // ✅ Earnings DIRECTLY from Database
-        const referralWallet = safeGet(u, 'referralWallet', 0);
-        const referralEarnings = safeGet(u, 'referralEarnings', 0);
-        
-        const level1Earn = safeGet(u, 'level1Earnings', 0);
-        const level2Earn = safeGet(u, 'level2Earnings', 0);
-        const level3Earn = safeGet(u, 'level3Earnings', 0);
-        const level4Earn = safeGet(u, 'level4Earnings', 0);
-        const level5Earn = safeGet(u, 'level5Earnings', 0);
-        
-        const totalDownline = level2Count + level3Count + level4Count + level5Count;
-        const totalDownlineEarnings = level2Earn + level3Earn + level4Earn + level5Earn;
-        
-        const commissionHistory = safeGet(u, 'commissionHistory', []);
-        const sortedHistory = [...commissionHistory].reverse();
-        const displayHistory = sortedHistory.slice(0, historyLimit);
-        const hasMore = sortedHistory.length > historyLimit;
-        
-        const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
-        
-        // ✅ Get all users (one-time read)
-        await getAllUsers();
-        
-        // ✅ Get Level Members using v5 working logic
-        const level1Members = getLevelMembersFromCache(currentUserId, u.referralCode, 1);
-        const level2Members = getLevelMembersFromCache(currentUserId, u.referralCode, 2);
-        const level3Members = getLevelMembersFromCache(currentUserId, u.referralCode, 3);
-        const level4Members = getLevelMembersFromCache(currentUserId, u.referralCode, 4);
-        const level5Members = getLevelMembersFromCache(currentUserId, u.referralCode, 5);
-        
-        // Update sidebar
+        const username = userData.username || userData.referralCode || 'USER';
+        const name = userData.name || 'User';
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
-        const badge = document.getElementById('referralBadge');
-        if (badge) badge.textContent = totalReferrals;
+        const referralData = await calculateReferralEarnings(userData);
         
+        referralData.level1Earn = userData.level1Earnings || 0;
+        referralData.level2Earn = userData.level2Earnings || 0;
+        referralData.level3Earn = userData.level3Earnings || 0;
+        referralData.level4Earn = userData.level4Earnings || 0;
+        referralData.level5Earn = userData.level5Earnings || 0;
+        referralData.totalEarnings = 
+            referralData.level1Earn +
+            referralData.level2Earn +
+            referralData.level3Earn +
+            referralData.level4Earn +
+            referralData.level5Earn;
+        
+        const badge = document.getElementById('referralBadge');
+        if (badge) badge.textContent = referralData.level1Count;
+
+        const referralLink = `${REGISTER_URL}?ref=${userData.referralCode}`;
+        
+        const totalDownline = referralData.level2Count + referralData.level3Count + referralData.level4Count + referralData.level5Count;
+        const totalDownlineEarnings = referralData.level2Earn + referralData.level3Earn + referralData.level4Earn + referralData.level5Earn;
+
         document.getElementById('referralContent').innerHTML = `
             <div class="row g-4">
                 <div class="col-12">
@@ -324,28 +546,21 @@ async function renderReferralData(u) {
                     <hr class="border-secondary">
                 </div>
                 
-                <!-- ====== STATS ====== -->
                 <div class="col-12">
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="number">${directReferrals}</div>
+                            <div class="number">${referralData.level1Count}</div>
                             <div class="label">Direct Referrals</div>
-                            <div class="earnings">💰 $${(level1Earn || 0).toFixed(2)} Earned</div>
+                            <div class="earnings">💰 $${(referralData.level1Earn || 0).toFixed(2)} Earned</div>
                         </div>
                         <div class="stat-item">
                             <div class="number">${totalDownline}</div>
                             <div class="label">Total Downline</div>
                             <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
                         </div>
-                        <div class="stat-item">
-                            <div class="number">${totalReferrals}</div>
-                            <div class="label">Total Team</div>
-                            <div class="earnings">💰 $${(referralEarnings || 0).toFixed(2)} Total Earned</div>
-                        </div>
                     </div>
                 </div>
                 
-                <!-- ====== REFERRAL LINK WITH SHARE BUTTONS ====== -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-link-45deg"></i>Your Referral Link</div>
@@ -354,24 +569,11 @@ async function renderReferralData(u) {
                             <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                         </div>
                         <div class="mt-2">
-                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode}</strong></small>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted"><i class="bi bi-wallet2 me-1"></i> Referral Wallet: <strong style="color:#fbbf24;">${(referralWallet || 0).toFixed(2)} RND</strong></small>
-                        </div>
-                        <div class="mt-3 pt-2 border-top border-secondary">
-                            <span class="text-muted" style="font-size:0.7rem;">Share:</span>
-                            <div class="d-flex gap-2 mt-1 flex-wrap">
-                                <a href="https://wa.me/?text=${encodeURIComponent('Join RND Staking using my referral link: ' + referralLink)}" target="_blank" class="share-btn whatsapp"><i class="bi bi-whatsapp"></i></a>
-                                <a href="https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('Join RND Staking using my referral link!')}" target="_blank" class="share-btn telegram"><i class="bi bi-telegram"></i></a>
-                                <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}" target="_blank" class="share-btn facebook"><i class="bi bi-facebook"></i></a>
-                                <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('Join RND Staking using my referral link!')}&url=${encodeURIComponent(referralLink)}" target="_blank" class="share-btn twitter"><i class="bi bi-twitter-x"></i></a>
-                            </div>
+                            <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Your Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${userData.referralCode}</strong></small>
                         </div>
                     </div>
                 </div>
                 
-                <!-- ====== COMMISSION STRUCTURE ====== -->
                 <div class="col-md-6">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-diagram-3"></i>Commission Structure</div>
@@ -383,16 +585,9 @@ async function renderReferralData(u) {
                             <div class="col-6"><small>Level 5 (1%)</small></div>
                             <div class="col-6"><strong class="text-success">Total 16%</strong></div>
                         </div>
-                        <div class="mt-3 pt-2 border-top border-secondary">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Total Referral Earnings</span>
-                                <span class="text-success fw-bold">$${(referralEarnings || 0).toFixed(2)}</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
                 
-                <!-- ====== 5 LEVEL EARNINGS ====== -->
                 <div class="col-12">
                     <div class="card-glass">
                         <div class="card-title"><i class="bi bi-cash-stack text-success me-2"></i>5 Level Referral Earnings</div>
@@ -400,132 +595,78 @@ async function renderReferralData(u) {
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(46,204,113,0.15);">
                                     <span class="label">👥 Level 1</span>
-                                    <span class="value" style="font-size:1rem;">${level1Count}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#fbbf24;">$${(level1Earn || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1rem;">${referralData.level1Count}</span>
+                                    <span class="label" style="font-size:0.65rem;color:#fbbf24;">$${(referralData.level1Earn || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(59,130,246,0.15);">
                                     <span class="label">👥 Level 2</span>
-                                    <span class="value" style="font-size:1rem;color:#60a5fa;">${level2Count}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#60a5fa;">$${(level2Earn || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1rem;color:#60a5fa;">${referralData.level2Count}</span>
+                                    <span class="label" style="font-size:0.65rem;color:#60a5fa;">$${(referralData.level2Earn || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(167,139,250,0.15);">
                                     <span class="label">👥 Level 3</span>
-                                    <span class="value" style="font-size:1rem;color:#a78bfa;">${level3Count}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#a78bfa;">$${(level3Earn || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1rem;color:#a78bfa;">${referralData.level3Count}</span>
+                                    <span class="label" style="font-size:0.65rem;color:#a78bfa;">$${(referralData.level3Earn || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(244,114,182,0.15);">
                                     <span class="label">👥 Level 4</span>
-                                    <span class="value" style="font-size:1rem;color:#f472b6;">${level4Count}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#f472b6;">$${(level4Earn || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1rem;color:#f472b6;">${referralData.level4Count}</span>
+                                    <span class="label" style="font-size:0.65rem;color:#f472b6;">$${(referralData.level4Earn || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(251,146,60,0.15);">
                                     <span class="label">👥 Level 5</span>
-                                    <span class="value" style="font-size:1rem;color:#fb923c;">${level5Count}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#fb923c;">$${(level5Earn || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1rem;color:#fb923c;">${referralData.level5Count}</span>
+                                    <span class="label" style="font-size:0.65rem;color:#fb923c;">$${(referralData.level5Earn || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.05);">
                                     <span class="label">🏆 Total</span>
-                                    <span class="value" style="font-size:1.2rem;color:#2ecc71;">${totalReferrals}</span>
-                                    <span class="label" style="font-size:0.65rem;color:#2ecc71;">$${(referralEarnings || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1.2rem;color:#2ecc71;">$${(referralData.totalEarnings || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- ====== LEVEL TABLES (All levels always show) ====== -->
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-list-ul text-success me-2"></i>Level 1 - Direct Referrals (${level1Count}) <span class="level-badge">8%</span></div>
-                        ${level1Members.length === 0 ? `
+                        <div class="card-title"><i class="bi bi-list-ul"></i>Level 1 - Direct Referrals (${referralData.level1Count}) <span class="level-badge">8%</span></div>
+                        ${referralData.level1Count === 0 ? `
                             <div class="text-center text-muted py-4">
                                 <i class="bi bi-people fs-1 d-block mb-2"></i>
                                 <p>No referrals yet. Share your referral link to earn!</p>
                             </div>
                         ` : `
-                            <div class="level-members-table">
+                            <div class="table-responsive">
                                 <table class="table table-custom">
                                     <thead>
                                         <tr>
                                             <th>#</th>
                                             <th>Name</th>
                                             <th>Email</th>
-                                            <th>User ID</th>
                                             <th>Stake</th>
-                                            <th>Business</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
+                                            <th>Your Earnings (8%)</th>
                                             <th>Joined</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${level1Members.map((r, i) => `
-                                            <tr>
-                                                <td>${i + 1}</td>
-                                                <td>${r.name || r._refData?.name || 'N/A'}</td>
-                                                <td style="font-size:0.75rem;">${maskEmail(r.email || r._refData?.email || 'N/A')}</td>
-                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                                <td style="color:#fbbf24;">$${(r.level1Earnings || 0).toFixed(2)}</td>
-                                                <td>${getStatusBadge(r)}</td>
-                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt || r._refData?.joinedAt)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `}
-                    </div>
-                </div>
-                
-                <!-- Level 2 -->
-                <div class="col-12">
-                    <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 2 Referrals (${level2Count}) <span class="level-badge">4%</span></div>
-                        ${level2Members.length === 0 ? `
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-people fs-1 d-block mb-2"></i>
-                                <p>No referrals at this level yet.</p>
-                            </div>
-                        ` : `
-                            <div class="level-members-table">
-                                <table class="table table-custom">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>User ID</th>
-                                            <th>Stake</th>
-                                            <th>Business</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
-                                            <th>Joined</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${level2Members.map((r, i) => `
+                                        ${referralData.level1Users.map((r, i) => `
                                             <tr>
                                                 <td>${i + 1}</td>
                                                 <td>${r.name || 'N/A'}</td>
-                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
+                                                <td>${r.email || 'N/A'}</td>
                                                 <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                                <td style="color:#60a5fa;">$${(r.level2Earnings || 0).toFixed(2)}</td>
-                                                <td>${getStatusBadge(r)}</td>
-                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
+                                                <td style="color:#fbbf24;">$${((r.totalStake || 0) * 0.08).toFixed(2)}</td>
+                                                <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -535,184 +676,144 @@ async function renderReferralData(u) {
                     </div>
                 </div>
                 
-                <!-- Level 3 -->
+                ${referralData.level2Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 3 Referrals (${level3Count}) <span class="level-badge">2%</span></div>
-                        ${level3Members.length === 0 ? `
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-people fs-1 d-block mb-2"></i>
-                                <p>No referrals at this level yet.</p>
-                            </div>
-                        ` : `
-                            <div class="level-members-table">
-                                <table class="table table-custom">
-                                    <thead>
+                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 2 Referrals (${referralData.level2Count}) <span class="level-badge">4%</span></div>
+                        <div class="table-responsive">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Stake</th>
+                                        <th>Your Earnings (4%)</th>
+                                        <th>Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${referralData.level2Users.map((r, i) => `
                                         <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>User ID</th>
-                                            <th>Stake</th>
-                                            <th>Business</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
-                                            <th>Joined</th>
+                                            <td>${i + 1}</td>
+                                            <td>${r.name || 'N/A'}</td>
+                                            <td>${r.email || 'N/A'}</td>
+                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                            <td style="color:#60a5fa;">$${((r.totalStake || 0) * 0.04).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${level3Members.map((r, i) => `
-                                            <tr>
-                                                <td>${i + 1}</td>
-                                                <td>${r.name || 'N/A'}</td>
-                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                                <td style="color:#a78bfa;">$${(r.level3Earnings || 0).toFixed(2)}</td>
-                                                <td>${getStatusBadge(r)}</td>
-                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `}
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+                ` : ''}
                 
-                <!-- Level 4 -->
+                ${referralData.level3Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 4 Referrals (${level4Count}) <span class="level-badge">1%</span></div>
-                        ${level4Members.length === 0 ? `
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-people fs-1 d-block mb-2"></i>
-                                <p>No referrals at this level yet.</p>
-                            </div>
-                        ` : `
-                            <div class="level-members-table">
-                                <table class="table table-custom">
-                                    <thead>
+                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 3 Referrals (${referralData.level3Count}) <span class="level-badge">2%</span></div>
+                        <div class="table-responsive">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Stake</th>
+                                        <th>Your Earnings (2%)</th>
+                                        <th>Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${referralData.level3Users.map((r, i) => `
                                         <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>User ID</th>
-                                            <th>Stake</th>
-                                            <th>Business</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
-                                            <th>Joined</th>
+                                            <td>${i + 1}</td>
+                                            <td>${r.name || 'N/A'}</td>
+                                            <td>${r.email || 'N/A'}</td>
+                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                            <td style="color:#a78bfa;">$${((r.totalStake || 0) * 0.02).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${level4Members.map((r, i) => `
-                                            <tr>
-                                                <td>${i + 1}</td>
-                                                <td>${r.name || 'N/A'}</td>
-                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                                <td style="color:#f472b6;">$${(r.level4Earnings || 0).toFixed(2)}</td>
-                                                <td>${getStatusBadge(r)}</td>
-                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `}
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+                ` : ''}
                 
-                <!-- Level 5 -->
+                ${referralData.level4Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 5 Referrals (${level5Count}) <span class="level-badge">1%</span></div>
-                        ${level5Members.length === 0 ? `
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-people fs-1 d-block mb-2"></i>
-                                <p>No referrals at this level yet.</p>
-                            </div>
-                        ` : `
-                            <div class="level-members-table">
-                                <table class="table table-custom">
-                                    <thead>
+                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 4 Referrals (${referralData.level4Count}) <span class="level-badge">1%</span></div>
+                        <div class="table-responsive">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Stake</th>
+                                        <th>Your Earnings (1%)</th>
+                                        <th>Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${referralData.level4Users.map((r, i) => `
                                         <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>User ID</th>
-                                            <th>Stake</th>
-                                            <th>Business</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
-                                            <th>Joined</th>
+                                            <td>${i + 1}</td>
+                                            <td>${r.name || 'N/A'}</td>
+                                            <td>${r.email || 'N/A'}</td>
+                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                            <td style="color:#f472b6;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${level5Members.map((r, i) => `
-                                            <tr>
-                                                <td>${i + 1}</td>
-                                                <td>${r.name || 'N/A'}</td>
-                                                <td style="font-size:0.75rem;">${maskEmail(r.email || 'N/A')}</td>
-                                                <td style="font-size:0.7rem;color:#a0b8d0;">${r.username || r.referralCode || r.uid?.substring(0, 12)}</td>
-                                                <td>$${(r.totalStake || 0).toFixed(2)}</td>
-                                                <td>$${(r.teamBusiness || 0).toFixed(2)}</td>
-                                                <td style="color:#fb923c;">$${(r.level5Earnings || 0).toFixed(2)}</td>
-                                                <td>${getStatusBadge(r)}</td>
-                                                <td style="font-size:0.7rem;color:#556688;">${formatDate(r.createdAt)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `}
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+                ` : ''}
                 
-                <!-- ====== COMMISSION HISTORY ====== -->
+                ${referralData.level5Count > 0 ? `
                 <div class="col-12">
                     <div class="card-glass">
-                        <div class="card-title"><i class="bi bi-clock-history text-success me-2"></i>Commission History</div>
-                        ${displayHistory.length === 0 ? `
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                <p>No commission history yet.</p>
-                            </div>
-                        ` : `
-                            <div class="history-scroll">
-                                ${displayHistory.map(item => `
-                                    <div class="commission-history-item">
-                                        <div>
-                                            <span class="level-tag">Level ${item.level || 1}</span>
-                                            <span class="user">${item.fromUser || 'Unknown'}</span>
-                                            ${item.packageId ? `<span class="text-muted" style="font-size:0.6rem;">(${item.packageId.substring(0, 8)})</span>` : ''}
-                                        </div>
-                                        <div>
-                                            <span class="amount">+$${(item.amount || 0).toFixed(2)}</span>
-                                            <span class="text-muted" style="font-size:0.6rem;">(${item.percent || 0}%)</span>
-                                            <div class="date">${item.date ? formatDate(item.date) : formatDate(item.timestamp)}</div>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                            ${hasMore ? `
-                                <div class="text-center mt-3">
-                                    <button class="load-more-btn" id="loadMoreHistory">
-                                        <i class="bi bi-plus-circle me-1"></i> Load More (${sortedHistory.length - historyLimit} remaining)
-                                    </button>
-                                </div>
-                            ` : ''}
-                        `}
+                        <div class="card-title"><i class="bi bi-diagram-3 text-success me-2"></i>Level 5 Referrals (${referralData.level5Count}) <span class="level-badge">1%</span></div>
+                        <div class="table-responsive">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Stake</th>
+                                        <th>Your Earnings (1%)</th>
+                                        <th>Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${referralData.level5Users.map((r, i) => `
+                                        <tr>
+                                            <td>${i + 1}</td>
+                                            <td>${r.name || 'N/A'}</td>
+                                            <td>${r.email || 'N/A'}</td>
+                                            <td>$${(r.totalStake || 0).toFixed(2)}</td>
+                                            <td style="color:#fb923c;">$${((r.totalStake || 0) * 0.01).toFixed(2)}</td>
+                                            <td style="font-size:0.7rem;color:#556688;">${new Date(r.createdAt).toLocaleDateString('hi-IN')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
+                ` : ''}
             </div>
         `;
-        
-        // Copy buttons
+
         document.querySelectorAll('.copy-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 navigator.clipboard.writeText(btn.dataset.copy).then(() => {
@@ -721,114 +822,19 @@ async function renderReferralData(u) {
                 });
             });
         });
-        
-        // Load More button
-        const loadMoreBtn = document.getElementById('loadMoreHistory');
-        if (loadMoreBtn) {
-            loadMoreBtn.addEventListener('click', () => {
-                historyLimit += 20;
-                renderReferralData(currentUserData);
-            });
-        }
-        
-    } catch (error) {
-        console.error('Error rendering referral data:', error);
-    } finally {
-        isLoading = false;
-    }
-}
 
-// ============================================================
-// SETUP REAL-TIME LISTENER
-// ============================================================
-function setupRealtimeListener(userId) {
-    if (listenerOff) {
-        listenerOff();
-        listenerOff = null;
-    }
-    
-    const userRef = ref(db, 'users/' + userId);
-    
-    listenerOff = onValue(userRef, (snapshot) => {
-        try {
-            if (!snapshot.exists()) return;
-            const data = snapshot.val();
-            currentUserData = data;
-            allUsersCache = null;
-            renderReferralData(data);
-        } catch (error) {
-            console.error('Realtime listener error:', error);
-        }
-    });
-}
-
-// ============================================================
-// LOAD REFERRAL DATA
-// ============================================================
-async function loadReferralData(userId) {
-    try {
-        const userSnap = await get(ref(db, 'users/' + userId));
-        
-        if (!userSnap.exists()) {
-            document.getElementById('referralContent').innerHTML = `
-                <div class="text-center py-5">
-                    <i class="bi bi-exclamation-triangle text-warning fs-1 d-block mb-3"></i>
-                    <h4>Profile Not Found</h4>
-                    <p class="text-muted">Please complete your profile first.</p>
-                    <a href="dashboard.html" class="btn btn-primary-custom mt-3">Go to Dashboard</a>
-                </div>
-            `;
-            return;
-        }
-        
-        const u = userSnap.val();
-        currentUserData = u;
-        currentUserId = userId;
-        
-        await renderReferralData(u);
-        setupRealtimeListener(userId);
-        
     } catch (error) {
-        console.error('Error loading referral data:', error);
+        console.error('Error loading referrals:', error);
         document.getElementById('referralContent').innerHTML = `
             <div class="text-center py-5">
                 <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>Unable to Load Referrals</h4>
-                <p class="text-muted">Please try again later.</p>
-                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-            </div>
-        `;
-    }
-}
-
-// ============================================================
-// MAIN AUTH HANDLER
-// ============================================================
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    try {
-        await loadReferralData(user.uid);
-    } catch (error) {
-        console.error('Error in auth handler:', error);
-        document.getElementById('referralContent').innerHTML = `
-            <div class="text-center py-5">
-                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>Authentication Error</h4>
-                <p class="text-muted">Please try again later.</p>
+                <h4>Error Loading Page</h4>
+                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
                 <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
             </div>
         `;
     }
 });
-
-// Clean up listener on page unload
-window.addEventListener('beforeunload', () => {
-    if (listenerOff) {
-        listenerOff();
-        listenerOff = null;
-    }
-});
+</script>
+</body>
+</html>
