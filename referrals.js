@@ -189,18 +189,14 @@ async function renderReferralData(u) {
         const username = u.username || u.referralCode || 'USER';
         const name = u.name || 'User';
         
-        // ✅ FIX: Calculate referrals from teamStructure (Real-time)
-        const teamStructure = safeGet(u, 'teamStructure', { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 });
-        const directReferrals = teamStructure.level1 || 0;
-        const totalReferrals = (teamStructure.level1 || 0) + 
-                              (teamStructure.level2 || 0) + 
-                              (teamStructure.level3 || 0) + 
-                              (teamStructure.level4 || 0) + 
-                              (teamStructure.level5 || 0);
+        // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
+        const directReferrals = safeGet(u, 'totalReferrals', 0);
+        const totalReferrals = safeGet(u, 'totalReferrals', 0);
         
         const referralWallet = safeGet(u, 'referralWallet', 0);
         const referralEarnings = safeGet(u, 'referralEarnings', 0);
         
+        const teamStructure = safeGet(u, 'teamStructure', { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 });
         const level1Count = teamStructure.level1 || 0;
         const level2Count = teamStructure.level2 || 0;
         const level3Count = teamStructure.level3 || 0;
