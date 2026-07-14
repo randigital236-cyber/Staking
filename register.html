@@ -231,10 +231,8 @@ document.getElementById('regRef').addEventListener('input', function() {
     }
 });
 
-// Auto redirect disabled during registration to preserve referral flow
-
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FIXED)
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -275,13 +273,18 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
-        // Update Level 1 (Direct)
+        // ✅ FIX: Update BOTH totalReferrals AND teamStructure/level1
+        const currentLevel1 = referrerData.teamStructure?.level1 || 0;
+        
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
             downline: (referrerData.downline || 0) + 1,
-            directReferrals: directRefs
+            directReferrals: directRefs,
+            'teamStructure/level1': currentLevel1 + 1
         });
         console.log('✅ Level 1 (Direct) updated for:', referrerUid);
+        console.log('   - totalReferrals:', (referrerData.totalReferrals || 0) + 1);
+        console.log('   - teamStructure/level1:', currentLevel1 + 1);
         
         // Level 2 - 4%
         const level2RefCode = referrerData.referredBy;
@@ -392,7 +395,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         
         // Step 4: USER DATA
         const userData = {
-              uid: uid,
+            uid: uid,
             username: uid,
             name: name,
             email: email,
@@ -446,7 +449,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             console.log('ℹ️ No referral code provided - skipping referrer update');
         }
         
-        // 🔥 🔥 🔥 FIX: Wait for 1.5 seconds before redirecting
+        // 🔥 Wait for 1.5 seconds before redirecting
         console.log('⏳ Waiting 1.5 seconds for data to be fully saved...');
         await new Promise(resolve => setTimeout(resolve, 1500));
         
