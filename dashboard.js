@@ -1040,9 +1040,14 @@ function renderDashboard(u) {
     
     // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
    // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
-const directReferrals = u.totalReferrals || 0;
-const totalReferrals = u.totalReferrals || 0;
-    
+    // ✅ FIX: Calculate totalReferrals from teamStructure (All Levels Combined)
+    const teamStructure = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
+    const directReferrals = teamStructure.level1 || 0;
+    const totalReferrals = (teamStructure.level1 || 0) + 
+                          (teamStructure.level2 || 0) + 
+                          (teamStructure.level3 || 0) + 
+                          (teamStructure.level4 || 0) + 
+                          (teamStructure.level5 || 0);
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
