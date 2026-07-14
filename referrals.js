@@ -244,19 +244,19 @@ async function renderReferralData(u) {
                     <hr class="border-secondary">
                 </div>
                 
-                <!-- ====== STATS ====== -->
-                <div class="col-12">
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="number">${directReferrals}</div>
-                            <div class="label">Total Referrals</div>
-                            <div class="earnings">💰 $${(level1Earn || 0).toFixed(2)} Earned</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="number">${totalDownline}</div>
-                            <div class="label">Total Downline</div>
-                            <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
-                        </div>
+               <!-- ====== STATS ====== -->
+<div class="col-12">
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="number">${directReferrals}</div>
+            <div class="label">Total Referrals</div>
+            <div class="earnings">💰 $${(referralEarnings || 0).toFixed(2)} Earned</div>
+        </div>
+        <div class="stat-item">
+            <div class="number">${totalDownline}</div>
+            <div class="label">Total Downline</div>
+            <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
+        </div>
                     </div>
                 </div>
                 
