@@ -249,7 +249,7 @@ async function renderReferralData(u) {
                     <div class="stats-grid">
                         <div class="stat-item">
                             <div class="number">${directReferrals}</div>
-                            <div class="label">Direct Referrals</div>
+                            <div class="label">Total Referrals</div>
                             <div class="earnings">💰 $${(level1Earn || 0).toFixed(2)} Earned</div>
                         </div>
                         <div class="stat-item">
