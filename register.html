@@ -222,7 +222,7 @@ document.getElementById('regRef').addEventListener('input', function() {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FULLY FIXED)
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FULLY FIXED - ALL LEVELS)
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -263,7 +263,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
-        // ✅ LEVEL 1 UPDATE
+        // ✅ LEVEL 1 UPDATE - totalReferrals + teamStructure/level1
         const currentLevel1 = referrerData.teamStructure?.level1 || 0;
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
@@ -271,10 +271,10 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             directReferrals: directRefs,
             'teamStructure/level1': currentLevel1 + 1
         });
-        console.log('✅ Level 1 updated:', referrerUid, 'New Level1:', currentLevel1 + 1);
+        console.log('✅ Level 1 updated:', referrerUid, 'New totalReferrals:', (referrerData.totalReferrals || 0) + 1);
         
         // ============================================================
-        // ✅ LEVEL 2 UPDATE
+        // ✅ LEVEL 2 UPDATE - teamStructure/level2
         // ============================================================
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
@@ -290,7 +290,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                     console.log('✅ Level 2 updated:', key, 'New Level2:', (level2TeamStructure.level2 || 0) + 1);
                     
                     // ============================================================
-                    // ✅ LEVEL 3 UPDATE
+                    // ✅ LEVEL 3 UPDATE - teamStructure/level3
                     // ============================================================
                     const level3RefCode = level2User.referredBy;
                     if (level3RefCode && level3RefCode !== '') {
@@ -305,7 +305,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                 console.log('✅ Level 3 updated:', k3, 'New Level3:', (level3TeamStructure.level3 || 0) + 1);
                                 
                                 // ============================================================
-                                // ✅ LEVEL 4 UPDATE
+                                // ✅ LEVEL 4 UPDATE - teamStructure/level4
                                 // ============================================================
                                 const level4RefCode = level3User.referredBy;
                                 if (level4RefCode && level4RefCode !== '') {
@@ -320,7 +320,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                             console.log('✅ Level 4 updated:', k4, 'New Level4:', (level4TeamStructure.level4 || 0) + 1);
                                             
                                             // ============================================================
-                                            // ✅ LEVEL 5 UPDATE
+                                            // ✅ LEVEL 5 UPDATE - teamStructure/level5
                                             // ============================================================
                                             const level5RefCode = level4User.referredBy;
                                             if (level5RefCode && level5RefCode !== '') {
@@ -452,9 +452,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             console.log('ℹ️ No referral code provided - skipping referrer update');
         }
         
-        // 🔥 Wait for 1.5 seconds before redirecting
-        console.log('⏳ Waiting 1.5 seconds for data to be fully saved...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // 🔥 Wait for 2 seconds before redirecting
+        console.log('⏳ Waiting 2 seconds for data to be fully saved...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
         
