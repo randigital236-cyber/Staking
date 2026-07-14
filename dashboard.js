@@ -1039,8 +1039,9 @@ function renderDashboard(u) {
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
     // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
-    const directReferrals = u.totalReferrals || 0;
-    const totalReferrals = u.totalReferrals || 0;
+   // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
+const directReferrals = u.totalReferrals || 0;
+const totalReferrals = u.totalReferrals || 0;
     
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
