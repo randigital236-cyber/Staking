@@ -81,16 +81,6 @@
         .toast-custom .toast-msg { flex: 1; font-size: 0.9rem; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
-        .commission-badge {
-            display: inline-block;
-            background: rgba(46,204,113,0.08);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 20px;
-            padding: 2px 12px;
-            font-size: 0.7rem;
-            color: #2ecc71;
-        }
-        
         .referral-notice {
             background: rgba(46,204,113,0.05);
             border: 1px solid rgba(46,204,113,0.1);
@@ -232,7 +222,7 @@ document.getElementById('regRef').addEventListener('input', function() {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FIXED)
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FULLY FIXED)
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -273,63 +263,76 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             level: 1
         };
         
-        // ✅ FIX: Update BOTH totalReferrals AND teamStructure/level1
+        // ✅ LEVEL 1 UPDATE
         const currentLevel1 = referrerData.teamStructure?.level1 || 0;
-        
         await update(ref(db, 'users/' + referrerUid), {
             totalReferrals: (referrerData.totalReferrals || 0) + 1,
             downline: (referrerData.downline || 0) + 1,
             directReferrals: directRefs,
             'teamStructure/level1': currentLevel1 + 1
         });
-        console.log('✅ Level 1 (Direct) updated for:', referrerUid);
-        console.log('   - totalReferrals:', (referrerData.totalReferrals || 0) + 1);
-        console.log('   - teamStructure/level1:', currentLevel1 + 1);
+        console.log('✅ Level 1 updated:', referrerUid, 'New Level1:', currentLevel1 + 1);
         
-        // Level 2 - 4%
+        // ============================================================
+        // ✅ LEVEL 2 UPDATE
+        // ============================================================
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
             console.log('🔍 Level 2 referral code:', level2RefCode);
             for (let key in allUsers) {
                 if (allUsers[key].referralCode === level2RefCode) {
                     const level2User = allUsers[key];
+                    const level2TeamStructure = level2User.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
                     await update(ref(db, 'users/' + key), {
-                        downline: ((level2User.downline || 0) + 1)
+                        downline: ((level2User.downline || 0) + 1),
+                        'teamStructure/level2': (level2TeamStructure.level2 || 0) + 1
                     });
-                    console.log('✅ Level 2 updated for:', key);
+                    console.log('✅ Level 2 updated:', key, 'New Level2:', (level2TeamStructure.level2 || 0) + 1);
                     
-                    // Level 3 - 2%
+                    // ============================================================
+                    // ✅ LEVEL 3 UPDATE
+                    // ============================================================
                     const level3RefCode = level2User.referredBy;
                     if (level3RefCode && level3RefCode !== '') {
                         for (let k3 in allUsers) {
                             if (allUsers[k3].referralCode === level3RefCode) {
                                 const level3User = allUsers[k3];
+                                const level3TeamStructure = level3User.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
                                 await update(ref(db, 'users/' + k3), {
-                                    downline: ((level3User.downline || 0) + 1)
+                                    downline: ((level3User.downline || 0) + 1),
+                                    'teamStructure/level3': (level3TeamStructure.level3 || 0) + 1
                                 });
-                                console.log('✅ Level 3 updated for:', k3);
+                                console.log('✅ Level 3 updated:', k3, 'New Level3:', (level3TeamStructure.level3 || 0) + 1);
                                 
-                                // Level 4 - 1%
+                                // ============================================================
+                                // ✅ LEVEL 4 UPDATE
+                                // ============================================================
                                 const level4RefCode = level3User.referredBy;
                                 if (level4RefCode && level4RefCode !== '') {
                                     for (let k4 in allUsers) {
                                         if (allUsers[k4].referralCode === level4RefCode) {
                                             const level4User = allUsers[k4];
+                                            const level4TeamStructure = level4User.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
                                             await update(ref(db, 'users/' + k4), {
-                                                downline: ((level4User.downline || 0) + 1)
+                                                downline: ((level4User.downline || 0) + 1),
+                                                'teamStructure/level4': (level4TeamStructure.level4 || 0) + 1
                                             });
-                                            console.log('✅ Level 4 updated for:', k4);
+                                            console.log('✅ Level 4 updated:', k4, 'New Level4:', (level4TeamStructure.level4 || 0) + 1);
                                             
-                                            // Level 5 - 1%
+                                            // ============================================================
+                                            // ✅ LEVEL 5 UPDATE
+                                            // ============================================================
                                             const level5RefCode = level4User.referredBy;
                                             if (level5RefCode && level5RefCode !== '') {
                                                 for (let k5 in allUsers) {
                                                     if (allUsers[k5].referralCode === level5RefCode) {
                                                         const level5User = allUsers[k5];
+                                                        const level5TeamStructure = level5User.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
                                                         await update(ref(db, 'users/' + k5), {
-                                                            downline: ((level5User.downline || 0) + 1)
+                                                            downline: ((level5User.downline || 0) + 1),
+                                                            'teamStructure/level5': (level5TeamStructure.level5 || 0) + 1
                                                         });
-                                                        console.log('✅ Level 5 updated for:', k5);
+                                                        console.log('✅ Level 5 updated:', k5, 'New Level5:', (level5TeamStructure.level5 || 0) + 1);
                                                         break;
                                                     }
                                                 }
@@ -347,7 +350,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             }
         }
         
-        console.log('✅ ===== REFERRAL SYSTEM UPDATED =====');
+        console.log('✅ ===== REFERRAL SYSTEM FULLY UPDATED (Levels 1-5) =====');
     } catch (error) {
         console.error('❌ Error updating referral system:', error);
     }
@@ -440,9 +443,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         await set(ref(db, 'usernames/' + uid), uid);
         console.log('✅ User data saved to database!');
 
-        // Step 6: UPDATE REFERRER
+        // Step 6: UPDATE REFERRER (All Levels 1-5)
         if (finalRefCode) {
-            console.log('🔗 ===== UPDATING REFERRER =====');
+            console.log('🔗 ===== UPDATING REFERRER (All Levels 1-5) =====');
             console.log('🔗 Referrer Code:', finalRefCode);
             await update5LevelReferral(finalRefCode, uid, name, email);
         } else {
