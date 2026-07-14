@@ -222,7 +222,7 @@ document.getElementById('regRef').addEventListener('input', function() {
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM (FULLY FIXED - ALL LEVELS)
+// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
 // ============================================================
 async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
     try {
@@ -274,7 +274,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
         console.log('✅ Level 1 updated:', referrerUid, 'New totalReferrals:', (referrerData.totalReferrals || 0) + 1);
         
         // ============================================================
-        // ✅ LEVEL 2 UPDATE - teamStructure/level2
+        // ✅ LEVEL 2 UPDATE - teamStructure/level2 (NO totalReferrals)
         // ============================================================
         const level2RefCode = referrerData.referredBy;
         if (level2RefCode && level2RefCode !== '') {
@@ -290,7 +290,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                     console.log('✅ Level 2 updated:', key, 'New Level2:', (level2TeamStructure.level2 || 0) + 1);
                     
                     // ============================================================
-                    // ✅ LEVEL 3 UPDATE - teamStructure/level3
+                    // ✅ LEVEL 3 UPDATE - teamStructure/level3 (NO totalReferrals)
                     // ============================================================
                     const level3RefCode = level2User.referredBy;
                     if (level3RefCode && level3RefCode !== '') {
@@ -305,7 +305,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                 console.log('✅ Level 3 updated:', k3, 'New Level3:', (level3TeamStructure.level3 || 0) + 1);
                                 
                                 // ============================================================
-                                // ✅ LEVEL 4 UPDATE - teamStructure/level4
+                                // ✅ LEVEL 4 UPDATE - teamStructure/level4 (NO totalReferrals)
                                 // ============================================================
                                 const level4RefCode = level3User.referredBy;
                                 if (level4RefCode && level4RefCode !== '') {
@@ -320,7 +320,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
                                             console.log('✅ Level 4 updated:', k4, 'New Level4:', (level4TeamStructure.level4 || 0) + 1);
                                             
                                             // ============================================================
-                                            // ✅ LEVEL 5 UPDATE - teamStructure/level5
+                                            // ✅ LEVEL 5 UPDATE - teamStructure/level5 (NO totalReferrals)
                                             // ============================================================
                                             const level5RefCode = level4User.referredBy;
                                             if (level5RefCode && level5RefCode !== '') {
@@ -350,7 +350,7 @@ async function update5LevelReferral(referralCode, newUserUid, newUserName, newUs
             }
         }
         
-        console.log('✅ ===== REFERRAL SYSTEM FULLY UPDATED (Levels 1-5) =====');
+        console.log('✅ ===== REFERRAL SYSTEM UPDATED (Levels 1-5) =====');
     } catch (error) {
         console.error('❌ Error updating referral system:', error);
     }
