@@ -1038,14 +1038,9 @@ function renderDashboard(u) {
     const rank = u.rank || 'Member';
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
-    // ✅ FIX: Calculate referrals from teamStructure (Real-time)
-    const teamStructure = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
-    const directReferrals = teamStructure.level1 || 0;
-    const totalReferrals = (teamStructure.level1 || 0) + 
-                          (teamStructure.level2 || 0) + 
-                          (teamStructure.level3 || 0) + 
-                          (teamStructure.level4 || 0) + 
-                          (teamStructure.level5 || 0);
+    // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
+    const directReferrals = u.totalReferrals || 0;
+    const totalReferrals = u.totalReferrals || 0;
     
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
