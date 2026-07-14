@@ -127,7 +127,7 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// GET ALL USERS (Cached)
+// GET ALL USERS (Cached for Level Members)
 // ============================================================
 async function getAllUsers() {
     if (allUsersCache) return allUsersCache;
@@ -152,6 +152,9 @@ async function getAllUsers() {
 function getLevelMembersFromCache(userId, referralCode, level) {
     const members = [];
     if (!allUsersCache) return members;
+    
+    let currentLevel = 1;
+    let currentRefCode = referralCode;
     
     function findMembers(refCode, targetLevel, currentLevel) {
         const result = [];
@@ -178,7 +181,7 @@ function getLevelMembersFromCache(userId, referralCode, level) {
 }
 
 // ============================================================
-// RENDER REFERRAL DATA
+// RENDER REFERRAL DATA (Clean - No Warnings)
 // ============================================================
 async function renderReferralData(u) {
     if (isLoading) return;
@@ -188,7 +191,7 @@ async function renderReferralData(u) {
         const username = u.username || u.referralCode || 'USER';
         const name = u.name || 'User';
         
-                // ✅ FIX: Calculate totalReferrals from teamStructure (All Levels Combined)
+        // ✅ FIX: Calculate totalReferrals from teamStructure (All Levels Combined)
         const teamStructure = safeGet(u, 'teamStructure', { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 });
         const directReferrals = teamStructure.level1 || 0;
         const totalReferrals = (teamStructure.level1 || 0) + 
@@ -200,7 +203,6 @@ async function renderReferralData(u) {
         const referralWallet = safeGet(u, 'referralWallet', 0);
         const referralEarnings = safeGet(u, 'referralEarnings', 0);
         
-        const teamStructure = safeGet(u, 'teamStructure', { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 });
         const level1Count = teamStructure.level1 || 0;
         const level2Count = teamStructure.level2 || 0;
         const level3Count = teamStructure.level3 || 0;
@@ -626,7 +628,7 @@ function setupRealtimeListener(userId) {
             const data = snapshot.val();
             currentUserData = data;
             
-            // ✅ Clear cache on data change to refresh members
+            // Clear cache on data change to refresh members
             allUsersCache = null;
             
             renderReferralData(data);
