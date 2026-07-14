@@ -1038,7 +1038,15 @@ function renderDashboard(u) {
     const rank = u.rank || 'Member';
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     
-    const directReferrals = u.totalReferrals || 0;
+    // ✅ FIX: Calculate referrals from teamStructure (Real-time)
+    const teamStructure = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
+    const directReferrals = teamStructure.level1 || 0;
+    const totalReferrals = (teamStructure.level1 || 0) + 
+                          (teamStructure.level2 || 0) + 
+                          (teamStructure.level3 || 0) + 
+                          (teamStructure.level4 || 0) + 
+                          (teamStructure.level5 || 0);
+    
     const depositWallet = u.depositWallet || 0;
     const referralWallet = u.referralWallet || 0;
     const rndWallet = u.rndWallet || 0;
@@ -1210,7 +1218,7 @@ function renderDashboard(u) {
                         <div class="label">Total Stake (USDT)</div>
                     </div>
                     <div class="network-stat-card">
-                        <div class="number" id="totalReferralsValue">${directReferrals}</div>
+                        <div class="number" id="totalReferralsValue">${totalReferrals}</div>
                         <div class="label">Total Referrals</div>
                     </div>
                     <div class="network-stat-card">
@@ -1298,7 +1306,7 @@ function renderDashboard(u) {
                         <button class="copy-btn" data-copy="${referralLink}"><i class="bi bi-clipboard me-1"></i>Copy</button>
                     </div>
                     <div class="mt-3 d-flex flex-wrap gap-2">
-                        <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${directReferrals}</strong></span>
+                        <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;">${totalReferrals}</strong></span>
                         <span class="text-muted small"><i class="bi bi-box-arrow-up-right me-1"></i>Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode}</strong></span>
                     </div>
                 </div>
