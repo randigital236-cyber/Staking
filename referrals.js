@@ -42,6 +42,8 @@ let listenerOff = null;
 let historyLimit = 20;
 let allUsersCache = null;
 let isLoading = false;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5000; // 5 seconds cache
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -127,29 +129,45 @@ document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) 
 });
 
 // ============================================================
-// GET ALL USERS (Cached for Level Members)
+// GET ALL USERS (With Cache Expiry)
 // ============================================================
-async function getAllUsers() {
-    if (allUsersCache) return allUsersCache;
+async function getAllUsers(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && allUsersCache && (now - cacheTimestamp) < CACHE_DURATION) {
+        console.log('📦 Using cached users data');
+        return allUsersCache;
+    }
+    
     try {
+        console.log('📥 Fetching fresh users data from Firebase...');
         const snapshot = await get(ref(db, 'users'));
         if (snapshot.exists()) {
             allUsersCache = snapshot.val();
+            cacheTimestamp = now;
+            console.log('✅ Users data refreshed, total users:', Object.keys(allUsersCache).length);
             return allUsersCache;
         }
         return {};
     } catch (error) {
         console.error('Error getting all users:', error);
-        return {};
+        return allUsersCache || {};
     }
 }
 
 // ============================================================
-// GET LEVEL MEMBERS (Using Cache)
+// GET LEVEL MEMBERS (Using Cache with Force Refresh)
 // ============================================================
-function getLevelMembersFromCache(userId, referralCode, level) {
+function getLevelMembersFromCache(userId, referralCode, level, forceRefresh = false) {
     const members = [];
     if (!allUsersCache) return members;
+    
+    // If force refresh, clear cache and refetch
+    if (forceRefresh) {
+        allUsersCache = null;
+        cacheTimestamp = 0;
+        getAllUsers(true);
+        return members;
+    }
     
     let currentLevel = 1;
     let currentRefCode = referralCode;
@@ -181,7 +199,7 @@ function getLevelMembersFromCache(userId, referralCode, level) {
 // ============================================================
 // RENDER REFERRAL DATA (Clean - No Warnings)
 // ============================================================
-async function renderReferralData(u) {
+async function renderReferralData(u, forceRefresh = false) {
     if (isLoading) return;
     isLoading = true;
     
@@ -189,7 +207,7 @@ async function renderReferralData(u) {
         const username = u.username || u.referralCode || 'USER';
         const name = u.name || 'User';
         
-        // ✅ FIX: Use totalReferrals directly (this field is updated correctly during registration)
+        // ✅ FIX: Use totalReferrals directly
         const directReferrals = safeGet(u, 'totalReferrals', 0);
         const totalReferrals = safeGet(u, 'totalReferrals', 0);
         
@@ -219,15 +237,17 @@ async function renderReferralData(u) {
         
         const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
         
-        // Get all users for level members
-        await getAllUsers();
+        // ✅ FIX: Force refresh users data to get latest members
+        await getAllUsers(forceRefresh);
         
-        // Get Level Members
-        const level1Members = getLevelMembersFromCache(currentUserId, u.referralCode, 1);
-        const level2Members = getLevelMembersFromCache(currentUserId, u.referralCode, 2);
-        const level3Members = getLevelMembersFromCache(currentUserId, u.referralCode, 3);
-        const level4Members = getLevelMembersFromCache(currentUserId, u.referralCode, 4);
-        const level5Members = getLevelMembersFromCache(currentUserId, u.referralCode, 5);
+        // Get Level Members with fresh data
+        const level1Members = getLevelMembersFromCache(currentUserId, u.referralCode, 1, forceRefresh);
+        const level2Members = getLevelMembersFromCache(currentUserId, u.referralCode, 2, forceRefresh);
+        const level3Members = getLevelMembersFromCache(currentUserId, u.referralCode, 3, forceRefresh);
+        const level4Members = getLevelMembersFromCache(currentUserId, u.referralCode, 4, forceRefresh);
+        const level5Members = getLevelMembersFromCache(currentUserId, u.referralCode, 5, forceRefresh);
+        
+        console.log('📊 Level Members Count - L1:', level1Members.length, 'L2:', level2Members.length, 'L3:', level3Members.length, 'L4:', level4Members.length, 'L5:', level5Members.length);
         
         // Update sidebar
         document.getElementById('sidebarName').textContent = name;
@@ -244,19 +264,19 @@ async function renderReferralData(u) {
                     <hr class="border-secondary">
                 </div>
                 
-               <!-- ====== STATS ====== -->
-<div class="col-12">
-    <div class="stats-grid">
-        <div class="stat-item">
-            <div class="number">${directReferrals}</div>
-            <div class="label">Total Referrals</div>
-            <div class="earnings">💰 $${(referralEarnings || 0).toFixed(2)} Earned</div>
-        </div>
-        <div class="stat-item">
-            <div class="number">${totalDownline}</div>
-            <div class="label">Total Downline</div>
-            <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
-        </div>
+                <!-- ====== STATS ====== -->
+                <div class="col-12">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="number">${directReferrals}</div>
+                            <div class="label">Total Referrals</div>
+                            <div class="earnings">💰 $${(referralEarnings || 0).toFixed(2)} Earned</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="number">${totalDownline}</div>
+                            <div class="label">Total Downline</div>
+                            <div class="earnings">💰 $${(totalDownlineEarnings || 0).toFixed(2)} Earned</div>
+                        </div>
                     </div>
                 </div>
                 
@@ -604,7 +624,7 @@ async function renderReferralData(u) {
 }
 
 // ============================================================
-// SETUP REAL-TIME LISTENER
+// SETUP REAL-TIME LISTENER (FIXED - Clears Cache on Change)
 // ============================================================
 function setupRealtimeListener(userId) {
     if (listenerOff) {
@@ -619,8 +639,13 @@ function setupRealtimeListener(userId) {
             if (!snapshot.exists()) return;
             const data = snapshot.val();
             currentUserData = data;
-            allUsersCache = null; // Clear cache for fresh data
-            renderReferralData(data);
+            
+            // ✅ FIX: Clear cache to force fresh data on next render
+            allUsersCache = null;
+            cacheTimestamp = 0;
+            
+            // ✅ FIX: Force refresh with fresh data
+            renderReferralData(data, true);
         } catch (error) {
             console.error('Realtime listener error:', error);
         }
@@ -650,7 +675,11 @@ async function loadReferralData(userId) {
         currentUserData = u;
         currentUserId = userId;
         
-        await renderReferralData(u);
+        // Clear cache on load
+        allUsersCache = null;
+        cacheTimestamp = 0;
+        
+        await renderReferralData(u, true);
         setupRealtimeListener(userId);
         
     } catch (error) {
