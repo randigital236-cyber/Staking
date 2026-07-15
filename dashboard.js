@@ -526,7 +526,7 @@ async function recoverUserData(userId, authUser) {
 }
 
 // ============================================================
-// PROCESS DAILY RELEASE (With Pending Days Calculation)
+// PROCESS DAILY RELEASE (With Pending Days Calculation) - FIXED
 // ============================================================
 async function processDailyRelease(userId) {
     if (releaseInProgress) {
@@ -563,6 +563,7 @@ async function processDailyRelease(userId) {
             let updatedPackages = {};
             let releaseTransactions = [];
             let totalReleaseToday = 0;
+            let totalReleaseAmountAll = 0; // ✅ FIX: Total including pending
             let hasActivePackages = false;
             
             for (const [pkgKey, pkg] of Object.entries(packages)) {
@@ -598,6 +599,7 @@ async function processDailyRelease(userId) {
                 
                 updatedPackages[pkgKey] = pkg;
                 totalReleaseToday += todayReleaseAmount;
+                totalReleaseAmountAll += totalReleaseAmount; // ✅ FIX: Add total including pending
                 
                 releaseTransactions.push({
                     type: 'daily_release',
@@ -627,14 +629,15 @@ async function processDailyRelease(userId) {
                 }
             }
             
-            if (!hasActivePackages || totalReleaseToday === 0) {
+            if (!hasActivePackages || totalReleaseAmountAll === 0) {
                 currentData.lastReleaseDate = today;
                 return currentData;
             }
             
-            currentData.rndWallet = (currentData.rndWallet || 0) + totalReleaseToday;
-            currentData.lockedRND = (currentData.lockedRND || 0) - totalReleaseToday;
-            currentData.totalReleased = (currentData.totalReleased || 0) + totalReleaseToday;
+            // ✅ FIX: Use totalReleaseAmountAll (includes pending) instead of totalReleaseToday
+            currentData.rndWallet = (currentData.rndWallet || 0) + totalReleaseAmountAll;
+            currentData.lockedRND = (currentData.lockedRND || 0) - totalReleaseAmountAll;
+            currentData.totalReleased = (currentData.totalReleased || 0) + totalReleaseAmountAll;
             currentData.lastReleaseDate = today;
             currentData.packages = updatedPackages;
             
