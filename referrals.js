@@ -201,19 +201,20 @@ async function renderReferralData(u) {
                               (teamStructure.level5 || 0);
         
         const referralWallet = safeGet(u, 'referralWallet', 0);
-        const referralEarnings = safeGet(u, 'referralEarnings', 0);
+        
+        // ✅ FIX: Total Referral Earnings = All Levels Combined
+        const level1Earn = safeGet(u, 'level1Earnings', 0);
+        const level2Earn = safeGet(u, 'level2Earnings', 0);
+        const level3Earn = safeGet(u, 'level3Earnings', 0);
+        const level4Earn = safeGet(u, 'level4Earnings', 0);
+        const level5Earn = safeGet(u, 'level5Earnings', 0);
+        const totalReferralEarnings = level1Earn + level2Earn + level3Earn + level4Earn + level5Earn;
         
         const level1Count = teamStructure.level1 || 0;
         const level2Count = teamStructure.level2 || 0;
         const level3Count = teamStructure.level3 || 0;
         const level4Count = teamStructure.level4 || 0;
         const level5Count = teamStructure.level5 || 0;
-        
-        const level1Earn = safeGet(u, 'level1Earnings', 0);
-        const level2Earn = safeGet(u, 'level2Earnings', 0);
-        const level3Earn = safeGet(u, 'level3Earnings', 0);
-        const level4Earn = safeGet(u, 'level4Earnings', 0);
-        const level5Earn = safeGet(u, 'level5Earnings', 0);
         
         const totalDownline = level2Count + level3Count + level4Count + level5Count;
         const totalDownlineEarnings = level2Earn + level3Earn + level4Earn + level5Earn;
@@ -256,9 +257,9 @@ async function renderReferralData(u) {
                 <div class="col-12">
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="number">${directReferrals}</div>
+                            <div class="number">${totalReferrals}</div>
                             <div class="label">Total Referrals</div>
-                            <div class="earnings">💰 $${(referralEarnings || 0).toFixed(2)} Earned</div>
+                            <div class="earnings">💰 $${(totalReferralEarnings || 0).toFixed(2)} Earned</div>
                         </div>
                         <div class="stat-item">
                             <div class="number">${totalDownline}</div>
@@ -300,7 +301,7 @@ async function renderReferralData(u) {
                         <div class="mt-3 pt-2 border-top border-secondary">
                             <div class="d-flex justify-content-between">
                                 <span class="text-muted">Total Referral Earnings</span>
-                                <span class="text-success fw-bold">$${(referralEarnings || 0).toFixed(2)}</span>
+                                <span class="text-success fw-bold">$${(totalReferralEarnings || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     </div>
@@ -349,7 +350,7 @@ async function renderReferralData(u) {
                             <div class="col-md-2 col-6">
                                 <div class="earnings-box" style="border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.05);">
                                     <span class="label">🏆 Total</span>
-                                    <span class="value" style="font-size:1.2rem;color:#2ecc71;">$${(referralEarnings || 0).toFixed(2)}</span>
+                                    <span class="value" style="font-size:1.2rem;color:#2ecc71;">$${(totalReferralEarnings || 0).toFixed(2)}</span>
                                 </div>
                             </div>
                         </div>
