@@ -1,4 +1,4 @@
-// transactions.js - ONLY TRANSFER NAME FIX
+// transactions.js - COMPLETE WITH SMART PENDING DAYS PARSING
 // Firebase v10 Modular SDK - Real-time Database
 
 import { initializeApp } from "firebase/app";
@@ -29,7 +29,7 @@ const db = getDatabase(app);
 let currentFilter = 'all';
 let currentSearch = '';
 let allTransactions = [];
-let usersCache = {}; // Complete users cache
+let usersCache = {};
 let usersCacheLoaded = false;
 let unsubscribeListener = null;
 let unsubscribeUsers = null;
@@ -138,6 +138,63 @@ function formatDateShort(timestamp) {
     });
 }
 
+// ============================================================
+// 🔥 SMART PENDING DAYS PARSER - Extracts days from description
+// ============================================================
+function extractPendingDays(description) {
+    if (!description) return null;
+    
+    // Pattern 1: "(10 days pending)" or "(1 day pending)"
+    const match1 = description.match(/\((\d+)\s+days?\s+pending\)/i);
+    if (match1) {
+        return parseInt(match1[1], 10);
+    }
+    
+    // Pattern 2: "10 days pending" without parentheses
+    const match2 = description.match(/(\d+)\s+days?\s+pending/i);
+    if (match2) {
+        return parseInt(match2[1], 10);
+    }
+    
+    // Pattern 3: "pending for 10 days"
+    const match3 = description.match(/pending\s+for\s+(\d+)\s+days?/i);
+    if (match3) {
+        return parseInt(match3[1], 10);
+    }
+    
+    // Pattern 4: "10 day pending" (singular)
+    const match4 = description.match(/(\d+)\s+day\s+pending/i);
+    if (match4) {
+        return parseInt(match4[1], 10);
+    }
+    
+    return null;
+}
+
+// ============================================================
+// 🔥 EXTRACT PACKAGE NAME FROM DESCRIPTION
+// ============================================================
+function extractPackageName(description) {
+    if (!description) return null;
+    
+    // Pattern: "from Gold Package" or "from Gold Package (10 days pending)"
+    const match = description.match(/from\s+(.+?)(?:\s*\(|$)/i);
+    if (match) {
+        return match[1].trim();
+    }
+    
+    // Pattern: "Gold Package pending release"
+    const match2 = description.match(/^(.+?)\s+pending\s+release/i);
+    if (match2) {
+        return match2[1].trim();
+    }
+    
+    return null;
+}
+
+// ============================================================
+// 🔥 TYPE MAPS WITH PENDING RELEASE SUPPORT
+// ============================================================
 function getTypeIcon(type) {
     const map = {
         'deposit': 'bi-arrow-down-circle',
@@ -147,6 +204,7 @@ function getTypeIcon(type) {
         'transfer_received': 'bi-arrow-down-left',
         'referral_commission': 'bi-people',
         'daily_release': 'bi-clock-history',
+        'pending_release': 'bi-clock-history',
         'admin_credit': 'bi-plus-circle',
         'admin_debit': 'bi-dash-circle',
         'bonus': 'bi-gift',
@@ -164,6 +222,7 @@ function getTypeClass(type) {
         'transfer_received': 'transfer-received',
         'referral_commission': 'referral',
         'daily_release': 'release',
+        'pending_release': 'release',
         'admin_credit': 'admin',
         'admin_debit': 'admin',
         'bonus': 'bonus',
@@ -181,6 +240,7 @@ function getTypeLabel(type) {
         'transfer_received': 'Transfer Received',
         'referral_commission': 'Referral Commission',
         'daily_release': 'Daily Release',
+        'pending_release': 'Pending Release',
         'admin_credit': 'Admin Credit',
         'admin_debit': 'Admin Debit',
         'bonus': 'Bonus Credit',
@@ -191,7 +251,7 @@ function getTypeLabel(type) {
 
 function getAmountClass(type) {
     const negative = ['withdrawal', 'transfer_sent', 'admin_debit'];
-    const positive = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'admin_credit', 'bonus', 'package_completed'];
+    const positive = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'pending_release', 'admin_credit', 'bonus', 'package_completed'];
     if (negative.includes(type)) return 'negative';
     if (positive.includes(type)) return 'positive';
     return 'neutral';
@@ -199,7 +259,7 @@ function getAmountClass(type) {
 
 function getAmountSign(type) {
     const negative = ['withdrawal', 'transfer_sent', 'admin_debit'];
-    const positive = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'admin_credit', 'bonus', 'package_completed'];
+    const positive = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'pending_release', 'admin_credit', 'bonus', 'package_completed'];
     if (negative.includes(type)) return '-';
     if (positive.includes(type)) return '+';
     return '';
@@ -228,7 +288,7 @@ function getStatusLabel(status) {
 }
 
 // ============================================================
-// 🔥 LOAD ALL USERS CACHE (ONE TIME - PERFORMANCE FIX)
+// 🔥 LOAD ALL USERS CACHE
 // ============================================================
 function loadUsersCache() {
     if (unsubscribeUsers) {
@@ -243,15 +303,12 @@ function loadUsersCache() {
             usersCache = {};
             Object.keys(data).forEach(uid => {
                 const user = data[uid];
-                // Get the best available name
                 const name = user.name || user.username || user.referralCode || user.fullName || 'User';
                 usersCache[uid] = name;
             });
             usersCacheLoaded = true;
             
-            // If we already have transactions, re-render with names
             if (allTransactions.length > 0) {
-                // Enrich with names from cache
                 allTransactions = enrichTransactionsFromCache(allTransactions);
                 renderTransactions(currentFilter, currentSearch);
             }
@@ -262,52 +319,36 @@ function loadUsersCache() {
 }
 
 // ============================================================
-// 🔥 ENRICH TRANSACTIONS FROM CACHE (NO EXTRA READS)
+// 🔥 ENRICH TRANSACTIONS FROM CACHE
 // ============================================================
 function enrichTransactionsFromCache(transactions) {
     return transactions.map(t => {
-        // Clone to avoid mutation issues
         const enriched = { ...t };
         
-        // Handle fromUser (used in referral commissions)
         if (enriched.fromUser && !enriched.fromName) {
             enriched.fromName = usersCache[enriched.fromUser] || 'Unknown';
         }
-        
-        // Handle fromUserId
         if (enriched.fromUserId && !enriched.fromName) {
             enriched.fromName = usersCache[enriched.fromUserId] || 'Unknown';
         }
-        
-        // Handle toUserId
         if (enriched.toUserId && !enriched.toName) {
             enriched.toName = usersCache[enriched.toUserId] || 'Unknown';
         }
-        
-        // Handle referredUserId
         if (enriched.referredUserId && !enriched.referredName) {
             enriched.referredName = usersCache[enriched.referredUserId] || 'Unknown';
         }
-        
-        // Handle senderUid / receiverUid (if used in transfers)
         if (enriched.senderUid && !enriched.fromName) {
             enriched.fromName = usersCache[enriched.senderUid] || 'Unknown';
         }
         if (enriched.receiverUid && !enriched.toName) {
             enriched.toName = usersCache[enriched.receiverUid] || 'Unknown';
         }
-        
-        // ============================================================
-        // 🔥 FIX: Handle toUid / fromUid (used in dashboard.js transfers)
-        // ============================================================
         if (enriched.toUid && !enriched.toName) {
             enriched.toName = usersCache[enriched.toUid] || 'Unknown';
         }
         if (enriched.fromUid && !enriched.fromName) {
             enriched.fromName = usersCache[enriched.fromUid] || 'Unknown';
         }
-        
-        // Handle referralUid
         if (enriched.referralUid && !enriched.referredName) {
             enriched.referredName = usersCache[enriched.referralUid] || 'Unknown';
         }
@@ -316,9 +357,6 @@ function enrichTransactionsFromCache(transactions) {
     });
 }
 
-// ============================================================
-// 🔥 GET USER NAME FROM CACHE (SYNC - NO EXTRA READS)
-// ============================================================
 function getUserNameFromCache(uid) {
     if (!uid) return 'Unknown';
     return usersCache[uid] || 'Unknown';
@@ -345,19 +383,14 @@ function setupRealTimeListener(uid) {
         const userData = snapshot.val();
         const transactions = userData.transactions || {};
         
-        // Convert to array
         let txArray = Object.keys(transactions).map(key => ({
             id: key,
             ...transactions[key]
         }));
         
-        // Sort by timestamp descending (newest first)
         txArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        
-        // Store all transactions
         allTransactions = txArray;
         
-        // Enrich with names from cache (if cache is loaded)
         if (usersCacheLoaded) {
             allTransactions = enrichTransactionsFromCache(allTransactions);
         }
@@ -392,7 +425,7 @@ function renderTransactions(filter = 'all', search = '') {
             if (filter === 'package') return t.type === 'package' || t.type === 'package_completed';
             if (filter === 'transfer') return t.type === 'transfer_sent' || t.type === 'transfer_received';
             if (filter === 'referral') return t.type === 'referral_commission';
-            if (filter === 'release') return t.type === 'daily_release';
+            if (filter === 'release') return t.type === 'daily_release' || t.type === 'pending_release';
             if (filter === 'bonus') return t.type === 'bonus';
             if (filter === 'admin') return t.type === 'admin_credit' || t.type === 'admin_debit';
             return true;
@@ -420,8 +453,8 @@ function renderTransactions(filter = 'all', search = '') {
                 t.bonusName,
                 t.id,
                 t.fromUser,
-                t.fromUid,   // Added for search
-                t.toUid      // Added for search
+                t.fromUid,
+                t.toUid
             ].filter(Boolean).join(' ').toLowerCase();
             
             const amountStr = String(t.amount || '');
@@ -447,7 +480,7 @@ function renderTransactions(filter = 'all', search = '') {
         .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const totalDailyRelease = allTransactions
-        .filter(t => t.type === 'daily_release')
+        .filter(t => t.type === 'daily_release' || t.type === 'pending_release')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const totalBonus = allTransactions
@@ -456,7 +489,7 @@ function renderTransactions(filter = 'all', search = '') {
     
     const totalTransactions = allTransactions.length;
     
-    // Build filter buttons HTML
+    // Filter buttons
     const filterButtons = `
         <div class="filter-buttons">
             <button class="filter-btn ${filter === 'all' ? 'active' : ''}" data-filter="all">
@@ -511,9 +544,60 @@ function renderTransactions(filter = 'all', search = '') {
             
             let extraHtml = '';
             let description = t.description || '';
+            let packageName = t.packageName || t.planName || '';
             
-            // Build extra details based on type
-            if (t.type === 'package' || t.type === 'package_completed') {
+            // ============================================================
+            // 🔥 SPECIAL HANDLING FOR PENDING RELEASE
+            // ============================================================
+            if (t.type === 'pending_release') {
+                // Try to get pending days from description
+                let pendingDays = t.pendingDays || t.days || null;
+                let extractedPackageName = packageName;
+                
+                // If pendingDays not in transaction, extract from description
+                if (pendingDays === null) {
+                    pendingDays = extractPendingDays(description);
+                }
+                
+                // If package name not available, extract from description
+                if (!extractedPackageName) {
+                    extractedPackageName = extractPackageName(description) || 'Package';
+                }
+                
+                // Build extra HTML for pending release
+                let daysHtml = '';
+                if (pendingDays !== null && pendingDays > 0) {
+                    daysHtml = `| Pending: ${pendingDays} day${pendingDays > 1 ? 's' : ''}`;
+                }
+                
+                extraHtml = `
+                    <div class="sub-detail">
+                        <i class="bi bi-clock-history"></i> 
+                        ${extractedPackageName}
+                        ${daysHtml}
+                        ${t.totalReleased !== undefined ? `| Released: ${t.totalReleased.toFixed(2)} RND` : ''}
+                    </div>
+                `;
+                
+                // Create clean description
+                if (!description || description === 'Pending Release') {
+                    description = pendingDays !== null && pendingDays > 0
+                        ? `Pending release for ${pendingDays} day${pendingDays > 1 ? 's' : ''}`
+                        : 'Pending release';
+                }
+            }
+            else if (t.type === 'daily_release') {
+                extraHtml = `
+                    <div class="sub-detail">
+                        <i class="bi bi-clock-history"></i> 
+                        ${packageName || 'Package'} 
+                        ${t.remainingRND !== undefined ? `| Remaining: ${t.remainingRND.toFixed(2)} RND` : ''}
+                        ${t.totalReleased !== undefined ? `| Total Released: ${t.totalReleased.toFixed(2)} RND` : ''}
+                    </div>
+                `;
+                if (!description) description = 'Daily release from ' + (packageName || 'package');
+            }
+            else if (t.type === 'package' || t.type === 'package_completed') {
                 const pkgName = t.planName || t.packageName || 'Package';
                 extraHtml = `
                     <div class="sub-detail">
@@ -546,10 +630,6 @@ function renderTransactions(filter = 'all', search = '') {
                 if (!description) description = 'Withdrawal request';
             }
             else if (t.type === 'transfer_sent' || t.type === 'transfer_received') {
-                // ============================================================
-                // 🔥 FIX: For transfers - use fromName/toName from cache
-                // toUid/fromUid are handled in enrichTransactionsFromCache
-                // ============================================================
                 const otherName = t.type === 'transfer_sent' ? (t.toName || 'Unknown') : (t.fromName || 'Unknown');
                 const action = t.type === 'transfer_sent' ? 'To' : 'From';
                 const emoji = t.type === 'transfer_sent' ? '↗️' : '↙️';
@@ -557,13 +637,11 @@ function renderTransactions(filter = 'all', search = '') {
                     <div class="sub-detail">
                         <i class="bi bi-person"></i> ${action}: <span class="name">${otherName}</span>
                         ${t.type === 'transfer_sent' ? ' (sent)' : ' (received)'}
-                        ${t.amount ? `| ${t.currency || 'RND'}` : ''}
                     </div>
                 `;
                 if (!description) description = `${emoji} ${action} ${otherName}`;
             }
             else if (t.type === 'referral_commission') {
-                // Get referral name - check multiple possible field names
                 const refName = t.referredName || t.fromName || getUserNameFromCache(t.fromUser) || 'Unknown';
                 const level = t.level || t.referralLevel || '';
                 extraHtml = `
@@ -575,17 +653,6 @@ function renderTransactions(filter = 'all', search = '') {
                     </div>
                 `;
                 if (!description) description = `Level ${level || 1} referral commission`;
-            }
-            else if (t.type === 'daily_release') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-clock-history"></i> 
-                        ${t.packageName || t.planName || 'Package'} 
-                        ${t.remainingRND !== undefined ? `| Remaining: ${t.remainingRND.toFixed(2)} RND` : ''}
-                        ${t.totalReleased !== undefined ? `| Total Released: ${t.totalReleased.toFixed(2)} RND` : ''}
-                    </div>
-                `;
-                if (!description) description = 'Daily release from ' + (t.packageName || 'package');
             }
             else if (t.type === 'bonus') {
                 extraHtml = `
@@ -677,7 +744,7 @@ function renderTransactions(filter = 'all', search = '') {
                     </div>
                     <div class="stat-box">
                         <div class="num" style="color:#34d399;">${totalDailyRelease.toFixed(2)}</div>
-                        <div class="label">📈 Daily Release</div>
+                        <div class="label">📈 Total Release (Daily + Pending)</div>
                     </div>
                     <div class="stat-box">
                         <div class="num pink">${totalBonus.toFixed(2)}</div>
@@ -724,7 +791,6 @@ function renderTransactions(filter = 'all', search = '') {
         </div>
     `;
     
-    // Attach event listeners
     attachEventListeners(filter);
 }
 
@@ -732,7 +798,6 @@ function renderTransactions(filter = 'all', search = '') {
 // 🔥 ATTACH EVENT LISTENERS
 // ============================================================
 function attachEventListeners(currentFilter) {
-    // Filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const filter = this.dataset.filter;
@@ -741,7 +806,6 @@ function attachEventListeners(currentFilter) {
         });
     });
     
-    // Search input with debounce
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         let debounceTimer;
@@ -764,7 +828,6 @@ onAuthStateChanged(auth, async (user) => {
     }
     
     try {
-        // Get user data
         const userSnap = await get(ref(db, 'users/' + user.uid));
         if (!userSnap.exists()) {
             window.location.href = 'dashboard.html';
@@ -775,22 +838,17 @@ onAuthStateChanged(auth, async (user) => {
         const name = userData.name || userData.username || 'User';
         const username = userData.username || userData.referralCode || 'USER';
         
-        // Update sidebar
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
-        // Update referral badge - try multiple possible field names
         const badge = document.getElementById('referralBadge');
         if (badge) {
             const totalRefs = userData.totalReferrals || userData.directReferrals || 0;
             badge.textContent = totalRefs;
         }
         
-        // Load users cache FIRST (for name resolution)
         loadUsersCache();
-        
-        // Setup real-time transaction listener
         setupRealTimeListener(user.uid);
         
     } catch (error) {
@@ -821,4 +879,4 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-console.log('✅ Transactions page loaded successfully (TRANSFER NAME FIX)');
+console.log('✅ Transactions page loaded successfully (SMART PENDING DAYS PARSING)');
