@@ -1,385 +1,389 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Transactions - RND Staking</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
-        
-        .navbar-custom {
-            background: rgba(8,14,26,0.95);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(46,204,113,0.15);
-            padding: 10px 0;
-            position: sticky;
-            top: 0;
-            z-index: 1050;
-        }
-        .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
-        .navbar-custom .navbar-brand i { color: #2ecc71; }
-        .domain-badge {
-            background: rgba(46,204,113,0.12);
-            border: 1px solid rgba(46,204,113,0.15);
-            border-radius: 30px;
-            padding: 4px 14px;
-            font-size: 0.65rem;
-            color: #2ecc71;
-        }
-        
-        .sidebar-toggle {
-            background: rgba(46,204,113,0.12);
-            border: 1px solid rgba(46,204,113,0.2);
-            color: #2ecc71;
-            padding: 8px 14px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1.2rem;
-        }
-        .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
-        
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(5px);
-            z-index: 1060;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .sidebar-overlay.active { display: block; opacity: 1; }
-        
-        .sidebar-panel {
-            position: fixed;
-            top: 0;
-            right: -320px;
-            width: 300px;
-            height: 100%;
-            background: rgba(12,20,35,0.98);
-            backdrop-filter: blur(20px);
-            border-left: 1px solid rgba(46,204,113,0.15);
-            z-index: 1070;
-            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 25px 0;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        .sidebar-panel.open { right: 0; }
-        
-        .sidebar-panel .sidebar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(46,204,113,0.1);
-            margin-bottom: 15px;
-        }
-        .sidebar-panel .sidebar-header h5 { color: #fff; font-weight: 700; margin: 0; font-size: 1.1rem; }
-        .sidebar-panel .sidebar-header h5 i { color: #2ecc71; }
-        .sidebar-close {
-            background: rgba(255,255,255,0.08);
-            border: none;
-            color: #8899bb;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1.2rem;
-        }
-        .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
-        
-        .sidebar-panel .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 12px 20px;
-            color: #8899bb;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            margin: 2px 12px;
-            border-radius: 12px;
-            font-weight: 500;
-            font-size: 0.95rem;
-        }
-        .sidebar-panel .nav-item:hover { background: rgba(46,204,113,0.08); color: #fff; }
-        .sidebar-panel .nav-item.active { background: rgba(46,204,113,0.12); color: #2ecc71; }
-        .sidebar-panel .nav-item i { font-size: 1.2rem; width: 28px; text-align: center; }
-        .sidebar-panel .nav-item .badge {
-            margin-left: auto;
-            background: rgba(46,204,113,0.15);
-            color: #2ecc71;
-            font-weight: 600;
-            font-size: 0.7rem;
-            padding: 2px 10px;
-            border-radius: 20px;
-        }
-        
-        .sidebar-panel .sidebar-footer {
-            margin-top: auto;
-            padding: 20px;
-            border-top: 1px solid rgba(46,204,113,0.08);
-        }
-        .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
-        .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
-        
-        .user-profile-sidebar {
-            padding: 10px 20px 20px;
-            border-bottom: 1px solid rgba(46,204,113,0.08);
-            margin-bottom: 10px;
-        }
-        .user-profile-sidebar .avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #2ecc71, #1a7a3a);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.2rem;
-            color: #fff;
-        }
-        .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
-        .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
-        
-        .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        
-        .card-glass {
-            background: rgba(19,34,55,0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(46,204,113,0.1);
-            border-radius: 20px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
-        }
-        .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
-        .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
-        .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
-        
-        .transaction-item {
-            background: rgba(8,14,26,0.4);
-            border-radius: 12px;
-            padding: 14px 18px;
-            border: 1px solid rgba(46,204,113,0.06);
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            transition: all 0.2s;
-        }
-        .transaction-item:hover { border-color: rgba(46,204,113,0.15); background: rgba(8,14,26,0.6); }
-        .transaction-item .type-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3rem;
-            flex-shrink: 0;
-        }
-        .transaction-item .type-icon.deposit { background: rgba(46,204,113,0.12); color: #2ecc71; }
-        .transaction-item .type-icon.withdraw { background: rgba(251,191,36,0.12); color: #fbbf24; }
-        .transaction-item .type-icon.transfer-sent { background: rgba(239,68,68,0.12); color: #f87171; }
-        .transaction-item .type-icon.transfer-received { background: rgba(52,211,153,0.12); color: #34d399; }
-        .transaction-item .type-icon.package { background: rgba(59,130,246,0.12); color: #60a5fa; }
-        .transaction-item .type-icon.referral { background: rgba(167,139,250,0.12); color: #a78bfa; }
-        .transaction-item .type-icon.release { background: rgba(52,211,153,0.12); color: #34d399; }
-        .transaction-item .type-icon.admin { background: rgba(251,191,36,0.12); color: #fbbf24; }
-        .transaction-item .type-icon.bonus { background: rgba(244,114,182,0.12); color: #f472b6; }
-        
-        .transaction-item .info { flex: 1; min-width: 150px; }
-        .transaction-item .info h6 { margin: 0; color: #fff; font-weight: 600; font-size: 0.95rem; }
-        .transaction-item .info .sub-detail { color: #8899bb; font-size: 0.75rem; }
-        .transaction-item .info .sub-detail i { margin-right: 4px; }
-        .transaction-item .info .from-to { font-size: 0.7rem; color: #556688; }
-        .transaction-item .info .from-to .name { color: #a78bfa; font-weight: 500; }
-        
-        .transaction-item .amount-section { text-align: right; flex-shrink: 0; }
-        .transaction-item .amount-section .amount { font-weight: 700; font-size: 1.1rem; }
-        .transaction-item .amount-section .amount.positive { color: #2ecc71; }
-        .transaction-item .amount-section .amount.negative { color: #f87171; }
-        .transaction-item .amount-section .amount.neutral { color: #60a5fa; }
-        .transaction-item .amount-section .status { font-size: 0.65rem; }
-        .transaction-item .amount-section .status.pending { color: #fbbf24; }
-        .transaction-item .amount-section .status.approved { color: #2ecc71; }
-        .transaction-item .amount-section .status.completed { color: #2ecc71; }
-        .transaction-item .amount-section .status.rejected { color: #ef4444; }
-        .transaction-item .amount-section .date { font-size: 0.6rem; color: #556688; }
-        
-        .filter-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-        .filter-btn {
-            padding: 6px 16px;
-            border-radius: 30px;
-            border: 1px solid rgba(46,204,113,0.15);
-            background: transparent;
-            color: #8899bb;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.8rem;
-        }
-        .filter-btn:hover { border-color: rgba(46,204,113,0.3); color: #fff; }
-        .filter-btn.active {
-            background: rgba(46,204,113,0.12);
-            border-color: #2ecc71;
-            color: #2ecc71;
-        }
-        .filter-btn i { margin-right: 4px; }
-        
-        .btn-primary-custom {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            padding: 14px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            font-size: 1rem;
-        }
-        .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
-        
-        .summary-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        .summary-stats .stat-box {
-            background: rgba(19,34,55,0.6);
-            border: 1px solid rgba(46,204,113,0.08);
-            border-radius: 12px;
-            padding: 12px 16px;
-            text-align: center;
-        }
-        .summary-stats .stat-box .num {
-            font-size: 1.4rem;
-            font-weight: 800;
-            color: #fff;
-        }
-        .summary-stats .stat-box .num.green { color: #2ecc71; }
-        .summary-stats .stat-box .num.gold { color: #fbbf24; }
-        .summary-stats .stat-box .num.blue { color: #60a5fa; }
-        .summary-stats .stat-box .num.purple { color: #a78bfa; }
-        .summary-stats .stat-box .num.pink { color: #f472b6; }
-        .summary-stats .stat-box .label { font-size: 0.6rem; color: #8899bb; margin-top: 2px; }
-        
-        .no-transactions {
-            text-align: center;
-            padding: 40px 20px;
-        }
-        .no-transactions i { font-size: 3rem; color: #556688; margin-bottom: 15px; }
-        .no-transactions p { color: #8899bb; }
-        
-        .real-time-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.65rem;
-            color: #2ecc71;
-            background: rgba(46,204,113,0.1);
-            padding: 4px 12px;
-            border-radius: 20px;
-        }
-        .real-time-badge .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #2ecc71;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        
-        @media (max-width: 768px) {
-            .dashboard-container { padding: 15px; }
-            .sidebar-panel { width: 280px; right: -300px; }
-            .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
-            .transaction-item { padding: 12px; }
-            .transaction-item .info h6 { font-size: 0.85rem; }
-            .summary-stats { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 480px) {
-            .sidebar-panel { width: 100%; right: -100%; }
-            .sidebar-panel.open { right: 0; }
-            .card-glass { padding: 1rem; }
-            .transaction-item .amount-section .amount { font-size: 0.9rem; }
-            .filter-btn { font-size: 0.7rem; padding: 4px 12px; }
-            .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-            .summary-stats .stat-box .num { font-size: 1.1rem; }
-        }
-        @media print {
-            .navbar-custom, .sidebar-toggle, .sidebar-panel, .sidebar-overlay, .filter-buttons, .btn-print { display: none !important; }
-            body { background: #fff; }
-            .card-glass { background: #fff; border: 1px solid #ddd; }
-            .transaction-item { background: #f8f8f8; border-color: #ddd; }
-            .summary-stats .stat-box { background: #f0f0f0; border-color: #ddd; }
-            .transaction-item .info h6 { color: #000; }
-            .transaction-item .info .sub-detail { color: #666; }
-            .transaction-item .amount-section .amount.positive { color: #065f46; }
-            .transaction-item .amount-section .amount.negative { color: #991b1b; }
-            .summary-stats .stat-box .num { color: #000; }
-            .summary-stats .stat-box .num.green { color: #065f46; }
-            .summary-stats .stat-box .num.gold { color: #92400e; }
-            .summary-stats .stat-box .num.blue { color: #1e40af; }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <title>Transactions · RND Staking</title>
+  <!-- Bootstrap 5 + Icons + Inter font -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #080e1a; color: #f0f4ff; min-height: 100vh; }
+
+    /* ----- navbar (consistent with existing) ----- */
+    .navbar-custom {
+      background: rgba(8,14,26,0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(46,204,113,0.15);
+      padding: 10px 0;
+      position: sticky;
+      top: 0;
+      z-index: 1050;
+    }
+    .navbar-custom .navbar-brand { font-weight: 800; font-size: 1.2rem; color: #fff !important; }
+    .navbar-custom .navbar-brand i { color: #2ecc71; }
+    .domain-badge {
+      background: rgba(46,204,113,0.12);
+      border: 1px solid rgba(46,204,113,0.15);
+      border-radius: 30px;
+      padding: 4px 14px;
+      font-size: 0.65rem;
+      color: #2ecc71;
+    }
+    .sidebar-toggle {
+      background: rgba(46,204,113,0.12);
+      border: 1px solid rgba(46,204,113,0.2);
+      color: #2ecc71;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1.2rem;
+    }
+    .sidebar-toggle:hover { background: rgba(46,204,113,0.2); }
+
+    /* ----- sidebar overlay & panel (existing) ----- */
+    .sidebar-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(5px);
+      z-index: 1060;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .sidebar-overlay.active { display: block; opacity: 1; }
+    .sidebar-panel {
+      position: fixed;
+      top: 0; right: -320px;
+      width: 300px;
+      height: 100%;
+      background: rgba(12,20,35,0.98);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid rgba(46,204,113,0.15);
+      z-index: 1070;
+      transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 25px 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-panel.open { right: 0; }
+    .sidebar-panel .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px 20px;
+      border-bottom: 1px solid rgba(46,204,113,0.1);
+      margin-bottom: 15px;
+    }
+    .sidebar-panel .sidebar-header h5 { color: #fff; font-weight: 700; margin: 0; font-size: 1.1rem; }
+    .sidebar-panel .sidebar-header h5 i { color: #2ecc71; }
+    .sidebar-close {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: #8899bb;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1.2rem;
+    }
+    .sidebar-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .sidebar-panel .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 20px;
+      color: #8899bb;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      margin: 2px 12px;
+      border-radius: 12px;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .sidebar-panel .nav-item:hover { background: rgba(46,204,113,0.08); color: #fff; }
+    .sidebar-panel .nav-item.active { background: rgba(46,204,113,0.12); color: #2ecc71; }
+    .sidebar-panel .nav-item i { font-size: 1.2rem; width: 28px; text-align: center; }
+    .sidebar-panel .nav-item .badge {
+      margin-left: auto;
+      background: rgba(46,204,113,0.15);
+      color: #2ecc71;
+      font-weight: 600;
+      font-size: 0.7rem;
+      padding: 2px 10px;
+      border-radius: 20px;
+    }
+    .sidebar-panel .sidebar-footer {
+      margin-top: auto;
+      padding: 20px;
+      border-top: 1px solid rgba(46,204,113,0.08);
+    }
+    .sidebar-panel .sidebar-footer .nav-item { color: #f87171; }
+    .sidebar-panel .sidebar-footer .nav-item:hover { background: rgba(239,68,68,0.08); color: #f87171; }
+    .user-profile-sidebar {
+      padding: 10px 20px 20px;
+      border-bottom: 1px solid rgba(46,204,113,0.08);
+      margin-bottom: 10px;
+    }
+    .user-profile-sidebar .avatar {
+      width: 45px; height: 45px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2ecc71, #1a7a3a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: #fff;
+    }
+    .user-profile-sidebar .user-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
+    .user-profile-sidebar .user-id { color: #8899bb; font-size: 0.75rem; }
+
+    /* ----- main container ----- */
+    .dashboard-container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+    /* ----- glass cards ----- */
+    .card-glass {
+      background: rgba(19,34,55,0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(46,204,113,0.1);
+      border-radius: 20px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+    .card-glass:hover { border-color: rgba(46,204,113,0.3); transform: translateY(-3px); }
+    .card-glass .card-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 15px; }
+    .card-glass .card-title i { color: #2ecc71; margin-right: 8px; }
+
+    /* ----- transaction item (modern) ----- */
+    .transaction-item {
+      background: rgba(8,14,26,0.4);
+      border-radius: 16px;
+      padding: 14px 18px;
+      border: 1px solid rgba(46,204,113,0.06);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+    .transaction-item:hover { border-color: rgba(46,204,113,0.15); background: rgba(8,14,26,0.6); }
+    .transaction-item .type-icon {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    .transaction-item .type-icon.deposit { background: rgba(46,204,113,0.12); color: #2ecc71; }
+    .transaction-item .type-icon.withdraw { background: rgba(251,191,36,0.12); color: #fbbf24; }
+    .transaction-item .type-icon.transfer-sent { background: rgba(239,68,68,0.12); color: #f87171; }
+    .transaction-item .type-icon.transfer-received { background: rgba(52,211,153,0.12); color: #34d399; }
+    .transaction-item .type-icon.package { background: rgba(59,130,246,0.12); color: #60a5fa; }
+    .transaction-item .type-icon.referral { background: rgba(167,139,250,0.12); color: #a78bfa; }
+    .transaction-item .type-icon.release { background: rgba(52,211,153,0.12); color: #34d399; }
+    .transaction-item .type-icon.admin { background: rgba(251,191,36,0.12); color: #fbbf24; }
+    .transaction-item .type-icon.bonus { background: rgba(244,114,182,0.12); color: #f472b6; }
+
+    .transaction-item .info { flex: 1; min-width: 150px; }
+    .transaction-item .info h6 { margin: 0; color: #fff; font-weight: 600; font-size: 0.95rem; }
+    .transaction-item .info .sub-detail { color: #8899bb; font-size: 0.75rem; }
+    .transaction-item .info .sub-detail i { margin-right: 4px; }
+    .transaction-item .info .from-to { font-size: 0.7rem; color: #556688; }
+    .transaction-item .info .from-to .name { color: #a78bfa; font-weight: 500; }
+
+    .transaction-item .amount-section { text-align: right; flex-shrink: 0; }
+    .transaction-item .amount-section .amount { font-weight: 700; font-size: 1.1rem; }
+    .transaction-item .amount-section .amount.positive { color: #2ecc71; }
+    .transaction-item .amount-section .amount.negative { color: #f87171; }
+    .transaction-item .amount-section .amount.neutral { color: #60a5fa; }
+    .transaction-item .amount-section .status { font-size: 0.65rem; }
+    .transaction-item .amount-section .status.pending { color: #fbbf24; }
+    .transaction-item .amount-section .status.approved { color: #2ecc71; }
+    .transaction-item .amount-section .status.completed { color: #2ecc71; }
+    .transaction-item .amount-section .status.rejected { color: #ef4444; }
+    .transaction-item .amount-section .date { font-size: 0.6rem; color: #556688; }
+
+    /* filter pills */
+    .filter-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 30px;
+      border: 1px solid rgba(46,204,113,0.15);
+      background: transparent;
+      color: #8899bb;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.8rem;
+    }
+    .filter-btn:hover { border-color: rgba(46,204,113,0.3); color: #fff; }
+    .filter-btn.active {
+      background: rgba(46,204,113,0.12);
+      border-color: #2ecc71;
+      color: #2ecc71;
+    }
+    .filter-btn i { margin-right: 4px; }
+
+    .btn-primary-custom {
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      padding: 14px;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      font-size: 1rem;
+    }
+    .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(46,204,113,0.3); color: #fff; }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .summary-stats .stat-box {
+      background: rgba(19,34,55,0.6);
+      border: 1px solid rgba(46,204,113,0.08);
+      border-radius: 12px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .summary-stats .stat-box .num {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .summary-stats .stat-box .num.green { color: #2ecc71; }
+    .summary-stats .stat-box .num.gold { color: #fbbf24; }
+    .summary-stats .stat-box .num.blue { color: #60a5fa; }
+    .summary-stats .stat-box .num.purple { color: #a78bfa; }
+    .summary-stats .stat-box .num.pink { color: #f472b6; }
+    .summary-stats .stat-box .label { font-size: 0.6rem; color: #8899bb; margin-top: 2px; }
+
+    .no-transactions {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .no-transactions i { font-size: 3rem; color: #556688; margin-bottom: 15px; }
+    .no-transactions p { color: #8899bb; }
+
+    .real-time-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.65rem;
+      color: #2ecc71;
+      background: rgba(46,204,113,0.1);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .real-time-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #2ecc71;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+    /* search */
+    .search-box {
+      background: rgba(8,14,26,0.6);
+      border: 1px solid rgba(46,204,113,0.15);
+      border-radius: 60px;
+      padding: 8px 18px;
+      color: #fff;
+      width: 100%;
+      max-width: 280px;
+      transition: all 0.3s;
+    }
+    .search-box:focus { outline: none; border-color: #2ecc71; box-shadow: 0 0 0 3px rgba(46,204,113,0.2); }
+
+    @media (max-width: 768px) {
+      .dashboard-container { padding: 15px; }
+      .sidebar-panel { width: 280px; right: -300px; }
+      .sidebar-panel .nav-item { padding: 10px 16px; font-size: 0.85rem; }
+      .transaction-item { padding: 12px; }
+      .transaction-item .info h6 { font-size: 0.85rem; }
+      .summary-stats { grid-template-columns: repeat(2,1fr); }
+      .search-box { max-width: 100%; }
+    }
+    @media (max-width:480px) {
+      .sidebar-panel { width:100%; right:-100%; }
+      .sidebar-panel.open { right:0; }
+      .card-glass { padding:1rem; }
+      .transaction-item .amount-section .amount { font-size:0.9rem; }
+      .filter-btn { font-size:0.7rem; padding:4px 12px; }
+      .summary-stats { grid-template-columns:1fr 1fr; gap:8px; }
+      .summary-stats .stat-box .num { font-size:1.1rem; }
+    }
+    @media print {
+      .navbar-custom, .sidebar-toggle, .sidebar-panel, .sidebar-overlay, .filter-buttons, .btn-print { display:none !important; }
+      body { background:#fff; }
+      .card-glass { background:#fff; border:1px solid #ddd; }
+      .transaction-item { background:#f8f8f8; border-color:#ddd; }
+      .summary-stats .stat-box { background:#f0f0f0; border-color:#ddd; }
+      .transaction-item .info h6 { color:#000; }
+      .transaction-item .info .sub-detail { color:#666; }
+      .transaction-item .amount-section .amount.positive { color:#065f46; }
+      .transaction-item .amount-section .amount.negative { color:#991b1b; }
+      .summary-stats .stat-box .num { color:#000; }
+      .summary-stats .stat-box .num.green { color:#065f46; }
+      .summary-stats .stat-box .num.gold { color:#92400e; }
+      .summary-stats .stat-box .num.blue { color:#1e40af; }
+    }
+  </style>
 </head>
 <body>
 
-<!-- ====== TOAST ====== -->
-<div class="toast-container" id="toastContainer"></div>
+  <!-- TOAST container -->
+  <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR ====== -->
-<nav class="navbar navbar-custom">
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-custom">
     <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold" href="dashboard.html">
-            <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
-            <span class="domain-badge ms-2">staking.randigital.in</span>
-        </a>
-        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
-            <i class="bi bi-list"></i>
-        </button>
+      <a class="navbar-brand fw-bold" href="dashboard.html">
+        <i class="bi bi-currency-bitcoin me-2"></i>RND Staking
+        <span class="domain-badge ms-2">staking.randigital.in</span>
+      </a>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
+        <i class="bi bi-list"></i>
+      </button>
     </div>
-</nav>
+  </nav>
 
-<!-- ====== SIDEBAR ====== -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-<div class="sidebar-panel" id="sidebarPanel">
+  <!-- SIDEBAR -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="sidebar-panel" id="sidebarPanel">
     <div class="sidebar-header">
-        <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
-        <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
+      <h5><i class="bi bi-grid-1x2-fill me-2"></i>Menu</h5>
+      <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
     </div>
     <div class="user-profile-sidebar">
-        <div class="d-flex align-items-center gap-3">
-            <div class="avatar" id="sidebarAvatar">U</div>
-            <div>
-                <div class="user-name" id="sidebarName">User</div>
-                <div class="user-id" id="sidebarUserId">ID: ---</div>
-            </div>
+      <div class="d-flex align-items-center gap-3">
+        <div class="avatar" id="sidebarAvatar">U</div>
+        <div>
+          <div class="user-name" id="sidebarName">User</div>
+          <div class="user-id" id="sidebarUserId">ID: ---</div>
         </div>
+      </div>
     </div>
     <a href="dashboard.html" class="nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
     <a href="deposit.html" class="nav-item"><i class="bi bi-arrow-down-circle"></i> Deposit</a>
@@ -390,561 +394,31 @@
     <a href="invoice.html" class="nav-item"><i class="bi bi-file-text"></i> Invoice</a>
     <a href="profile.html" class="nav-item"><i class="bi bi-person"></i> Profile</a>
     <div class="sidebar-footer">
-        <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
+      <a href="#" class="nav-item" id="logoutBtnSidebar"><i class="bi bi-box-arrow-right"></i> Logout</a>
     </div>
-</div>
+  </div>
 
-<!-- ====== MAIN CONTENT ====== -->
-<div class="dashboard-container" id="transactionsContent">
+  <!-- MAIN CONTENT -->
+  <div class="dashboard-container" id="transactionsContent">
     <div class="text-center py-5">
-        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
-        <p class="text-muted mt-3">Loading transactions...</p>
+      <div class="spinner-border text-success" role="status" style="width:3rem;height:3rem;"></div>
+      <p class="text-muted mt-3">Loading transactions...</p>
     </div>
-</div>
+  </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-<script type="importmap">
-{
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- importmap for Firebase v10 -->
+  <script type="importmap">
+  {
     "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+      "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+      "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+      "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
     }
-}
-</script>
-<script type="module">
-import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, onValue, off } from "firebase/database";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-    authDomain: "rnd2-70080.firebaseapp.com",
-    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "rnd2-70080",
-    storageBucket: "rnd2-70080.firebasestorage.app",
-    messagingSenderId: "468625887938",
-    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-    measurementId: "G-ELVJD5NQKB"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-
-let currentFilter = 'all';
-let allTransactions = [];
-let unsubscribeListener = null;
-
-// ============================================================
-// 🔥 TOAST
-// ============================================================
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
-    toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
-}
-
-// ============================================================
-// 🔥 SIDEBAR
-// ============================================================
-const sidebarPanel = document.getElementById('sidebarPanel');
-const sidebarOverlay = document.getElementById('sidebarOverlay');
-const sidebarToggle = document.getElementById('sidebarToggle');
-const sidebarClose = document.getElementById('sidebarClose');
-
-function openSidebar() {
-    sidebarPanel.classList.add('open');
-    sidebarOverlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
-}
-function closeSidebar() {
-    sidebarPanel.classList.remove('open');
-    sidebarOverlay.classList.remove('active');
-    document.body.style.overflow = '';
-}
-sidebarToggle.addEventListener('click', openSidebar);
-sidebarClose.addEventListener('click', closeSidebar);
-sidebarOverlay.addEventListener('click', closeSidebar);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
-
-document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
-    e.preventDefault();
-    await signOut(auth);
-    window.location.href = 'login.html';
-});
-
-// ============================================================
-// 🔥 HELPERS
-// ============================================================
-function formatDate(timestamp) {
-    if (!timestamp) return 'N/A';
-    return new Date(timestamp).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function getTypeIcon(type) {
-    const map = {
-        'deposit': 'bi-arrow-down-circle',
-        'withdrawal': 'bi-arrow-up-circle',
-        'package': 'bi-box-seam',
-        'transfer_sent': 'bi-arrow-up-right',
-        'transfer_received': 'bi-arrow-down-left',
-        'referral_commission': 'bi-people',
-        'daily_release': 'bi-clock-history',
-        'admin_credit': 'bi-plus-circle',
-        'admin_debit': 'bi-dash-circle',
-        'bonus': 'bi-gift',
-        'package_completed': 'bi-check-circle'
-    };
-    return map[type] || 'bi-circle';
-}
-
-function getTypeClass(type) {
-    const map = {
-        'deposit': 'deposit',
-        'withdrawal': 'withdraw',
-        'package': 'package',
-        'transfer_sent': 'transfer-sent',
-        'transfer_received': 'transfer-received',
-        'referral_commission': 'referral',
-        'daily_release': 'release',
-        'admin_credit': 'admin',
-        'admin_debit': 'admin',
-        'bonus': 'bonus',
-        'package_completed': 'package'
-    };
-    return map[type] || 'deposit';
-}
-
-function getTypeLabel(type) {
-    const map = {
-        'deposit': 'Deposit',
-        'withdrawal': 'Withdrawal',
-        'package': 'Package Purchase',
-        'transfer_sent': 'Transfer Sent',
-        'transfer_received': 'Transfer Received',
-        'referral_commission': 'Referral Commission',
-        'daily_release': 'Daily Release',
-        'admin_credit': 'Admin Credit',
-        'admin_debit': 'Admin Debit',
-        'bonus': 'Bonus Credit',
-        'package_completed': 'Package Completed'
-    };
-    return map[type] || type;
-}
-
-function getAmountClass(type) {
-    const negativeTypes = ['withdrawal', 'transfer_sent', 'admin_debit'];
-    const positiveTypes = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'admin_credit', 'bonus', 'package_completed'];
-    
-    if (negativeTypes.includes(type)) return 'negative';
-    if (positiveTypes.includes(type)) return 'positive';
-    return 'neutral';
-}
-
-function getAmountSign(type) {
-    const negativeTypes = ['withdrawal', 'transfer_sent', 'admin_debit'];
-    const positiveTypes = ['deposit', 'transfer_received', 'referral_commission', 'daily_release', 'admin_credit', 'bonus', 'package_completed'];
-    
-    if (negativeTypes.includes(type)) return '-';
-    if (positiveTypes.includes(type)) return '+';
-    return '';
-}
-
-function getStatusClass(status) {
-    if (status === 'pending') return 'pending';
-    if (status === 'approved' || status === 'active' || status === 'completed' || status === 'success') return 'approved';
-    if (status === 'rejected' || status === 'failed') return 'rejected';
-    return 'approved';
-}
-
-// ============================================================
-// 🔥 FETCH TRANSACTIONS WITH REAL-TIME LISTENER
-// ============================================================
-function setupRealTimeListener(uid) {
-    if (unsubscribeListener) {
-        unsubscribeListener();
-        unsubscribeListener = null;
-    }
-    
-    const userRef = ref(db, 'users/' + uid);
-    
-    unsubscribeListener = onValue(userRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const userData = snapshot.val();
-            const transactions = userData.transactions || {};
-            
-            // Convert to array with proper sorting
-            allTransactions = Object.keys(transactions).map(key => ({
-                id: key,
-                ...transactions[key]
-            }));
-            
-            // Sort by timestamp descending (latest first)
-            allTransactions.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            
-            console.log('🔄 Real-time update: ' + allTransactions.length + ' transactions');
-            renderTransactions(currentFilter);
-        }
-    }, (error) => {
-        console.error('Listener error:', error);
-    });
-}
-
-// ============================================================
-// 🔥 RENDER TRANSACTIONS
-// ============================================================
-function renderTransactions(filter = 'all') {
-    currentFilter = filter;
-    let filtered = allTransactions;
-    
-    // Apply filter
-    if (filter === 'deposit') {
-        filtered = allTransactions.filter(t => t.type === 'deposit');
-    } else if (filter === 'withdrawal') {
-        filtered = allTransactions.filter(t => t.type === 'withdrawal');
-    } else if (filter === 'package') {
-        filtered = allTransactions.filter(t => t.type === 'package');
-    } else if (filter === 'transfer') {
-        filtered = allTransactions.filter(t => t.type === 'transfer_sent' || t.type === 'transfer_received');
-    } else if (filter === 'referral') {
-        filtered = allTransactions.filter(t => t.type === 'referral_commission');
-    } else if (filter === 'release') {
-        filtered = allTransactions.filter(t => t.type === 'daily_release');
-    } else if (filter === 'admin') {
-        filtered = allTransactions.filter(t => t.type === 'admin_credit' || t.type === 'admin_debit');
-    } else if (filter === 'bonus') {
-        filtered = allTransactions.filter(t => t.type === 'bonus');
-    }
-    
-    // Calculate summary stats
-    const totalDeposits = allTransactions.filter(t => t.type === 'deposit' && t.status !== 'rejected')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const totalWithdrawals = allTransactions.filter(t => t.type === 'withdrawal' && t.status === 'approved')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const totalPackages = allTransactions.filter(t => t.type === 'package').length;
-    const totalTransfers = allTransactions.filter(t => t.type === 'transfer_sent' || t.type === 'transfer_received').length;
-    const totalReferralEarned = allTransactions.filter(t => t.type === 'referral_commission')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const totalDailyRelease = allTransactions.filter(t => t.type === 'daily_release')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const totalBonus = allTransactions.filter(t => t.type === 'bonus')
-        .reduce((sum, t) => sum + t.amount, 0);
-    
-    // Filter button HTML
-    const filterButtons = `
-        <div class="filter-buttons">
-            <button class="filter-btn ${filter === 'all' ? 'active' : ''}" onclick="setFilter('all')">
-                <i class="bi bi-list"></i> All
-            </button>
-            <button class="filter-btn ${filter === 'deposit' ? 'active' : ''}" onclick="setFilter('deposit')">
-                <i class="bi bi-arrow-down-circle"></i> Deposits
-            </button>
-            <button class="filter-btn ${filter === 'withdrawal' ? 'active' : ''}" onclick="setFilter('withdrawal')">
-                <i class="bi bi-arrow-up-circle"></i> Withdrawals
-            </button>
-            <button class="filter-btn ${filter === 'package' ? 'active' : ''}" onclick="setFilter('package')">
-                <i class="bi bi-box-seam"></i> Packages
-            </button>
-            <button class="filter-btn ${filter === 'release' ? 'active' : ''}" onclick="setFilter('release')">
-                <i class="bi bi-clock-history"></i> Releases
-            </button>
-            <button class="filter-btn ${filter === 'referral' ? 'active' : ''}" onclick="setFilter('referral')">
-                <i class="bi bi-people"></i> Referrals
-            </button>
-            <button class="filter-btn ${filter === 'transfer' ? 'active' : ''}" onclick="setFilter('transfer')">
-                <i class="bi bi-arrow-left-right"></i> Transfers
-            </button>
-            <button class="filter-btn ${filter === 'admin' ? 'active' : ''}" onclick="setFilter('admin')">
-                <i class="bi bi-shield"></i> Admin
-            </button>
-            <button class="filter-btn ${filter === 'bonus' ? 'active' : ''}" onclick="setFilter('bonus')">
-                <i class="bi bi-gift"></i> Bonus
-            </button>
-        </div>
-    `;
-    
-    // Transaction items HTML
-    let transactionsHtml = '';
-    if (filtered.length === 0) {
-        transactionsHtml = `
-            <div class="no-transactions">
-                <i class="bi bi-inbox"></i>
-                <p>No ${filter === 'all' ? '' : filter} transactions found.</p>
-            </div>
-        `;
-    } else {
-        transactionsHtml = filtered.map(t => {
-            const icon = getTypeIcon(t.type);
-            const iconClass = getTypeClass(t.type);
-            const label = getTypeLabel(t.type);
-            const amountClass = getAmountClass(t.type);
-            const sign = getAmountSign(t.type);
-            const statusClass = getStatusClass(t.status);
-            
-            let extraHtml = '';
-            if (t.type === 'package') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-box-seam"></i> ${t.planName || 'Package'} 
-                        | ${(t.totalRND || 0).toFixed(2)} RND 
-                        | Daily: ${(t.dailyRelease || 0).toFixed(4)} RND
-                    </div>
-                `;
-            } else if (t.type === 'deposit' && t.txHash) {
-                extraHtml = `
-                    <div class="sub-detail" style="font-family:monospace;font-size:0.6rem;color:#556688;">
-                        TX: ${t.txHash.substring(0, 20)}...
-                    </div>
-                `;
-            } else if (t.type === 'transfer_sent' || t.type === 'transfer_received') {
-                const other = t.type === 'transfer_sent' ? t.toName : t.fromName;
-                const action = t.type === 'transfer_sent' ? 'To' : 'From';
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-person"></i> ${action}: <span class="name">${other || 'Unknown'}</span>
-                    </div>
-                `;
-            } else if (t.type === 'referral_commission') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-people"></i> Level ${t.level || ''} | From: <span class="name">${t.fromUser || t.fromName || 'System'}</span>
-                    </div>
-                `;
-            } else if (t.type === 'daily_release') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-clock-history"></i> ${t.description || 'Automatic daily release'}
-                    </div>
-                `;
-            } else if (t.type === 'withdrawal') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-wallet2"></i> ${t.walletAddress ? t.walletAddress.substring(0, 20) + '...' : 'External Wallet'}
-                    </div>
-                `;
-            } else if (t.type === 'bonus') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-gift"></i> ${t.description || 'Bonus credit'}
-                    </div>
-                `;
-            } else if (t.type === 'admin_credit' || t.type === 'admin_debit') {
-                extraHtml = `
-                    <div class="sub-detail">
-                        <i class="bi bi-shield"></i> ${t.description || 'Admin adjustment'}
-                        ${t.remark ? ` | Remark: ${t.remark}` : ''}
-                    </div>
-                `;
-            }
-            
-            const statusDisplay = t.status === 'pending' ? '⏳ Pending' :
-                                t.status === 'approved' ? '✅ Approved' :
-                                t.status === 'completed' ? '✅ Completed' :
-                                t.status === 'active' ? '🟢 Active' :
-                                t.status === 'rejected' ? '❌ Rejected' :
-                                t.status === 'failed' ? '❌ Failed' :
-                                t.status === 'success' ? '✅ Success' : t.status;
-
-            return `
-                <div class="transaction-item">
-                    <div class="d-flex align-items-center gap-3" style="flex:1;min-width:0;">
-                        <div class="type-icon ${iconClass}">
-                            <i class="bi ${icon}"></i>
-                        </div>
-                        <div class="info">
-                            <h6>${label}</h6>
-                            <div class="sub-detail">${t.description || ''}</div>
-                            ${extraHtml}
-                            <div class="from-to">
-                                <i class="bi bi-clock"></i> ${formatDate(t.timestamp)}
-                                ${t.packageId ? ` | ID: ${t.packageId.substring(0, 10)}...` : ''}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="amount-section">
-                        <div class="amount ${amountClass}">
-                            ${sign}${(t.amount || 0).toFixed(t.currency === 'RND' ? 4 : 2)} ${t.currency || 'USDT'}
-                        </div>
-                        <div class="status ${statusClass}">${statusDisplay}</div>
-                        <div class="date">#${t.id ? t.id.substring(0, 8) : 'N/A'}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    // Final HTML
-    document.getElementById('transactionsContent').innerHTML = `
-        <div class="row g-4">
-            <div class="col-12">
-                <div class="d-flex flex-wrap justify-content-between align-items-center">
-                    <h4 class="fw-bold"><i class="bi bi-receipt text-success me-2"></i>Transaction History</h4>
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="real-time-badge">
-                            <span class="dot"></span> Real-time
-                        </span>
-                        <span class="text-muted small">${allTransactions.length} transactions</span>
-                    </div>
-                </div>
-                <hr class="border-secondary">
-            </div>
-
-            <!-- Summary Stats -->
-            <div class="col-12">
-                <div class="summary-stats">
-                    <div class="stat-box">
-                        <div class="num green">$${totalDeposits.toFixed(2)}</div>
-                        <div class="label">💰 Total Deposits</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num gold">${totalWithdrawals.toFixed(2)}</div>
-                        <div class="label">🏦 Total Withdrawn</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num blue">${totalPackages}</div>
-                        <div class="label">📦 Packages</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num purple">${totalTransfers}</div>
-                        <div class="label">🔄 Transfers</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num pink">${totalReferralEarned.toFixed(2)}</div>
-                        <div class="label">👥 Referral Earned</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num" style="color:#34d399;">${totalDailyRelease.toFixed(2)}</div>
-                        <div class="label">📈 Daily Released</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num" style="color:#f472b6;">${totalBonus.toFixed(2)}</div>
-                        <div class="label">🎁 Bonus Received</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="num" style="color:#fbbf24;">${allTransactions.length}</div>
-                        <div class="label">📋 Total Transactions</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Filters -->
-            <div class="col-12">
-                ${filterButtons}
-            </div>
-
-            <!-- Transactions List -->
-            <div class="col-12">
-                <div class="card-glass">
-                    ${transactionsHtml}
-                </div>
-            </div>
-
-            <!-- Print Button -->
-            <div class="col-12 text-center">
-                <button class="btn-print" onclick="window.print()" style="
-                    background: linear-gradient(135deg, #2ecc71, #27ae60);
-                    border: none;
-                    color: #fff;
-                    font-weight: 600;
-                    padding: 12px 28px;
-                    border-radius: 60px;
-                    transition: all 0.3s ease;
-                    font-size: 0.9rem;
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 10px;
-                ">
-                    <i class="bi bi-printer"></i> Print / PDF
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// ============================================================
-// 🔥 SET FILTER
-// ============================================================
-window.setFilter = function(filter) {
-    renderTransactions(filter);
-};
-
-// ============================================================
-// 🔥 MAIN
-// ============================================================
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    try {
-        // Get current user
-        const userSnap = await get(ref(db, 'users/' + user.uid));
-        if (!userSnap.exists()) {
-            window.location.href = 'dashboard.html';
-            return;
-        }
-
-        const userData = userSnap.val();
-        const username = userData.username || userData.referralCode || 'USER';
-        const name = userData.name || 'User';
-
-        // Update sidebar
-        document.getElementById('sidebarName').textContent = name;
-        document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
-        document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
-
-        const badge = document.getElementById('referralBadge');
-        if (badge) badge.textContent = userData.totalReferrals || 0;
-
-        // 🔥 Setup real-time listener
-        setupRealTimeListener(user.uid);
-
-        // Initial render with loading state
-        document.getElementById('transactionsContent').innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
-                <p class="text-muted mt-3">Loading transactions...</p>
-            </div>
-        `;
-
-    } catch (error) {
-        console.error('Error loading transactions:', error);
-        document.getElementById('transactionsContent').innerHTML = `
-            <div class="text-center py-5">
-                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
-                <h4>Error Loading Page</h4>
-                <p class="text-muted">${error.message || 'Please check your internet connection.'}</p>
-                <button class="btn btn-primary-custom mt-3" onclick="location.reload()">Refresh</button>
-            </div>
-        `;
-    }
-});
-
-// ============================================================
-// 🔥 CLEANUP ON PAGE UNLOAD
-// ============================================================
-window.addEventListener('beforeunload', () => {
-    if (unsubscribeListener) {
-        unsubscribeListener();
-        unsubscribeListener = null;
-    }
-});
-</script>
+  }
+  </script>
+  <!-- main JS module -->
+  <script type="module" src="transactions.js"></script>
 </body>
 </html>
