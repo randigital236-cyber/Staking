@@ -1,4 +1,4 @@
-// transactions.js - COMPLETE & FIXED VERSION
+// transactions.js - ONLY TRANSFER NAME FIX
 // Firebase v10 Modular SDK - Real-time Database
 
 import { initializeApp } from "firebase/app";
@@ -297,6 +297,16 @@ function enrichTransactionsFromCache(transactions) {
             enriched.toName = usersCache[enriched.receiverUid] || 'Unknown';
         }
         
+        // ============================================================
+        // 🔥 FIX: Handle toUid / fromUid (used in dashboard.js transfers)
+        // ============================================================
+        if (enriched.toUid && !enriched.toName) {
+            enriched.toName = usersCache[enriched.toUid] || 'Unknown';
+        }
+        if (enriched.fromUid && !enriched.fromName) {
+            enriched.fromName = usersCache[enriched.fromUid] || 'Unknown';
+        }
+        
         // Handle referralUid
         if (enriched.referralUid && !enriched.referredName) {
             enriched.referredName = usersCache[enriched.referralUid] || 'Unknown';
@@ -409,7 +419,9 @@ function renderTransactions(filter = 'all', search = '') {
                 t.reason,
                 t.bonusName,
                 t.id,
-                t.fromUser // also search by raw UID
+                t.fromUser,
+                t.fromUid,   // Added for search
+                t.toUid      // Added for search
             ].filter(Boolean).join(' ').toLowerCase();
             
             const amountStr = String(t.amount || '');
@@ -534,16 +546,21 @@ function renderTransactions(filter = 'all', search = '') {
                 if (!description) description = 'Withdrawal request';
             }
             else if (t.type === 'transfer_sent' || t.type === 'transfer_received') {
-                // For transfers - use fromName/toName from cache
+                // ============================================================
+                // 🔥 FIX: For transfers - use fromName/toName from cache
+                // toUid/fromUid are handled in enrichTransactionsFromCache
+                // ============================================================
                 const otherName = t.type === 'transfer_sent' ? (t.toName || 'Unknown') : (t.fromName || 'Unknown');
                 const action = t.type === 'transfer_sent' ? 'To' : 'From';
+                const emoji = t.type === 'transfer_sent' ? '↗️' : '↙️';
                 extraHtml = `
                     <div class="sub-detail">
                         <i class="bi bi-person"></i> ${action}: <span class="name">${otherName}</span>
                         ${t.type === 'transfer_sent' ? ' (sent)' : ' (received)'}
+                        ${t.amount ? `| ${t.currency || 'RND'}` : ''}
                     </div>
                 `;
-                if (!description) description = `${action} ${otherName}`;
+                if (!description) description = `${emoji} ${action} ${otherName}`;
             }
             else if (t.type === 'referral_commission') {
                 // Get referral name - check multiple possible field names
@@ -804,4 +821,4 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-console.log('✅ Transactions page loaded successfully (FIXED VERSION)');
+console.log('✅ Transactions page loaded successfully (TRANSFER NAME FIX)');
