@@ -461,23 +461,248 @@
             }
             .invoice-header { flex-direction: column; align-items: flex-start; }
         }
+        
+        /* ============================================================
+           🔥 PRINT CSS - A4 COMPACT
+           ============================================================ */
         @media print {
-            body { background: #fff; padding: 0; }
-            .invoice-card { box-shadow: none; border: 1px solid #ccc; background: #fff; }
-            .btn-print, .btn-outline-print, .sidebar-toggle, .navbar-custom, .sidebar-panel, .sidebar-overlay { display: none !important; }
-            .detail-value, .invoice-title, .brand, .summary-item .num { color: #000 !important; }
-            .detail-label, .invoice-sub, .footer-note { color: #666 !important; }
-            .summary-item { background: #f5f5f5; border-color: #ddd; }
-            .package-list .package-item { background: #f8f8f8; border-color: #ddd; }
-            .package-list .package-item .pkg-details .detail { background: #eee; }
-            .timeline-bar .segment.lock { background: #fef3c7; color: #b45309; }
-            .timeline-bar .segment.release { background: #d1fae5; color: #065f46; }
-            .timeline-bar .segment.completed { background: #d1fae5; color: #065f46; }
-            .plan-badge { border-color: #ccc; background: #f0f0f0; color: #000; }
-            .status-badge.active { background: #d1fae5; color: #065f46; }
-            .status-badge.completed { background: #dbeafe; color: #1e40af; }
-            .invoice-card:hover { border-color: #ccc; }
-            .package-list .package-item:hover { border-color: #ddd; background: #f8f8f8; }
+            body {
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                color: #000 !important;
+            }
+            
+            .navbar-custom,
+            .sidebar-toggle,
+            .sidebar-panel,
+            .sidebar-overlay,
+            .btn-print,
+            .btn-outline-print,
+            .toast-container {
+                display: none !important;
+            }
+            
+            .dashboard-container {
+                padding: 0 !important;
+                margin: 0 auto !important;
+                max-width: 210mm !important;
+            }
+            
+            .invoice-container {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .invoice-card {
+                background: #fff !important;
+                border: none !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                padding: 15px 20px !important;
+                margin: 0 !important;
+                backdrop-filter: none !important;
+                transition: none !important;
+            }
+            
+            .invoice-card:hover {
+                transform: none !important;
+                border: none !important;
+            }
+            
+            .invoice-title,
+            .brand,
+            .pkg-name,
+            .detail-value,
+            .summary-item .num,
+            .invoice-header .brand,
+            .detail-row .detail-value {
+                color: #000 !important;
+            }
+            
+            .invoice-sub,
+            .detail-label,
+            .label,
+            .footer-note,
+            .lbl,
+            .from-to,
+            .date,
+            .sub-detail {
+                color: #555 !important;
+            }
+            
+            .summary-item {
+                background: #f5f5f5 !important;
+                border-color: #ddd !important;
+                border-radius: 8px !important;
+            }
+            .summary-item .num.green { color: #065f46 !important; }
+            .summary-item .num.gold { color: #92400e !important; }
+            .summary-item .num.blue { color: #1e40af !important; }
+            .summary-item .num.purple { color: #5b21b6 !important; }
+            .summary-item .num.pink { color: #9d174d !important; }
+            
+            .package-list .package-item {
+                background: #f8f9fa !important;
+                border-color: #e5e7eb !important;
+                border-radius: 8px !important;
+                padding: 12px 16px !important;
+                margin-bottom: 8px !important;
+            }
+            .package-list .package-item:hover {
+                background: #f8f9fa !important;
+                border-color: #e5e7eb !important;
+            }
+            
+            .package-list .package-item .pkg-details .detail {
+                background: #f0f0f0 !important;
+                border-radius: 6px !important;
+            }
+            
+            .timeline-bar .segment.lock {
+                background: #fef3c7 !important;
+                color: #b45309 !important;
+            }
+            .timeline-bar .segment.release {
+                background: #d1fae5 !important;
+                color: #065f46 !important;
+            }
+            .timeline-bar .segment.completed {
+                background: #dbeafe !important;
+                color: #1e40af !important;
+            }
+            
+            .plan-badge {
+                border-color: #ccc !important;
+                background: #f0f0f0 !important;
+                color: #000 !important;
+            }
+            .plan-badge.completed {
+                background: #e5e7eb !important;
+                color: #000 !important;
+            }
+            .status-badge.active {
+                background: #d1fae5 !important;
+                color: #065f46 !important;
+                border-color: #6ee7b7 !important;
+            }
+            .status-badge.completed {
+                background: #dbeafe !important;
+                color: #1e40af !important;
+                border-color: #93c5fd !important;
+            }
+            
+            .invoice-header {
+                border-bottom-color: #ddd !important;
+                padding-bottom: 10px !important;
+                margin-bottom: 15px !important;
+            }
+            .invoice-header .badge-domain {
+                background: #f0f0f0 !important;
+                border-color: #ddd !important;
+                color: #333 !important;
+            }
+            
+            .detail-row {
+                border-bottom-color: #eee !important;
+            }
+            .detail-value.highlight { color: #065f46 !important; }
+            .detail-value.gold { color: #92400e !important; }
+            .detail-value.blue { color: #1e40af !important; }
+            .detail-value.pink { color: #9d174d !important; }
+            
+            .detail-row:last-child {
+                border-bottom: none !important;
+            }
+            
+            .footer-note {
+                border-top-color: #ddd !important;
+                color: #666 !important;
+                margin-top: 12px !important;
+                padding-top: 10px !important;
+            }
+            
+            .summary-grid {
+                gap: 8px !important;
+                margin: 12px 0 !important;
+            }
+            
+            .invoice-card:hover,
+            .package-list .package-item:hover,
+            .summary-item:hover {
+                transform: none !important;
+                border-color: initial !important;
+                box-shadow: none !important;
+            }
+            
+            .package-list .package-item .pkg-details {
+                gap: 6px !important;
+                margin-top: 8px !important;
+            }
+            .package-list .package-item .pkg-details .detail {
+                padding: 4px 8px !important;
+            }
+            .package-list .package-item .pkg-details .detail .val {
+                font-size: 0.85rem !important;
+            }
+            
+            .timeline-bar {
+                margin: 8px 0 6px !important;
+                padding: 2px !important;
+                border-color: #ddd !important;
+            }
+            .timeline-bar .segment {
+                padding: 4px 0 !important;
+                font-size: 0.55rem !important;
+            }
+            
+            .package-list .package-item .pkg-header .pkg-name {
+                font-size: 0.95rem !important;
+            }
+            
+            .real-time-badge,
+            .btn-print,
+            .btn-outline-print {
+                display: none !important;
+            }
+            
+            .invoice-card .row {
+                margin: 0 !important;
+            }
+            
+            .package-list .package-item {
+                page-break-inside: avoid !important;
+            }
+            
+            .invoice-number-print {
+                display: inline !important;
+            }
+        }
+        
+        .invoice-number-print {
+            display: none;
+        }
+        @media print {
+            .invoice-number-print {
+                display: inline;
+            }
+            .invoice-number-screen {
+                display: none;
+            }
+        }
+        
+        /* 🔥 NEW: Invoice number badge style */
+        .invoice-number-badge {
+            background: rgba(46,204,113,0.08);
+            border: 1px solid rgba(46,204,113,0.12);
+            border-radius: 30px;
+            padding: 4px 14px;
+            font-size: 0.7rem;
+            color: #2ecc71;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: inline-block;
         }
     </style>
 </head>
@@ -653,38 +878,69 @@ function formatDateShort(timestamp) {
     });
 }
 
-function calculateEndDate(startDate, planDays) {
-    if (!startDate || !planDays) return null;
-    return startDate + (planDays * 24 * 60 * 60 * 1000);
+// ============================================================
+// 🔥 FIX 1: PERMANENT INVOICE NUMBER FROM DATABASE
+// ============================================================
+function getInvoiceNumber(pkg, userId, index) {
+    // Check if package has a stored invoice number
+    if (pkg.invoiceNumber) {
+        return pkg.invoiceNumber;
+    }
+    
+    // If not, generate one (this will be consistent for this session)
+    // Format: INV-USERID-XXXX where XXXX is incremental    const shortId = userId.substring(0, 8).toUpperCase();
+    const count = String(index + 1).padStart(4, '0');
+    return `INV-${shortId}-${count}`;
 }
 
-function getDaysRemaining(endDate) {
-    if (!endDate) return 0;
-    const now = Date.now();
-    const diff = endDate - now;
-    if (diff <= 0) return 0;
-    return Math.ceil(diff / (24 * 60 * 60 * 1000));
+// ============================================================
+// 🔥 FIX 2: GET MEMBER SINCE - MULTIPLE FIELDS
+// ============================================================
+function getMemberSince(userData) {
+    return userData.createdAt || 
+           userData.registrationDate || 
+           userData.joinDate || 
+           userData.timestamp || 
+           Date.now();
 }
 
-function getDaysPassed(startDate) {
-    if (!startDate) return 0;
-    const diff = Date.now() - startDate;
-    if (diff <= 0) return 0;
-    return Math.floor(diff / (24 * 60 * 60 * 1000));
+// ============================================================
+// 🔥 FIX 3: GET COMPLETION DATE WITH CALCULATED FALLBACK
+// ============================================================
+function getCompletionDate(pkg) {
+    // Priority 1: Stored completion date
+    if (pkg.completedDate) return pkg.completedDate;
+    if (pkg.completedAt) return pkg.completedAt;
+    if (pkg.completionDate) return pkg.completionDate;
+    
+    // Priority 2: Calculate from purchase date + plan days (fallback)
+    const purchaseDate = pkg.purchaseDate || pkg.timestamp;
+    const planDays = pkg.planDays || 0;
+    if (purchaseDate && planDays > 0) {
+        return purchaseDate + (planDays * 24 * 60 * 60 * 1000);
+    }
+    
+    return null;
 }
 
-function getProgress(released, total) {
+// ============================================================
+// 🔥 FIX 4: RELEASED % - CORRECTED
+// ============================================================
+function getReleasedPercent(released, total) {
     if (!total || total === 0) return 0;
-    return Math.min((released / total) * 100, 100);
+    return (released / total) * 100;
 }
 
-function getPlanColor(planName) {
-    const colors = {
-        '6 Months Plan': '#2ecc71',
-        '12 Months Plan': '#fbbf24',
-        '18 Months Plan': '#f472b6'
-    };
-    return colors[planName] || '#2ecc71';
+// ============================================================
+// 🔥 FIX 5: DYNAMIC TIMELINE TEXT
+// ============================================================
+function getTimelineText(daysRemaining, progress) {
+    if (daysRemaining === 0) return '⏳ Completing today!';
+    if (daysRemaining <= 3) return `⏳ ${daysRemaining} day${daysRemaining > 1 ? 's' : ''} remaining`;
+    if (daysRemaining <= 7) return `📅 ${daysRemaining} days to go`;
+    if (progress > 75) return `🔥 ${progress.toFixed(0)}% completed`;
+    if (progress > 50) return `📈 ${progress.toFixed(0)}% released`;
+    return `🔒 ${daysRemaining} days remaining`;
 }
 
 // ============================================================
@@ -706,6 +962,7 @@ onAuthStateChanged(auth, async (user) => {
         const userData = userSnap.val();
         const username = userData.username || userData.referralCode || 'USER';
         const name = userData.name || 'User';
+        const uid = user.uid;
         
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
@@ -757,12 +1014,14 @@ onAuthStateChanged(auth, async (user) => {
             }
         });
 
+        const releasedPercent = getReleasedPercent(totalReleased, totalRNDReceived);
+        const memberSince = getMemberSince(userData);
+
         // 🔥 Build package list HTML
         let packagesHtml = '';
-        packageKeys.forEach((key) => {
+        packageKeys.forEach((key, index) => {
             const pkg = packages[key];
             
-            // 🔥 Calculate package details
             const isActive = pkg.status === 'active';
             const totalRND = pkg.totalRND || 0;
             const releasedRND = pkg.releasedRND || 0;
@@ -773,10 +1032,19 @@ onAuthStateChanged(auth, async (user) => {
             const endDate = calculateEndDate(purchaseDate, planDays);
             const daysRemaining = isActive ? getDaysRemaining(endDate) : 0;
             const daysPassed = getDaysPassed(purchaseDate);
-            const progress = getProgress(releasedRND, totalRND);
+            const progress = getReleasedPercent(releasedRND, totalRND);
             const planColor = getPlanColor(pkg.planName);
             
-            // 🔥 Timeline
+            // 🔥 FIX 1: Permanent Invoice Number
+            const invoiceNumber = getInvoiceNumber(pkg, uid, index);
+            
+            // 🔥 FIX 3: Completion Date with fallback calculation
+            const completionDate = getCompletionDate(pkg);
+            const completionDateStr = completionDate ? formatDateShort(completionDate) : 'Completed';
+            
+            const timelineText = isActive ? getTimelineText(daysRemaining, progress) : '✅ Package completed successfully';
+            
+            // Timeline bar
             let timelineHtml = '';
             if (isActive) {
                 const progressPercent = progress / 100;
@@ -784,7 +1052,7 @@ onAuthStateChanged(auth, async (user) => {
                 timelineHtml = `
                     <div class="timeline-bar">
                         <div class="segment lock" style="flex:${Math.max(lockPercent * 10, 0.5)};">
-                            🔒 ${daysRemaining > 0 ? daysRemaining + ' days left' : 'Almost done'}
+                            🔒 ${timelineText}
                         </div>
                         <div class="segment release" style="flex:${Math.max(progressPercent * 10, 0.5)};">
                             📈 ${progress.toFixed(1)}% Released
@@ -795,7 +1063,7 @@ onAuthStateChanged(auth, async (user) => {
                 timelineHtml = `
                     <div class="timeline-bar">
                         <div class="segment completed" style="flex:10;">
-                            ✅ Completed - All RND Released
+                            ✅ ${completionDateStr}
                         </div>
                     </div>
                 `;
@@ -812,6 +1080,9 @@ onAuthStateChanged(auth, async (user) => {
                             <span class="status-badge ${isActive ? 'active' : 'completed'} ms-1">
                                 <i class="bi ${isActive ? 'bi-clock' : 'bi-check-circle'}"></i>
                                 ${isActive ? 'In Progress' : 'Completed'}
+                            </span>
+                            <span class="invoice-number-badge ms-2">
+                                <i class="bi bi-receipt me-1"></i>${invoiceNumber}
                             </span>
                         </div>
                         <div>
@@ -850,7 +1121,7 @@ onAuthStateChanged(auth, async (user) => {
                         </div>
                         <div class="detail">
                             <div class="val" style="color:${isActive ? '#fbbf24' : '#60a5fa'};font-size:0.8rem;">
-                                ${isActive ? formatDateShort(endDate) : 'Completed'}
+                                ${isActive ? formatDateShort(endDate) : completionDateStr}
                             </div>
                             <div class="lbl">${isActive ? 'End Date' : 'Completion Date'}</div>
                         </div>
@@ -880,6 +1151,9 @@ onAuthStateChanged(auth, async (user) => {
             `;
         });
 
+        // ============================================================
+        // 🔥 Build final HTML
+        // ============================================================
         document.getElementById('invoiceContent').innerHTML = `
             <div class="invoice-container">
                 <div class="invoice-card">
@@ -887,7 +1161,18 @@ onAuthStateChanged(auth, async (user) => {
                     <div class="invoice-header">
                         <div>
                             <div class="brand"><i class="bi bi-currency-bitcoin"></i>RND Staking</div>
-                            <div style="font-size:0.7rem;color:#556688;">Invoice #RND-${Date.now().toString().slice(-8)}</div>
+                            <div style="font-size:0.7rem;color:#556688;margin-top:4px;">
+                                <span class="invoice-number-screen">
+                                    <span class="invoice-number-badge">
+                                        <i class="bi bi-receipt me-1"></i>Statement #${packageKeys.length > 0 ? getInvoiceNumber(packages[packageKeys[0]], uid, 0) : 'N/A'}
+                                    </span>
+                                </span>
+                                <span class="invoice-number-print">
+                                    <span class="invoice-number-badge">
+                                        <i class="bi bi-receipt me-1"></i>Statement #${packageKeys.length > 0 ? getInvoiceNumber(packages[packageKeys[0]], uid, 0) : 'N/A'}
+                                    </span>
+                                </span>
+                            </div>
                         </div>
                         <div>
                             <span class="badge-domain"><i class="bi bi-check-circle-fill me-1"></i> staking.randigital.in</span>
@@ -926,7 +1211,7 @@ onAuthStateChanged(auth, async (user) => {
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Member Since</span>
-                            <span class="detail-value">${formatDate(userData.createdAt)}</span>
+                            <span class="detail-value">${formatDate(memberSince)}</span>
                         </div>
                     </div>
 
@@ -965,8 +1250,8 @@ onAuthStateChanged(auth, async (user) => {
                             <div style="font-size:0.6rem;color:#8899bb;">🔒 Still Locked</div>
                         </div>
                         <div style="background:rgba(8,14,26,0.3);border-radius:10px;padding:10px;text-align:center;">
-                            <div style="font-size:1.2rem;font-weight:700;color:#34d399;">${(totalLocked > 0 ? (totalLocked / (totalRNDReceived || 1) * 100) : 0).toFixed(1)}%</div>
-                            <div style="font-size:0.6rem;color:#8899bb;">Released %</div>
+                            <div style="font-size:1.2rem;font-weight:700;color:#34d399;">${releasedPercent.toFixed(1)}%</div>
+                            <div style="font-size:0.6rem;color:#8899bb;">✅ Released %</div>
                         </div>
                     </div>
 
@@ -1018,6 +1303,38 @@ onAuthStateChanged(auth, async (user) => {
         `;
     }
 });
+
+// ============================================================
+// 🔥 HELPERS - AVAILABLE GLOBALLY
+// ============================================================
+function calculateEndDate(startDate, planDays) {
+    if (!startDate || !planDays) return null;
+    return startDate + (planDays * 24 * 60 * 60 * 1000);
+}
+
+function getDaysRemaining(endDate) {
+    if (!endDate) return 0;
+    const now = Date.now();
+    const diff = endDate - now;
+    if (diff <= 0) return 0;
+    return Math.ceil(diff / (24 * 60 * 60 * 1000));
+}
+
+function getDaysPassed(startDate) {
+    if (!startDate) return 0;
+    const diff = Date.now() - startDate;
+    if (diff <= 0) return 0;
+    return Math.floor(diff / (24 * 60 * 60 * 1000));
+}
+
+function getPlanColor(planName) {
+    const colors = {
+        '6 Months Plan': '#2ecc71',
+        '12 Months Plan': '#fbbf24',
+        '18 Months Plan': '#f472b6'
+    };
+    return colors[planName] || '#2ecc71';
+}
 </script>
 </body>
 </html>
