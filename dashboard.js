@@ -1143,7 +1143,7 @@ function renderDashboard(u) {
                             <div class="wallet-icon referral"><i class="bi bi-coin"></i></div>
                             <div class="wallet-number gold" id="referralWalletValue">${(referralWallet || 0).toFixed(2)}</div>
                             <div class="wallet-label">💰 Referral Wallet</div>
-                            <div class="wallet-sub">RND Balance</div>
+                            <div class="wallet-sub">USDT Balance</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
