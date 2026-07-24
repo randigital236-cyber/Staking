@@ -1004,7 +1004,7 @@ function setupRealtimeListener(userId) {
 }
 
 // ============================================================
-// UPDATE DASHBOARD UI (Safe - No Database Writes)
+// UPDATE DASHBOARD UI (Safe - No Database Writes) - FIXED UI BINDING
 // ============================================================
 function updateDashboardUI(u, stats) {
     const elements = {
@@ -1017,19 +1017,31 @@ function updateDashboardUI(u, stats) {
         activePackages: document.getElementById('activePackagesValue'),
         totalStake: document.getElementById('totalStakeValue'),
         teamBusiness: document.getElementById('teamBusinessValue'),
-        totalReferrals: document.getElementById('totalReferralsValue')
+        totalReferrals: document.getElementById('totalReferralsValue'),
+        // ✅ FIX: Add releaseWalletInfo and lockedRNDInfo to update together
+        releaseWalletInfo: document.getElementById('releaseWalletInfo'),
+        lockedRNDInfo: document.getElementById('lockedRNDInfo')
     };
     
+    // Calculate daily release and locked RND values once
+    const dailyReleaseValue = stats?.totalDailyRelease || u.releaseWallet || 0;
+    const lockedRNDValue = stats?.totalLockedRND || u.lockedRND || 0;
+    
+    // Update all elements with the SAME values
     if (elements.depositWallet) elements.depositWallet.textContent = '$' + (u.depositWallet || 0).toFixed(2);
     if (elements.referralWallet) elements.referralWallet.textContent = (u.referralWallet || 0).toFixed(2);
     if (elements.rndWallet) elements.rndWallet.textContent = (u.rndWallet || 0).toFixed(4);
-    if (elements.lockedRND) elements.lockedRND.textContent = (stats?.totalLockedRND || u.lockedRND || 0).toFixed(2);
-    if (elements.releaseWallet) elements.releaseWallet.textContent = (stats?.totalDailyRelease || u.releaseWallet || 0).toFixed(4);
+    if (elements.lockedRND) elements.lockedRND.textContent = lockedRNDValue.toFixed(2);
+    if (elements.releaseWallet) elements.releaseWallet.textContent = dailyReleaseValue.toFixed(4) + ' RND';
     if (elements.totalReleased) elements.totalReleased.textContent = (stats?.totalReleased || u.totalReleased || 0).toFixed(4);
     if (elements.activePackages) elements.activePackages.textContent = stats?.activePackages || u.activePackages || 0;
     if (elements.totalStake) elements.totalStake.textContent = (stats?.totalStake || u.totalStake || 0).toFixed(2);
     if (elements.teamBusiness) elements.teamBusiness.textContent = '$' + (u.teamBusiness || 0).toFixed(2);
     if (elements.totalReferrals) elements.totalReferrals.textContent = u.totalReferrals || 0;
+    
+    // ✅ FIX: Update Release Info Box and Locked RND Info with SAME values as top card
+    if (elements.releaseWalletInfo) elements.releaseWalletInfo.textContent = dailyReleaseValue.toFixed(4) + ' RND';
+    if (elements.lockedRNDInfo) elements.lockedRNDInfo.textContent = lockedRNDValue.toFixed(2) + ' RND';
 }
 
 // ============================================================
