@@ -281,7 +281,7 @@ async function renderReferralData(u) {
                             <small class="text-muted"><i class="bi bi-info-circle me-1"></i> Referral Code: <strong style="color:#2ecc71;font-size:0.7rem;">${u.referralCode}</strong></small>
                         </div>
                         <div class="mt-2">
-                            <small class="text-muted"><i class="bi bi-wallet2 me-1"></i> Referral Wallet: <strong style="color:#fbbf24;">${(referralWallet || 0).toFixed(2)} RND</strong></small>
+                            <small class="text-muted"><i class="bi bi-wallet2 me-1"></i> Referral Wallet: <strong style="color:#fbbf24;">${(referralWallet || 0).toFixed(2)} USDT</strong></small>
                         </div>
                     </div>
                 </div>
