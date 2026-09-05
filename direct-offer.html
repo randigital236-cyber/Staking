@@ -1,0 +1,2755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>RND Direct Referral Offer</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+
+    <style>
+        /* ============================================================
+           COMPLETE STYLES - PRODUCTION READY
+           ============================================================ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0e1a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #141b2d; }
+        ::-webkit-scrollbar-thumb { background: #2ecc71; border-radius: 10px; }
+
+        /* Loading */
+        #loadingOverlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #0a0e1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        #loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+        .loader-spinner {
+            width: 60px; height: 60px;
+            border: 4px solid rgba(46,204,113,0.1);
+            border-top: 4px solid #2ecc71;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Navbar */
+        .navbar-custom {
+            background: rgba(10,14,26,0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(46,204,113,0.08);
+            padding: 12px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .navbar-custom .brand {
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: #fff;
+            text-decoration: none;
+        }
+        .navbar-custom .brand span { color: #2ecc71; }
+        .navbar-custom .brand small {
+            font-weight: 400;
+            font-size: 0.65rem;
+            color: #94a3b8;
+            display: block;
+        }
+        .navbar-custom .nav-link {
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        .navbar-custom .nav-link:hover,
+        .navbar-custom .nav-link.active {
+            color: #fff;
+            background: rgba(46,204,113,0.1);
+        }
+        .navbar-custom .nav-link i { margin-right: 6px; }
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(46,204,113,0.08);
+            padding: 6px 14px 6px 10px;
+            border-radius: 30px;
+            border: 1px solid rgba(46,204,113,0.1);
+        }
+        .user-badge .avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: #2ecc71;
+            color: #0a0e1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        .user-badge .name {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .user-badge .logout-btn {
+            color: #94a3b8;
+            background: none;
+            border: none;
+            font-size: 1rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .user-badge .logout-btn:hover {
+            color: #ef4444;
+            background: rgba(239,68,68,0.1);
+        }
+
+        /* Toast */
+        #toastContainer {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+            width: 100%;
+        }
+        .toast-custom {
+            padding: 14px 20px;
+            border-radius: 12px;
+            background: #141b2d;
+            border: 1px solid rgba(46,204,113,0.15);
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            animation: slideIn 0.4s ease;
+        }
+        .toast-custom.success { border-left: 4px solid #2ecc71; }
+        .toast-custom.error { border-left: 4px solid #ef4444; }
+        .toast-custom.warning { border-left: 4px solid #f59e0b; }
+        .toast-custom.info { border-left: 4px solid #60a5fa; }
+        .toast-custom i { font-size: 1.2rem; }
+        .toast-custom .toast-msg { flex: 1; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px 60px;
+        }
+
+        /* Hero */
+        .hero-section {
+            background: linear-gradient(135deg, rgba(46,204,113,0.08), rgba(46,204,113,0.02));
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 24px;
+            padding: 50px 40px;
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-section .badge-campaign {
+            display: inline-block;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            padding: 4px 16px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .hero-section h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .hero-section h1 span {
+            background: linear-gradient(135deg, #2ecc71, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-section .subtitle {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-bottom: 12px;
+        }
+        .hero-section .date-range {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 24px;
+        }
+        .hero-section .date-range i { color: #2ecc71; margin: 0 4px; }
+        .hero-section .campaign-status-badge {
+            display: inline-block;
+            padding: 6px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+        .hero-section .campaign-status-badge.upcoming {
+            background: rgba(96,165,250,0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(96,165,250,0.15);
+        }
+        .hero-section .campaign-status-badge.active {
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            border: 1px solid rgba(46,204,113,0.15);
+            animation: pulse 2s infinite;
+        }
+        .hero-section .campaign-status-badge.ended {
+            background: rgba(245,158,11,0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245,158,11,0.15);
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Countdown */
+        .countdown-wrapper {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .countdown-item {
+            background: rgba(20,27,45,0.8);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 16px;
+            padding: 16px 24px;
+            min-width: 80px;
+            text-align: center;
+        }
+        .countdown-item .number {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #2ecc71;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+        }
+        .countdown-item .label {
+            font-size: 0.65rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .campaign-ended-text {
+            font-size: 1.2rem;
+            color: #f59e0b;
+            font-weight: 600;
+            padding: 16px 24px;
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.15);
+            border-radius: 12px;
+            display: inline-block;
+        }
+        .campaign-ended-text i { margin-right: 10px; }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        .stat-card {
+            background: rgba(20,27,45,0.6);
+            border: 1px solid rgba(46,204,113,0.06);
+            border-radius: 16px;
+            padding: 20px 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            border-color: rgba(46,204,113,0.15);
+            transform: translateY(-2px);
+        }
+        .stat-card .number {
+            font-size: 2.2rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .stat-card .number.green { color: #2ecc71; }
+        .stat-card .number.gold { color: #fbbf24; }
+        .stat-card .number.blue { color: #60a5fa; }
+        .stat-card .number.purple { color: #a78bfa; }
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        .stat-card .sub {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        /* Reward Wallet */
+        .reward-wallet-card {
+            background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(251,191,36,0.02));
+            border: 2px solid rgba(251,191,36,0.15);
+            border-radius: 20px;
+            padding: 28px 32px;
+            margin-bottom: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .reward-wallet-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(251,191,36,0.05), transparent);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .reward-wallet-card .wallet-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .reward-wallet-card .wallet-amount {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: #fbbf24;
+            line-height: 1.2;
+        }
+        .reward-wallet-card .wallet-amount .currency {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .reward-wallet-card .wallet-amount .final-badge {
+            font-size: 0.8rem;
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+            padding: 2px 14px;
+            border-radius: 30px;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+        .reward-wallet-card .wallet-sub {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        .reward-wallet-card .wallet-sub strong {
+            color: #2ecc71;
+        }
+        .reward-wallet-card .wallet-icon-big {
+            font-size: 2rem;
+            color: #fbbf24;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Progress */
+        .progress-section {
+            background: rgba(20,27,45,0.6);
+            border: 1px solid rgba(46,204,113,0.06);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 40px;
+        }
+        .progress-section .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .progress-section .label-row .title {
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .progress-section .label-row .value {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .progress-section .label-row .value strong { color: #2ecc71; }
+        .progress-bar-track {
+            width: 100%;
+            height: 10px;
+            background: rgba(46,204,113,0.06);
+            border-radius: 30px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar-track .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            border-radius: 30px;
+            transition: width 0.6s ease;
+            width: 0%;
+        }
+        .progress-section .next-milestone {
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        .progress-section .next-milestone strong { color: #fbbf24; }
+
+        /* Milestones */
+        .milestone-section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .milestone-section-title i {
+            color: #2ecc71;
+            margin-right: 10px;
+        }
+        .milestone-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+        .milestone-card {
+            background: rgba(20,27,45,0.5);
+            border: 1px solid rgba(46,204,113,0.06);
+            border-radius: 12px;
+            padding: 16px 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .milestone-card .refs {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+        .milestone-card .refs small {
+            font-size: 0.7rem;
+            color: #64748b;
+            font-weight: 400;
+        }
+        .milestone-card .reward {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fbbf24;
+            margin-top: 4px;
+        }
+        .milestone-card .status-badge {
+            display: inline-block;
+            font-size: 0.6rem;
+            font-weight: 600;
+            padding: 2px 12px;
+            border-radius: 30px;
+            margin-top: 8px;
+            letter-spacing: 0.3px;
+        }
+        .milestone-card .status-badge.achieved {
+            background: rgba(46,204,113,0.15);
+            color: #2ecc71;
+        }
+        .milestone-card .status-badge.next {
+            background: rgba(251,191,36,0.15);
+            color: #fbbf24;
+        }
+        .milestone-card .status-badge.locked {
+            background: rgba(100,116,139,0.1);
+            color: #64748b;
+        }
+        .milestone-card.achieved {
+            border-color: rgba(46,204,113,0.2);
+            background: rgba(46,204,113,0.04);
+        }
+        .milestone-card.next {
+            border-color: rgba(251,191,36,0.2);
+            background: rgba(251,191,36,0.04);
+        }
+
+        /* Referral */
+        .referral-section {
+            background: rgba(20,27,45,0.6);
+            border: 1px solid rgba(46,204,113,0.06);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 40px;
+        }
+        .referral-section .title {
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+        }
+        .referral-section .title i {
+            color: #2ecc71;
+            margin-right: 8px;
+        }
+        .referral-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            border: 1px solid rgba(46,204,113,0.06);
+        }
+        .referral-box code {
+            flex: 1;
+            color: #60a5fa;
+            font-size: 0.8rem;
+            word-break: break-all;
+            background: transparent;
+            padding: 0;
+            font-family: 'Inter', monospace;
+        }
+        .referral-box .copy-btn {
+            background: #2ecc71;
+            color: #0a0e1a;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .referral-box .copy-btn:hover {
+            background: #10b981;
+            transform: scale(1.02);
+        }
+        .referral-box .copy-btn.copied {
+            background: #fbbf24;
+        }
+
+        /* ===== WITHDRAWAL SECTION - ALWAYS VISIBLE ===== */
+        .withdrawal-section {
+            background: rgba(20,27,45,0.6);
+            border: 1px solid rgba(46,204,113,0.06);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 40px;
+            display: block !important;
+        }
+        .withdrawal-section .title {
+            font-weight: 700;
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+        .withdrawal-section .title i {
+            color: #fbbf24;
+            margin-right: 10px;
+        }
+        .withdrawal-section .subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+        .withdrawal-section .reward-amount-display {
+            background: rgba(46,204,113,0.05);
+            border: 1px solid rgba(46,204,113,0.1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .withdrawal-section .reward-amount-display .label {
+            color: #94a3b8;
+        }
+        .withdrawal-section .reward-amount-display .amount {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #fbbf24;
+        }
+        .withdrawal-section .form-group {
+            margin-bottom: 16px;
+        }
+        .withdrawal-section .form-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .withdrawal-section .form-group .network-badge {
+            display: inline-block;
+            background: rgba(251,191,36,0.08);
+            color: #fbbf24;
+            padding: 2px 14px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border: 1px solid rgba(251,191,36,0.1);
+        }
+        .withdrawal-section .form-control-custom {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(46,204,113,0.08);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        .withdrawal-section .form-control-custom:focus {
+            outline: none;
+            border-color: #2ecc71;
+            box-shadow: 0 0 0 3px rgba(46,204,113,0.1);
+        }
+        .withdrawal-section .form-control-custom::placeholder {
+            color: #475569;
+        }
+        .withdrawal-section .form-control-custom.error {
+            border-color: #ef4444;
+        }
+        .withdrawal-section .form-control-custom.valid {
+            border-color: #2ecc71;
+        }
+        .withdrawal-section .wallet-validation-msg {
+            font-size: 0.75rem;
+            margin-top: 4px;
+            display: none;
+        }
+        .withdrawal-section .wallet-validation-msg.error {
+            color: #ef4444;
+            display: block;
+        }
+        .withdrawal-section .wallet-validation-msg.valid {
+            color: #2ecc71;
+            display: block;
+        }
+        .withdrawal-section .warning-text {
+            font-size: 0.75rem;
+            color: #f59e0b;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(245,158,11,0.05);
+            border-radius: 8px;
+            border-left: 3px solid #f59e0b;
+        }
+        .withdrawal-section .btn-withdraw {
+            background: #fbbf24;
+            color: #0a0e1a;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            width: 100%;
+            cursor: pointer;
+        }
+        .withdrawal-section .btn-withdraw:hover:not(:disabled) {
+            background: #f59e0b;
+            transform: scale(1.01);
+        }
+        .withdrawal-section .btn-withdraw:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .withdrawal-section .btn-withdraw.withdrawal-locked {
+            background: #64748b;
+            cursor: pointer;
+        }
+        .withdrawal-section .btn-withdraw.withdrawal-locked:hover {
+            transform: none;
+            background: #64748b;
+        }
+        .withdrawal-section .btn-withdraw.btn-pending {
+            background: #fbbf24;
+            opacity: 0.7;
+        }
+        .withdrawal-section .btn-withdraw.btn-approved {
+            background: #2ecc71;
+        }
+        .withdrawal-section .btn-withdraw.btn-paid {
+            background: #2ecc71;
+            opacity: 0.8;
+        }
+        .withdrawal-section .btn-withdraw.btn-rejected {
+            background: #ef4444;
+        }
+        .withdrawal-section .withdrawal-status {
+            margin-top: 16px;
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .withdrawal-section .withdrawal-status.visible { display: block; }
+        .withdrawal-section .withdrawal-status.pending {
+            background: rgba(251,191,36,0.05);
+            border: 1px solid rgba(251,191,36,0.1);
+            color: #fbbf24;
+        }
+        .withdrawal-section .withdrawal-status.approved {
+            background: rgba(46,204,113,0.05);
+            border: 1px solid rgba(46,204,113,0.1);
+            color: #2ecc71;
+        }
+        .withdrawal-section .withdrawal-status.rejected {
+            background: rgba(239,68,68,0.05);
+            border: 1px solid rgba(239,68,68,0.1);
+            color: #ef4444;
+        }
+        .withdrawal-section .withdrawal-status.paid {
+            background: rgba(46,204,113,0.05);
+            border: 1px solid rgba(46,204,113,0.1);
+            color: #2ecc71;
+        }
+        .withdrawal-section .withdrawal-details {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: none;
+        }
+        .withdrawal-section .withdrawal-details.visible { display: block; }
+        .withdrawal-section .withdrawal-details .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .withdrawal-section .withdrawal-details .detail-row .key {
+            color: #94a3b8;
+        }
+        .withdrawal-section .withdrawal-details .detail-row .value {
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+        .withdrawal-section .withdrawal-details .detail-row .value.tx-hash {
+            color: #60a5fa;
+            font-size: 0.75rem;
+            word-break: break-all;
+        }
+
+        /* Confirmation Modal */
+        .confirmation-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .confirmation-overlay.visible {
+            display: flex;
+        }
+        .confirmation-overlay .modal-content {
+            background: #141b2d;
+            border: 1px solid rgba(251,191,36,0.15);
+            border-radius: 24px;
+            padding: 40px 48px;
+            max-width: 480px;
+            width: 90%;
+            animation: popIn 0.4s ease;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .confirmation-overlay .modal-icon {
+            font-size: 3rem;
+            color: #fbbf24;
+            margin-bottom: 12px;
+            display: block;
+            text-align: center;
+        }
+        .confirmation-overlay .modal-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .confirmation-overlay .modal-details {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+        .confirmation-overlay .modal-details .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .confirmation-overlay .modal-details .row:last-child {
+            border-bottom: none;
+        }
+        .confirmation-overlay .modal-details .row .label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+        .confirmation-overlay .modal-details .row .value {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .confirmation-overlay .modal-details .row .value.warning {
+            color: #fbbf24;
+        }
+        .confirmation-overlay .modal-warning {
+            font-size: 0.8rem;
+            color: #f59e0b;
+            padding: 10px 14px;
+            background: rgba(245,158,11,0.05);
+            border-radius: 8px;
+            border-left: 3px solid #f59e0b;
+            margin-bottom: 20px;
+        }
+        .confirmation-overlay .modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .confirmation-overlay .modal-buttons .btn-cancel {
+            flex: 1;
+            background: rgba(100,116,139,0.2);
+            color: #94a3b8;
+            border: 1px solid rgba(100,116,139,0.1);
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .confirmation-overlay .modal-buttons .btn-cancel:hover {
+            background: rgba(100,116,139,0.3);
+        }
+        .confirmation-overlay .modal-buttons .btn-confirm {
+            flex: 2;
+            background: #fbbf24;
+            color: #0a0e1a;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .confirmation-overlay .modal-buttons .btn-confirm:hover {
+            background: #f59e0b;
+        }
+        .confirmation-overlay .modal-buttons .btn-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Days Remaining Popup */
+        .days-remaining-popup {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .days-remaining-popup.visible {
+            display: flex;
+        }
+        .days-remaining-popup .popup-content {
+            background: #141b2d;
+            border: 1px solid rgba(251,191,36,0.15);
+            border-radius: 24px;
+            padding: 40px 48px;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            animation: popIn 0.4s ease;
+        }
+        .days-remaining-popup .popup-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .days-remaining-popup .popup-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+        }
+        .days-remaining-popup .popup-text {
+            color: #94a3b8;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .days-remaining-popup .popup-text strong {
+            color: #fbbf24;
+        }
+        .days-remaining-popup .popup-days {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #2ecc71;
+            margin: 8px 0;
+        }
+        .days-remaining-popup .popup-close-btn {
+            background: #2ecc71;
+            color: #0a0e1a;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+        }
+        .days-remaining-popup .popup-close-btn:hover {
+            background: #10b981;
+            transform: scale(1.02);
+        }
+
+        /* Not Eligible */
+        .not-eligible-box {
+            background: rgba(20,27,45,0.6);
+            border: 1px solid rgba(239,68,68,0.06);
+            border-radius: 16px;
+            padding: 28px 32px;
+            text-align: center;
+            margin-bottom: 40px;
+            display: none;
+        }
+        .not-eligible-box.visible { display: block; }
+        .not-eligible-box i {
+            font-size: 2.5rem;
+            color: #64748b;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .not-eligible-box h5 {
+            color: #e2e8f0;
+            margin-bottom: 4px;
+        }
+        .not-eligible-box p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-section { padding: 30px 20px; }
+            .hero-section h1 { font-size: 1.8rem; }
+            .hero-section .subtitle { font-size: 1rem; }
+            .countdown-wrapper { gap: 10px; }
+            .countdown-item { padding: 12px 16px; min-width: 60px; }
+            .countdown-item .number { font-size: 1.6rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .milestone-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+            .milestone-card { padding: 12px 8px; }
+            .milestone-card .refs { font-size: 1rem; }
+            .milestone-card .reward { font-size: 0.9rem; }
+            .progress-section, .referral-section, .withdrawal-section { padding: 20px 16px; }
+            .referral-box { flex-direction: column; align-items: stretch; }
+            .referral-box code { font-size: 0.7rem; }
+            .withdrawal-section .reward-amount-display .amount { font-size: 1.2rem; }
+            .navbar-custom .brand { font-size: 1.1rem; }
+            .reward-wallet-card .wallet-amount { font-size: 2.5rem; }
+            .days-remaining-popup .popup-content { padding: 30px 24px; }
+            .confirmation-overlay .modal-content { padding: 30px 24px; }
+        }
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card { padding: 14px 12px; }
+            .stat-card .number { font-size: 1.6rem; }
+            .countdown-item { padding: 10px 12px; min-width: 50px; }
+            .countdown-item .number { font-size: 1.3rem; }
+            .milestone-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+            .reward-wallet-card .wallet-amount { font-size: 2rem; }
+            .confirmation-overlay .modal-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== LOADING ===== -->
+    <div id="loadingOverlay">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <!-- ===== TOAST ===== -->
+    <div id="toastContainer"></div>
+
+    <!-- ===== DAYS REMAINING POPUP ===== -->
+    <div class="days-remaining-popup" id="daysPopup">
+        <div class="popup-content">
+            <span class="popup-icon" id="popupIcon">📅</span>
+            <div class="popup-title" id="popupTitle">Withdrawal Not Available Yet</div>
+            <div class="popup-text" id="popupText">
+                Your reward wallet has <strong>$<span id="popupRewardAmount">0</span></strong> USDT.
+                <br><br>
+                Withdrawal will be available after the offer ends.
+                <br><br>
+                <span style="color:#94a3b8;font-size:0.9rem;">Time remaining:</span>
+                <div class="popup-days" id="popupDaysRemaining">0</div>
+                <span style="color:#64748b;font-size:0.85rem;">until withdrawal opens</span>
+            </div>
+            <button class="popup-close-btn" id="popupCloseBtn">Got it!</button>
+        </div>
+    </div>
+
+    <!-- ===== CONFIRMATION MODAL ===== -->
+    <div class="confirmation-overlay" id="confirmationModal">
+        <div class="modal-content">
+            <span class="modal-icon">⚠️</span>
+            <div class="modal-title">Confirm Withdrawal</div>
+            <div class="modal-details" id="confirmDetails">
+                <div class="row">
+                    <span class="label">Network</span>
+                    <span class="value">BEP-20 / BNB Smart Chain</span>
+                </div>
+                <div class="row">
+                    <span class="label">Amount</span>
+                    <span class="value warning" id="confirmAmount">$0.00 USDT</span>
+                </div>
+                <div class="row">
+                    <span class="label">Wallet Address</span>
+                    <span class="value" id="confirmWallet">0x...</span>
+                </div>
+            </div>
+            <div class="modal-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Please verify your wallet address. Transactions on BEP-20 network are irreversible.
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="confirmCancel">Cancel</button>
+                <button class="btn-confirm" id="confirmSubmit">
+                    <i class="bi bi-check-circle me-1"></i>Confirm Withdrawal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar-custom">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <a href="dashboard.html" class="brand">
+                    RND<span>Stake</span>
+                    <small>Direct Referral Offer</small>
+                </a>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <a href="dashboard.html" class="nav-link"><i class="bi bi-speedometer2"></i>Dashboard</a>
+                    <a href="direct-offer.html" class="nav-link active"><i class="bi bi-gift"></i>Direct Offer</a>
+                    <div class="user-badge" id="userBadge">
+                        <div class="avatar" id="userAvatar">U</div>
+                        <span class="name" id="userName">Loading...</span>
+                        <button class="logout-btn" id="logoutBtn" title="Logout"><i class="bi bi-box-arrow-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="main-content">
+
+        <!-- ===== HERO ===== -->
+        <div class="hero-section">
+            <div class="badge-campaign"><i class="bi bi-fire"></i> Limited Time Offer</div>
+            <h1>RND <span>Direct Referral</span> Offer</h1>
+            <p class="subtitle">Refer More. Earn More.</p>
+            <p class="date-range">
+                <i class="bi bi-calendar-event"></i> 6 September 2026 – 6 October 2026
+            </p>
+            <div id="campaignStatusBadge"></div>
+            <div id="countdownContainer">
+                <div class="countdown-wrapper" id="countdownWrapper">
+                    <div class="countdown-item">
+                        <div class="number" id="countdownDays">00</div>
+                        <div class="label">Days</div>
+                    </div>
+                    <div class="countdown-item">
+                        <div class="number" id="countdownHours">00</div>
+                        <div class="label">Hours</div>
+                    </div>
+                    <div class="countdown-item">
+                        <div class="number" id="countdownMinutes">00</div>
+                        <div class="label">Minutes</div>
+                    </div>
+                    <div class="countdown-item">
+                        <div class="number" id="countdownSeconds">00</div>
+                        <div class="label">Seconds</div>
+                    </div>
+                </div>
+                <div id="campaignEndedMessage" style="display:none;">
+                    <span class="campaign-ended-text"><i class="bi bi-clock-history"></i> The Direct Referral Offer has ended.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== REWARD WALLET ===== -->
+        <div class="reward-wallet-card" id="rewardWalletCard">
+            <span class="wallet-icon-big">💰</span>
+            <div class="wallet-label" id="walletLabel">Your Reward Wallet</div>
+            <div class="wallet-amount">
+                $<span id="walletAmount">0.00</span> <span class="currency">USDT</span>
+                <span class="final-badge" id="finalBadge" style="display:none;">✓ FINAL</span>
+            </div>
+            <div class="wallet-sub" id="walletStatusText">
+                Start referring to earn rewards!
+            </div>
+        </div>
+
+        <!-- ===== STATS ===== -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="number green" id="statDirectRefs">0</div>
+                <div class="label">Your Direct Referrals</div>
+                <div class="sub" id="statReferralPeriod">Campaign Period</div>
+            </div>
+            <div class="stat-card">
+                <div class="number gold" id="statEligibleReward">$0</div>
+                <div class="label">Current Reward</div>
+                <div class="sub" id="statRewardNote">Earn more referrals!</div>
+            </div>
+            <div class="stat-card">
+                <div class="number blue" id="statNextMilestone">5 → $5</div>
+                <div class="label">Next Milestone</div>
+                <div class="sub" id="statNextMilestoneSub">0 more needed</div>
+            </div>
+            <div class="stat-card">
+                <div class="number purple" id="statMaxReward">$100</div>
+                <div class="label">Maximum Reward</div>
+                <div class="sub">100 Direct Referrals</div>
+            </div>
+        </div>
+
+        <!-- ===== PROGRESS ===== -->
+        <div class="progress-section" id="progressSection">
+            <div class="label-row">
+                <span class="title"><i class="bi bi-graph-up-arrow" style="color:#fbbf24;margin-right:8px;"></i>Your Progress</span>
+                <span class="value"><strong id="progressCurrent">0</strong> / <span id="progressTarget">100</span> Direct Referrals</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="fill" id="progressFill" style="width:0%;"></div>
+            </div>
+            <div class="next-milestone" id="nextMilestoneText">
+                <i class="bi bi-bullseye" style="color:#fbbf24;"></i>
+                Need <strong id="needMore">5</strong> more Direct referrals to reach <strong id="nextReward">$5</strong> milestone.
+            </div>
+        </div>
+
+        <!-- ===== NOT ELIGIBLE ===== -->
+        <div class="not-eligible-box" id="notEligibleBox">
+            <i class="bi bi-person-x"></i>
+            <h5>Not Eligible Yet</h5>
+            <p>You need at least <strong>5 Active Direct Referrals</strong> to qualify for this offer.</p>
+        </div>
+
+        <!-- ===== MILESTONES ===== -->
+        <div class="milestone-section-title">
+            <i class="bi bi-trophy"></i> Reward Milestones
+        </div>
+        <div class="milestone-grid" id="milestoneGrid"></div>
+
+        <!-- ===== REFERRAL ===== -->
+        <div class="referral-section" id="referralSection">
+            <div class="title"><i class="bi bi-link-45deg"></i> Your Referral Link</div>
+            <div class="referral-box">
+                <code id="referralLinkDisplay">Loading...</code>
+                <button class="copy-btn" id="copyReferralBtn"><i class="bi bi-clipboard me-1"></i>Copy Referral Link</button>
+            </div>
+            <div class="mt-2">
+                <span class="text-muted small"><i class="bi bi-people me-1"></i>Total Referrals: <strong style="color:#2ecc71;" id="totalReferralsDisplay">0</strong></span>
+                <span class="text-muted small ms-3"><i class="bi bi-code me-1"></i>Your Code: <strong style="color:#2ecc71;" id="referralCodeDisplay">---</strong></span>
+            </div>
+        </div>
+
+        <!-- ===== WITHDRAWAL SECTION - ALWAYS VISIBLE ===== -->
+        <div class="withdrawal-section" id="withdrawalSection">
+            <div class="title"><i class="bi bi-credit-card"></i> 🎁 Offer Reward Withdrawal</div>
+            <div class="subtitle" id="withdrawalSubtitle">Withdraw your eligible reward in USDT (BEP-20)</div>
+            
+            <div class="reward-amount-display">
+                <span class="label">Your Eligible Reward</span>
+                <span class="amount" id="withdrawAmount">$0.00 USDT</span>
+            </div>
+
+            <!-- Withdrawal Status Message -->
+            <div id="withdrawalInfoBox" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.1);display:none;">
+                <span id="withdrawalInfoText" style="color:#fbbf24;font-size:0.9rem;"></span>
+            </div>
+
+            <!-- Withdrawal Details (for paid status) -->
+            <div class="withdrawal-details" id="withdrawalDetails">
+                <div class="detail-row">
+                    <span class="key">Amount</span>
+                    <span class="value" id="detailAmount">$0.00 USDT</span>
+                </div>
+                <div class="detail-row">
+                    <span class="key">Network</span>
+                    <span class="value">BEP-20 / BNB Smart Chain</span>
+                </div>
+                <div class="detail-row">
+                    <span class="key">Wallet</span>
+                    <span class="value" id="detailWallet">---</span>
+                </div>
+                <div class="detail-row">
+                    <span class="key">Paid Date</span>
+                    <span class="value" id="detailPaidDate">---</span>
+                </div>
+                <div class="detail-row">
+                    <span class="key">TX Hash</span>
+                    <span class="value tx-hash" id="detailTxHash">---</span>
+                </div>
+            </div>
+
+            <div class="form-group" id="walletFormGroup">
+                <label>
+                    <i class="bi bi-wallet2 me-1"></i> USDT BEP-20 Wallet Address
+                    <span class="network-badge ms-2">Network: BNB Smart Chain (BEP-20)</span>
+                </label>
+                <input type="text" class="form-control-custom" id="walletAddressInput" placeholder="Enter your BEP-20 USDT wallet address (0x...)" />
+                <div class="wallet-validation-msg" id="walletValidationMsg"></div>
+                <div class="warning-text">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Please enter a valid BEP-20 USDT wallet address. Sending funds to an unsupported network/address may result in loss of funds.
+                </div>
+            </div>
+
+            <button class="btn-withdraw" id="withdrawBtn">
+                <i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward
+            </button>
+
+            <div class="withdrawal-status" id="withdrawalStatus"></div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+    JAVASCRIPT - COMPLETE PRODUCTION READY
+    ============================================================ -->
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+                "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // ============================================================
+        // FIREBASE IMPORTS
+        // ============================================================
+        import { initializeApp } from "firebase/app";
+        import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+        import { getDatabase, ref, get, update, set, onValue, runTransaction } from "firebase/database";
+
+        // ============================================================
+        // FIREBASE CONFIG - REPLACED WITH NEW CONFIG
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+            authDomain: "rnd2-70080.firebaseapp.com",
+            databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "rnd2-70080",
+            storageBucket: "rnd2-70080.firebasestorage.app",
+            messagingSenderId: "468625887938",
+            appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+            measurementId: "G-ELVJD5NQKB"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        // ============================================================
+        // CANONICAL CAMPAIGN CONFIGURATION
+        // ============================================================
+        const CAMPAIGN = {
+            campaignId: 'direct_offer_2026',
+            startDate: new Date('2026-09-06T00:00:00+05:30'),
+            endDate: new Date('2026-10-06T23:59:59+05:30'),
+            minQualifying: 5,
+            maxQualifying: 100,
+            maxReward: 100,
+            milestoneStep: 5
+        };
+
+        const MILESTONES = [
+            { refs: 5, reward: 5 }, { refs: 10, reward: 10 },
+            { refs: 15, reward: 15 }, { refs: 20, reward: 20 },
+            { refs: 25, reward: 25 }, { refs: 30, reward: 30 },
+            { refs: 35, reward: 35 }, { refs: 40, reward: 40 },
+            { refs: 45, reward: 45 }, { refs: 50, reward: 50 },
+            { refs: 55, reward: 55 }, { refs: 60, reward: 60 },
+            { refs: 65, reward: 65 }, { refs: 70, reward: 70 },
+            { refs: 75, reward: 75 }, { refs: 80, reward: 80 },
+            { refs: 85, reward: 85 }, { refs: 90, reward: 90 },
+            { refs: 95, reward: 95 }, { refs: 100, reward: 100 }
+        ];
+
+        // ============================================================
+        // DOM REFS
+        // ============================================================
+        const $ = id => document.getElementById(id);
+        const el = {
+            loadingOverlay: $('loadingOverlay'),
+            toastContainer: $('toastContainer'),
+            userAvatar: $('userAvatar'),
+            userName: $('userName'),
+            logoutBtn: $('logoutBtn'),
+            countdownDays: $('countdownDays'),
+            countdownHours: $('countdownHours'),
+            countdownMinutes: $('countdownMinutes'),
+            countdownSeconds: $('countdownSeconds'),
+            countdownWrapper: $('countdownWrapper'),
+            campaignEndedMessage: $('campaignEndedMessage'),
+            campaignStatusBadge: $('campaignStatusBadge'),
+            statDirectRefs: $('statDirectRefs'),
+            statReferralPeriod: $('statReferralPeriod'),
+            statEligibleReward: $('statEligibleReward'),
+            statRewardNote: $('statRewardNote'),
+            statNextMilestone: $('statNextMilestone'),
+            statNextMilestoneSub: $('statNextMilestoneSub'),
+            statMaxReward: $('statMaxReward'),
+            progressCurrent: $('progressCurrent'),
+            progressTarget: $('progressTarget'),
+            progressFill: $('progressFill'),
+            needMore: $('needMore'),
+            nextReward: $('nextReward'),
+            nextMilestoneText: $('nextMilestoneText'),
+            milestoneGrid: $('milestoneGrid'),
+            referralLinkDisplay: $('referralLinkDisplay'),
+            copyReferralBtn: $('copyReferralBtn'),
+            totalReferralsDisplay: $('totalReferralsDisplay'),
+            referralCodeDisplay: $('referralCodeDisplay'),
+            withdrawalSection: $('withdrawalSection'),
+            withdrawAmount: $('withdrawAmount'),
+            walletAddressInput: $('walletAddressInput'),
+            walletValidationMsg: $('walletValidationMsg'),
+            walletFormGroup: $('walletFormGroup'),
+            withdrawBtn: $('withdrawBtn'),
+            withdrawalStatus: $('withdrawalStatus'),
+            withdrawalInfoBox: $('withdrawalInfoBox'),
+            withdrawalInfoText: $('withdrawalInfoText'),
+            withdrawalDetails: $('withdrawalDetails'),
+            detailAmount: $('detailAmount'),
+            detailWallet: $('detailWallet'),
+            detailPaidDate: $('detailPaidDate'),
+            detailTxHash: $('detailTxHash'),
+            withdrawalSubtitle: $('withdrawalSubtitle'),
+            notEligibleBox: $('notEligibleBox'),
+            walletAmount: $('walletAmount'),
+            walletLabel: $('walletLabel'),
+            walletStatusText: $('walletStatusText'),
+            finalBadge: $('finalBadge'),
+            rewardWalletCard: $('rewardWalletCard'),
+            daysPopup: $('daysPopup'),
+            popupIcon: $('popupIcon'),
+            popupTitle: $('popupTitle'),
+            popupText: $('popupText'),
+            popupRewardAmount: $('popupRewardAmount'),
+            popupDaysRemaining: $('popupDaysRemaining'),
+            popupCloseBtn: $('popupCloseBtn'),
+            confirmationModal: $('confirmationModal'),
+            confirmAmount: $('confirmAmount'),
+            confirmWallet: $('confirmWallet'),
+            confirmCancel: $('confirmCancel'),
+            confirmSubmit: $('confirmSubmit')
+        };
+
+        // ============================================================
+        // GLOBAL STATE
+        // ============================================================
+        let currentUserId = null;
+        let currentUserData = null;
+        let directReferrals = 0;
+        let countdownInterval = null;
+        let withdrawalData = null;
+        let campaignRewardSnapshot = null;
+        let isWithdrawalFinalized = false;
+        let isProcessingWithdrawal = false;
+        let referralRefreshInterval = null;
+        let firebaseServerOffset = 0;
+
+        // ============================================================
+        // FIX 5: FIREBASE SERVER-ADJUSTED TIME
+        // ============================================================
+        async function syncFirebaseServerTime() {
+            try {
+                const snap = await get(ref(db, '.info/serverTimeOffset'));
+                firebaseServerOffset = snap.exists() ? Number(snap.val() || 0) : 0;
+            } catch (error) {
+                console.error('Unable to read Firebase server time offset:', error);
+                firebaseServerOffset = 0;
+            }
+        }
+
+        function getCampaignNow() {
+            return new Date(Date.now() + firebaseServerOffset);
+        }
+
+        // ============================================================
+        // FIX 1: CANONICAL ACTIVE USER CHECK
+        // Registration alone NEVER means active.
+        // User becomes active only when at least one eligible package
+        // has status === 'active'.
+        // ============================================================
+        function isUserActive(userData) {
+            if (!userData || typeof userData !== 'object') {
+                return false;
+            }
+
+            const packages = userData.packages || {};
+
+            for (const packageId of Object.keys(packages)) {
+                const pkg = packages[packageId];
+
+                if (!pkg || typeof pkg !== 'object') continue;
+
+                // ONLY active package qualifies
+                if (
+                    String(pkg.status || '').toLowerCase() === 'active' &&
+                    Number(pkg.usdtAmount || 0) > 0
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // ============================================================
+        // FIX 2: NORMALIZE TIMESTAMP HELPER
+        // ============================================================
+        function normalizeTimestamp(value) {
+            if (value === null || value === undefined || value === '') {
+                return null;
+            }
+
+            // Firebase numeric timestamp
+            if (typeof value === 'number') {
+                return Number.isFinite(value) && value > 0 ? value : null;
+            }
+
+            // Numeric string timestamp
+            if (/^\d+$/.test(String(value))) {
+                const n = Number(value);
+                return Number.isFinite(n) && n > 0 ? n : null;
+            }
+
+            // ISO/date string
+            const parsed = new Date(value).getTime();
+
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        }
+
+        // ============================================================
+        // FIX 2: CANONICAL PACKAGE ACTIVATION TIME
+        // ============================================================
+        function getPackageActivationTime(pkg) {
+            if (!pkg || typeof pkg !== 'object') {
+                return null;
+            }
+
+            // Actual activation fields have highest priority.
+            const activationFields = [
+                pkg.activationAt,
+                pkg.activatedAt,
+                pkg.activeAt
+            ];
+
+            for (const value of activationFields) {
+                const ts = normalizeTimestamp(value);
+                if (ts) return ts;
+            }
+
+            /*
+             IMPORTANT:
+
+             Do not use USER createdAt.
+
+             Package purchaseDate/createdAt may only be used for legacy packages
+             if the production purchase system creates the package directly as ACTIVE.
+
+             If package can exist as pending before activation, the purchase code
+             must save activationAt = Date.now() exactly when status changes to active.
+            */
+
+            if (String(pkg.status || '').toLowerCase() === 'active') {
+                const purchaseTime =
+                    normalizeTimestamp(pkg.purchaseDate) ||
+                    normalizeTimestamp(pkg.createdAt);
+
+                return purchaseTime;
+            }
+
+            return null;
+        }
+
+        // ============================================================
+        // FIX 3: CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK
+        // ============================================================
+        function hasCampaignActivePackage(userData) {
+            if (!isUserActive(userData)) {
+                return false;
+            }
+
+            const packages = userData.packages || {};
+
+            for (const packageId of Object.keys(packages)) {
+                const pkg = packages[packageId];
+
+                if (!pkg || typeof pkg !== 'object') continue;
+
+                if (String(pkg.status || '').toLowerCase() !== 'active') {
+                    continue;
+                }
+
+                if (Number(pkg.usdtAmount || 0) <= 0) {
+                    continue;
+                }
+
+                const activationTime = getPackageActivationTime(pkg);
+
+                if (!activationTime) {
+                    continue;
+                }
+
+                // Must become active during campaign
+                if (
+                    activationTime >= CAMPAIGN.startDate.getTime() &&
+                    activationTime <= CAMPAIGN.endDate.getTime()
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // ============================================================
+        // FIX 4: CANONICAL CAMPAIGN DIRECT REFERRALS
+        // ============================================================
+        async function getCampaignDirectReferrals(userId) {
+            try {
+                if (!db || !userId) return 0;
+
+                const ownerSnap = await get(ref(db, 'users/' + userId));
+
+                if (!ownerSnap.exists()) {
+                    return 0;
+                }
+
+                const owner = ownerSnap.val();
+
+                // Sponsor himself must be active to participate.
+                if (!isUserActive(owner)) {
+                    return 0;
+                }
+
+                const usersSnap = await get(ref(db, 'users'));
+
+                if (!usersSnap.exists()) {
+                    return 0;
+                }
+
+                const users = usersSnap.val() || {};
+                const counted = new Set();
+
+                for (const [candidateUid, candidate] of Object.entries(users)) {
+
+                    if (
+                        !candidate ||
+                        typeof candidate !== 'object' ||
+                        candidateUid === userId
+                    ) {
+                        continue;
+                    }
+
+                    let isDirect = false;
+
+                    // CANONICAL UID
+                    if (
+                        candidate.sponsorUid &&
+                        String(candidate.sponsorUid) === String(userId)
+                    ) {
+                        isDirect = true;
+                    }
+
+                    // Legacy UID
+                    if (
+                        !isDirect &&
+                        candidate.referredByUid &&
+                        String(candidate.referredByUid) === String(userId)
+                    ) {
+                        isDirect = true;
+                    }
+
+                    /*
+                     Legacy systems may store referralCode / username
+                     instead of UID.
+                    */
+                    if (!isDirect) {
+                        const legacySponsor =
+                            candidate.referredBy ||
+                            candidate.sponsor ||
+                            null;
+
+                        if (
+                            legacySponsor &&
+                            (
+                                String(legacySponsor) === String(userId) ||
+                                String(legacySponsor) === String(owner.referralCode || '') ||
+                                String(legacySponsor) === String(owner.username || '')
+                            )
+                        ) {
+                            isDirect = true;
+                        }
+                    }
+
+                    if (!isDirect) continue;
+
+                    // Registration only MUST NOT count.
+                    if (!isUserActive(candidate)) continue;
+
+                    // Package must qualify for this campaign.
+                    if (!hasCampaignActivePackage(candidate)) continue;
+
+                    counted.add(candidateUid);
+                }
+
+                return Math.min(counted.size, CAMPAIGN.maxQualifying);
+
+            } catch (error) {
+                console.error('Campaign direct referral calculation failed:', error);
+                return 0;
+            }
+        }
+
+        // ============================================================
+        // CAMPAIGN REWARD CALCULATION
+        // ============================================================
+        function calculateReward(directCount) {
+            if (directCount < CAMPAIGN.minQualifying) return 0;
+            const capped = Math.min(directCount, CAMPAIGN.maxQualifying);
+            let reward = 0;
+            for (const m of MILESTONES) {
+                if (m.refs <= capped) reward = m.reward;
+            }
+            return reward;
+        }
+
+        function getNextMilestone(directCount) {
+            for (const m of MILESTONES) {
+                if (m.refs > directCount) return m;
+            }
+            return null;
+        }
+
+        // ============================================================
+        // FIX 5: GET CAMPAIGN STATUS WITH SERVER TIME
+        // ============================================================
+        function getCampaignStatus() {
+            const now = getCampaignNow();
+
+            if (now < CAMPAIGN.startDate) {
+                return 'UPCOMING';
+            }
+
+            if (now >= CAMPAIGN.startDate && now <= CAMPAIGN.endDate) {
+                return 'ACTIVE';
+            }
+
+            return 'ENDED';
+        }
+
+        function getTimeRemaining() {
+            const now = getCampaignNow();
+            const status = getCampaignStatus();
+
+            if (status === 'UPCOMING') {
+                const diff = CAMPAIGN.startDate - now;
+                if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                return { days, hours, minutes, seconds };
+            } else if (status === 'ACTIVE') {
+                const diff = CAMPAIGN.endDate - now;
+                if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                return { days, hours, minutes, seconds };
+            } else {
+                return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+            }
+        }
+
+        function formatTimeRemaining(time) {
+            if (time.days === 0 && time.hours === 0 && time.minutes === 0 && time.seconds === 0) {
+                return 'Offer has ended';
+            }
+            return `${time.days}d ${time.hours}h ${time.minutes}m ${time.seconds}s`;
+        }
+
+        // ============================================================
+        // CAMPAIGN REWARD SNAPSHOT
+        // ============================================================
+        async function getCampaignRewardSnapshot(userId) {
+            try {
+                const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+                if (snap.exists()) {
+                    const data = snap.val();
+                    isWithdrawalFinalized = true;
+                    return data;
+                }
+                return null;
+            } catch (error) {
+                console.error('Error getting campaign snapshot:', error);
+                return null;
+            }
+        }
+
+        // ============================================================
+        // FIX 6: FINALIZE CAMPAIGN REWARD WITH TRANSACTION
+        // ============================================================
+        async function finalizeCampaignReward(userId) {
+            try {
+                if (!db || !userId) return null;
+
+                // FIX 6: Only finalize after campaign end
+                if (getCampaignStatus() !== 'ENDED') {
+                    console.warn('Campaign cannot be finalized before end time.');
+                    return null;
+                }
+
+                // Already finalized?
+                const existing = await getCampaignRewardSnapshot(userId);
+
+                if (existing) {
+                    return existing;
+                }
+
+                // IMPORTANT:
+                // Always calculate fresh from Firebase.
+                const finalDirectCount = await getCampaignDirectReferrals(userId);
+                const finalReward = calculateReward(finalDirectCount);
+
+                const snapshotData = {
+                    campaignId: CAMPAIGN.campaignId,
+                    userId: userId,
+                    finalDirectCount: finalDirectCount,
+                    finalReward: finalReward,
+                    snapshotAt: Date.now(),
+                    status: 'available',
+                    isFinalized: true,
+                    walletAddress: null,
+                    withdrawalId: null,
+                    transactionId: null,
+                    txHash: null,
+                    paidAt: null
+                };
+
+                // Transaction prevents two browser tabs from creating two different snapshots.
+                const result = await runTransaction(
+                    ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`),
+                    (currentData) => {
+                        // Someone already finalized it.
+                        if (currentData) {
+                            return currentData;
+                        }
+                        return snapshotData;
+                    }
+                );
+
+                if (result.committed && result.snapshot.exists()) {
+                    campaignRewardSnapshot = result.snapshot.val();
+                    isWithdrawalFinalized = true;
+                    return campaignRewardSnapshot;
+                }
+
+                return null;
+
+            } catch (error) {
+                console.error('❌ Error finalizing campaign reward:', error);
+                return null;
+            }
+        }
+
+        // ============================================================
+        // WITHDRAWAL MANAGEMENT
+        // ============================================================
+        async function checkWithdrawalStatus(userId) {
+            try {
+                const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+                if (!snap.exists()) return null;
+                return snap.val();
+            } catch (error) {
+                console.error('Error checking withdrawal status:', error);
+                return null;
+            }
+        }
+
+        function setupWithdrawalListener(userId) {
+            const refPath = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
+            onValue(refPath, (snapshot) => {
+                if (snapshot.exists()) {
+                    withdrawalData = snapshot.val();
+                    updateUI();
+                }
+            });
+        }
+
+        function generateWithdrawalId() {
+            return 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        }
+
+        function generateTxId() {
+            return 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        }
+
+        function validateBEP20Wallet(address) {
+            const regex = /^0x[a-fA-F0-9]{40}$/;
+            return regex.test(address);
+        }
+
+        // ============================================================
+        // FIX 7: ATOMIC WITHDRAWAL CREATION WITH TRANSACTION LOCK
+        // ============================================================
+        async function createAtomicWithdrawal(userId, userData, walletAddress) {
+            if (isProcessingWithdrawal) {
+                throw new Error('Withdrawal already in progress');
+            }
+
+            isProcessingWithdrawal = true;
+
+            try {
+                if (getCampaignStatus() !== 'ENDED') {
+                    throw new Error('Campaign has not ended yet');
+                }
+
+                if (!isUserActive(userData)) {
+                    throw new Error('Your ID is not active');
+                }
+
+                if (!validateBEP20Wallet(walletAddress)) {
+                    throw new Error('Invalid BEP-20 wallet address');
+                }
+
+                const campaignRef = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
+                const withdrawalId = generateWithdrawalId();
+                const txId = generateTxId();
+                const timestamp = Date.now();
+
+                /*
+                 FIRST:
+                 claim/lock the one campaign reward record atomically.
+                */
+                const lockResult = await runTransaction(
+                    campaignRef,
+                    current => {
+
+                        if (!current) {
+                            return; // abort
+                        }
+
+                        if (!current.isFinalized) {
+                            return;
+                        }
+
+                        const reward = Number(current.finalReward || 0);
+
+                        if (reward <= 0) {
+                            return;
+                        }
+
+                        if (['pending', 'approved', 'paid'].includes(current.status)) {
+                            return;
+                        }
+
+                        return {
+                            ...current,
+                            status: 'pending',
+                            walletAddress: walletAddress,
+                            withdrawalId: withdrawalId,
+                            transactionId: txId,
+                            requestedAt: timestamp,
+                            updatedAt: timestamp
+                        };
+                    }
+                );
+
+                if (!lockResult.committed) {
+                    throw new Error('Withdrawal already submitted or reward unavailable');
+                }
+
+                const lockedCampaign = lockResult.snapshot.val();
+
+                if (!lockedCampaign || lockedCampaign.withdrawalId !== withdrawalId) {
+                    throw new Error('Withdrawal request could not be locked');
+                }
+
+                const finalReward = Number(lockedCampaign.finalReward || 0);
+
+                if (finalReward <= 0) {
+                    throw new Error('No eligible reward');
+                }
+
+                const date = new Date(timestamp).toISOString().split('T')[0];
+
+                const adminData = {
+                    ...lockedCampaign,
+                    campaignName: 'RND Direct Referral Special Offer',
+                    type: 'direct_offer_withdrawal',
+                    asset: 'USDT',
+                    network: 'BEP-20 / BNB Smart Chain',
+                    amount: finalReward,
+                    status: 'pending'
+                };
+
+                const transactionData = {
+                    type: 'direct_offer_withdrawal',
+                    subtype: 'Direct Referral Offer Withdrawal',
+                    amount: finalReward,
+                    currency: 'USDT',
+                    network: 'BEP-20 / BNB Smart Chain',
+                    status: 'pending',
+                    walletAddress: walletAddress,
+                    withdrawalId: withdrawalId,
+                    timestamp: timestamp,
+                    date: date,
+                    description: `Direct Referral Offer Withdrawal of $${finalReward} USDT (BEP-20)`,
+                    txId: txId,
+                    txHash: null
+                };
+
+                const globalTxData = {
+                    ...transactionData,
+                    userId: userId,
+                    username: userData.username || userData.referralCode || userId
+                };
+
+                /*
+                 Campaign record is ALREADY locked.
+
+                 Now write related records.
+                */
+                await update(
+                    ref(db),
+                    {
+                        [`admin/withdrawals/${withdrawalId}`]: adminData,
+                        [`users/${userId}/transactions/${txId}`]: transactionData,
+                        [`transactions/${txId}`]: globalTxData
+                    }
+                );
+
+                return {
+                    success: true,
+                    withdrawalId,
+                    txId
+                };
+
+            } finally {
+                isProcessingWithdrawal = false;
+            }
+        }
+
+        // ============================================================
+        // TOAST UTILITY
+        // ============================================================
+        function showToast(message, type = 'success') {
+            const container = el.toastContainer;
+            const toast = document.createElement('div');
+            toast.className = `toast-custom ${type}`;
+            const iconMap = {
+                success: 'bi-check-circle-fill text-success',
+                error: 'bi-exclamation-triangle-fill text-danger',
+                warning: 'bi-exclamation-triangle-fill text-warning',
+                info: 'bi-info-circle-fill text-info'
+            };
+            toast.innerHTML = `<i class="bi ${iconMap[type] || iconMap.success}"></i><span class="toast-msg">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // ============================================================
+        // RENDER MILESTONES
+        // ============================================================
+        function renderMilestones(directCount) {
+            const grid = el.milestoneGrid;
+            grid.innerHTML = '';
+            let foundNext = false;
+
+            for (const m of MILESTONES) {
+                const achieved = directCount >= m.refs;
+                const isNext = !achieved && !foundNext && (directCount < CAMPAIGN.maxQualifying);
+                if (isNext) foundNext = true;
+
+                let statusClass = 'locked';
+                let statusText = 'Locked';
+                if (achieved) { statusClass = 'achieved'; statusText = '✓ Achieved'; }
+                else if (isNext) { statusClass = 'next'; statusText = 'Next Target'; }
+
+                const card = document.createElement('div');
+                card.className = `milestone-card ${statusClass}`;
+                card.innerHTML = `
+                    <div class="refs">${m.refs} <small>Direct</small></div>
+                    <div class="reward">$${m.reward}</div>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                `;
+                grid.appendChild(card);
+            }
+        }
+
+        // ============================================================
+        // UPDATE WITHDRAWAL UI
+        // ============================================================
+        function updateWithdrawalUI(reward, status) {
+            const campaignStatus = getCampaignStatus();
+            const isEligible = directReferrals >= CAMPAIGN.minQualifying && reward > 0;
+            const isWithdrawn = status && ['pending', 'approved', 'paid'].includes(status.status);
+
+            // Determine the authoritative reward amount
+            let displayReward = reward;
+            if (campaignStatus === 'ENDED' && campaignRewardSnapshot) {
+                displayReward = Number(campaignRewardSnapshot.finalReward ?? 0);
+            }
+
+            el.withdrawAmount.textContent = '$' + displayReward.toFixed(2) + ' USDT';
+
+            // Show wallet form only when eligible and no active withdrawal
+            const showWalletForm = campaignStatus === 'ENDED' && isEligible && !isWithdrawn;
+            el.walletFormGroup.style.display = showWalletForm ? 'block' : 'none';
+
+            el.withdrawalInfoBox.style.display = 'block';
+
+            if (status) {
+                if (status.status === 'pending') {
+                    el.withdrawBtn.disabled = true;
+                    el.withdrawBtn.innerHTML = '<i class="bi bi-clock me-2"></i>Pending Approval';
+                    el.withdrawBtn.className = 'btn-withdraw btn-pending';
+                    el.withdrawalInfoText.textContent = '⏳ Your withdrawal request is pending admin approval.';
+                    el.withdrawalStatus.className = 'withdrawal-status visible pending';
+                    el.withdrawalStatus.textContent = 'Your withdrawal request is under admin review.';
+                    el.withdrawalDetails.classList.remove('visible');
+                    el.withdrawalSubtitle.textContent = 'Withdrawal pending approval';
+                } else if (status.status === 'approved') {
+                    el.withdrawBtn.disabled = true;
+                    el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Approved';
+                    el.withdrawBtn.className = 'btn-withdraw btn-approved';
+                    el.withdrawalInfoText.textContent = '✅ Your withdrawal has been approved and is being processed.';
+                    el.withdrawalStatus.className = 'withdrawal-status visible approved';
+                    el.withdrawalStatus.textContent = 'Your withdrawal has been approved and is being processed.';
+                    el.withdrawalDetails.classList.remove('visible');
+                    el.withdrawalSubtitle.textContent = 'Withdrawal approved - processing payment';
+                } else if (status.status === 'paid') {
+                    el.withdrawBtn.disabled = true;
+                    el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Paid ✓';
+                    el.withdrawBtn.className = 'btn-withdraw btn-paid';
+                    el.withdrawalInfoText.textContent = '✅ Payment completed successfully!';
+                    el.withdrawalStatus.className = 'withdrawal-status visible paid';
+                    el.withdrawalStatus.textContent = 'Payment has been sent to your wallet.';
+                    el.withdrawalDetails.classList.add('visible');
+                    el.detailAmount.textContent = '$' + (status.finalReward || displayReward).toFixed(2) + ' USDT';
+                    el.detailWallet.textContent = status.walletAddress || '---';
+                    el.detailPaidDate.textContent = status.paidAt ? new Date(status.paidAt).toLocaleString() : '---';
+                    el.detailTxHash.textContent = status.txHash || 'Pending';
+                    el.withdrawalSubtitle.textContent = '✅ Payment Completed';
+                } else if (status.status === 'rejected') {
+                    el.withdrawBtn.disabled = false;
+                    el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
+                    el.withdrawBtn.className = 'btn-withdraw btn-rejected';
+                    el.withdrawalInfoText.textContent = '⚠️ Your previous request was rejected. You can try again.';
+                    el.withdrawalStatus.className = 'withdrawal-status visible rejected';
+                    el.withdrawalStatus.textContent = 'Your request was rejected. Please check your wallet address and try again.';
+                    el.withdrawalDetails.classList.remove('visible');
+                    el.withdrawalSubtitle.textContent = 'Request rejected - try again';
+                }
+                return;
+            }
+
+            // No withdrawal request yet
+            if (campaignStatus === 'UPCOMING') {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '⏳ Withdrawal Opens After Offer Ends';
+                el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+                const time = getTimeRemaining();
+                el.withdrawalInfoText.textContent = `📅 Campaign starts on 6 September 2026. Withdrawal will be available after the offer ends on 6 October 2026. Time until start: ${formatTimeRemaining(time)}`;
+                el.withdrawalStatus.classList.remove('visible');
+                el.withdrawalDetails.classList.remove('visible');
+                el.withdrawalSubtitle.textContent = 'Withdrawal not available yet';
+            } else if (campaignStatus === 'ACTIVE') {
+                el.withdrawBtn.disabled = false;
+                el.withdrawBtn.innerHTML = '📅 Check Withdrawal Date';
+                el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+                const time = getTimeRemaining();
+                el.withdrawalInfoText.textContent = `🎯 Offer is active! Withdrawal opens after the offer ends on 6 October 2026. Time remaining: ${formatTimeRemaining(time)}`;
+                el.withdrawalStatus.classList.remove('visible');
+                el.withdrawalDetails.classList.remove('visible');
+                el.withdrawalSubtitle.textContent = 'Withdrawal locked - offer active';
+            } else if (campaignStatus === 'ENDED') {
+                if (isEligible) {
+                    el.withdrawBtn.disabled = false;
+                    el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
+                    el.withdrawBtn.className = 'btn-withdraw';
+                    el.withdrawalInfoText.textContent = '🎉 Offer ended! You are eligible to withdraw your reward.';
+                    el.withdrawalStatus.classList.remove('visible');
+                    el.withdrawalDetails.classList.remove('visible');
+                    el.withdrawalSubtitle.textContent = 'Withdrawal available - claim your reward!';
+                } else {
+                    el.withdrawBtn.disabled = true;
+                    el.withdrawBtn.innerHTML = '⛔ Not Eligible';
+                    el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+                    el.withdrawalInfoText.textContent = `You need ${CAMPAIGN.minQualifying - directReferrals} more active referrals to qualify.`;
+                    el.withdrawalStatus.classList.remove('visible');
+                    el.withdrawalDetails.classList.remove('visible');
+                    el.withdrawalSubtitle.textContent = 'Not eligible for withdrawal';
+                }
+            }
+        }
+
+        // ============================================================
+        // FIX 9: REFRESH CAMPAIGN DIRECT COUNT
+        // ============================================================
+        async function refreshCampaignDirectCount() {
+            if (!currentUserId || getCampaignStatus() !== 'ACTIVE' || isWithdrawalFinalized) {
+                return;
+            }
+
+            const latest = await getCampaignDirectReferrals(currentUserId);
+
+            if (latest !== directReferrals) {
+                directReferrals = latest;
+                el.totalReferralsDisplay.textContent = directReferrals;
+                updateUI();
+            }
+        }
+
+        function startReferralRefresh() {
+            if (referralRefreshInterval) {
+                clearInterval(referralRefreshInterval);
+            }
+
+            referralRefreshInterval = setInterval(refreshCampaignDirectCount, 60000);
+        }
+
+        // ============================================================
+        // FIX 10: UPDATE UI WITH PROPER ZERO HANDLING
+        // ============================================================
+        function updateUI() {
+            const campaignStatus = getCampaignStatus();
+            const statusBadge = {
+                'UPCOMING': { class: 'upcoming', text: '⏳ Upcoming - Starts 6 Sep 2026' },
+                'ACTIVE': { class: 'active', text: '🔥 ACTIVE - Refer & Earn!' },
+                'ENDED': { class: 'ended', text: '🏁 Offer Ended - Withdrawal Available' }
+            }[campaignStatus] || { class: 'upcoming', text: '⏳ Upcoming' };
+
+            el.campaignStatusBadge.innerHTML = `<span class="campaign-status-badge ${statusBadge.class}">${statusBadge.text}</span>`;
+
+            // Determine authoritative values with proper zero handling
+            let displayReward = calculateReward(directReferrals);
+            let displayDirectCount = directReferrals;
+            let isFinal = false;
+
+            if (campaignStatus === 'ENDED' && campaignRewardSnapshot) {
+                displayReward = Number(campaignRewardSnapshot.finalReward ?? 0);
+                displayDirectCount = Number(campaignRewardSnapshot.finalDirectCount ?? 0);
+                isFinal = true;
+                isWithdrawalFinalized = true;
+            }
+
+            // Stats
+            el.statDirectRefs.textContent = displayDirectCount;
+            el.statEligibleReward.textContent = '$' + displayReward;
+            el.statReferralPeriod.textContent = campaignStatus === 'ENDED' ? 'Final Count' : 'Campaign Period';
+
+            if (displayDirectCount >= CAMPAIGN.minQualifying) {
+                el.statRewardNote.textContent = isFinal ? '🏆 Final reward: $' + displayReward : '🎯 Current reward: $' + displayReward;
+                el.statRewardNote.style.color = '#fbbf24';
+            } else {
+                el.statRewardNote.textContent = 'Need ' + (CAMPAIGN.minQualifying - displayDirectCount) + ' more active referrals to qualify';
+                el.statRewardNote.style.color = '#64748b';
+            }
+
+            const next = getNextMilestone(displayDirectCount);
+            if (next) {
+                el.statNextMilestone.textContent = `${next.refs} → $${next.reward}`;
+                el.statNextMilestoneSub.textContent = `${next.refs - displayDirectCount} more needed`;
+            } else if (displayDirectCount >= CAMPAIGN.maxQualifying) {
+                el.statNextMilestone.textContent = '🎯 Max Reached!';
+                el.statNextMilestoneSub.textContent = 'You\'ve hit the maximum!';
+            }
+
+            // Progress
+            const progress = Math.min((displayDirectCount / CAMPAIGN.maxQualifying) * 100, 100);
+            el.progressCurrent.textContent = Math.min(displayDirectCount, CAMPAIGN.maxQualifying);
+            el.progressTarget.textContent = CAMPAIGN.maxQualifying;
+            el.progressFill.style.width = progress + '%';
+
+            if (next) {
+                el.needMore.textContent = next.refs - displayDirectCount;
+                el.nextReward.textContent = '$' + next.reward;
+                el.nextMilestoneText.style.display = 'block';
+            } else if (displayDirectCount >= CAMPAIGN.maxQualifying) {
+                el.nextMilestoneText.innerHTML = '<i class="bi bi-trophy" style="color:#fbbf24;"></i> 🎉 You\'ve reached the maximum reward of <strong>$' + CAMPAIGN.maxReward + '</strong>!';
+            } else {
+                el.nextMilestoneText.style.display = 'none';
+            }
+
+            renderMilestones(displayDirectCount);
+
+            // Not Eligible
+            if (displayDirectCount < CAMPAIGN.minQualifying) {
+                el.notEligibleBox.classList.add('visible');
+            } else {
+                el.notEligibleBox.classList.remove('visible');
+            }
+
+            // Wallet
+            el.walletAmount.textContent = displayReward.toFixed(2);
+            if (isFinal) {
+                el.finalBadge.style.display = 'inline';
+                el.walletLabel.textContent = 'Final Reward';
+                if (displayReward > 0) {
+                    el.walletStatusText.textContent = '🏆 Final reward locked! $' + displayReward + ' USDT';
+                } else {
+                    el.walletStatusText.textContent = 'No reward earned this campaign.';
+                }
+            } else {
+                el.finalBadge.style.display = 'none';
+                el.walletLabel.textContent = 'Estimated Reward';
+                if (displayReward === 0) {
+                    if (displayDirectCount === 0) {
+                        el.walletStatusText.textContent = '💡 Start referring active users to earn rewards!';
+                    } else {
+                        el.walletStatusText.textContent = `📊 Need ${CAMPAIGN.minQualifying - displayDirectCount} more active referrals to qualify`;
+                    }
+                } else {
+                    const nextM = getNextMilestone(displayDirectCount);
+                    if (nextM) {
+                        el.walletStatusText.textContent = `🎯 $${displayReward} USDT estimated! Need ${nextM.refs - displayDirectCount} more for $${nextM.reward}`;
+                    } else {
+                        el.walletStatusText.textContent = `💰 $${displayReward} USDT estimated! Keep referring active users!`;
+                    }
+                }
+            }
+
+            updateWithdrawalUI(displayReward, withdrawalData);
+        }
+
+        // ============================================================
+        // SHOW DAYS REMAINING POPUP
+        // ============================================================
+        function showDaysPopup() {
+            const campaignStatus = getCampaignStatus();
+            const reward = calculateReward(directReferrals);
+            const time = getTimeRemaining();
+
+            if (campaignStatus === 'UPCOMING') {
+                el.popupIcon.textContent = '📅';
+                el.popupTitle.textContent = 'Offer Not Started Yet';
+                el.popupText.innerHTML = `
+                    The Direct Referral Offer has not started yet.
+                    <br><br>
+                    <strong>Starts:</strong> 6 September 2026
+                    <br>
+                    <strong>Your Estimated Reward:</strong> $${reward.toFixed(2)} USDT
+                    <br><br>
+                    <span style="color:#94a3b8;font-size:0.9rem;">Time until offer starts:</span>
+                    <div class="popup-days">${time.days > 0 ? time.days + 'd' : ''} ${time.hours}h ${time.minutes}m</div>
+                `;
+            } else if (campaignStatus === 'ACTIVE') {
+                el.popupIcon.textContent = '🔒';
+                el.popupTitle.textContent = 'Withdrawal Locked — Offer Active';
+                el.popupText.innerHTML = `
+                    🎁 Your reward is currently locked.
+                    <br><br>
+                    <strong>Your Estimated Reward:</strong> $${reward.toFixed(2)} USDT
+                    <br>
+                    <strong>Offer Ends:</strong> 6 October 2026 at 23:59:59 IST
+                    <br>
+                    <strong>Withdrawal Opens:</strong> After the campaign end time
+                    <br><br>
+                    <span style="color:#94a3b8;font-size:0.9rem;">Time Remaining:</span>
+                    <div class="popup-days">${formatTimeRemaining(time)}</div>
+                `;
+            } else if (campaignStatus === 'ENDED') {
+                const finalReward = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalReward ?? 0) : reward;
+                if (finalReward > 0) {
+                    el.popupIcon.textContent = '🎉';
+                    el.popupTitle.textContent = 'Offer Ended!';
+                    el.popupText.innerHTML = `
+                        Your withdrawal is now available.
+                        <br><br>
+                        <strong>Eligible Reward:</strong> $${finalReward.toFixed(2)} USDT
+                        <br><br>
+                        Click <strong>"Withdraw Reward"</strong> to continue.
+                    `;
+                } else {
+                    el.popupIcon.textContent = '⛔';
+                    el.popupTitle.textContent = 'Not Eligible';
+                    el.popupText.innerHTML = `
+                        You are not eligible for withdrawal.
+                        <br><br>
+                        <strong>Minimum required:</strong> ${CAMPAIGN.minQualifying} Active Direct Referrals
+                        <br>
+                        <strong>Your active referrals:</strong> ${directReferrals}
+                    `;
+                }
+            }
+
+            el.daysPopup.classList.add('visible');
+        }
+
+        // ============================================================
+        // HANDLE WITHDRAWAL BUTTON CLICK
+        // ============================================================
+        function handleWithdrawClick() {
+            const status = getCampaignStatus();
+
+            if (status !== 'ENDED') {
+                showDaysPopup();
+                return;
+            }
+
+            // Use final snapshot reward if available
+            let reward = 0;
+            if (campaignRewardSnapshot) {
+                reward = Number(campaignRewardSnapshot.finalReward ?? 0);
+            } else {
+                reward = calculateReward(directReferrals);
+            }
+
+            if (reward <= 0) {
+                showDaysPopup();
+                return;
+            }
+
+            if (withdrawalData && ['pending', 'approved', 'paid'].includes(withdrawalData.status)) {
+                showToast('You have already submitted a withdrawal request.', 'warning');
+                return;
+            }
+
+            const walletAddress = el.walletAddressInput.value.trim();
+            if (!validateBEP20Wallet(walletAddress)) {
+                showToast('Please enter a valid BEP-20 USDT wallet address (0x...).', 'error');
+                el.walletAddressInput.classList.add('error');
+                return;
+            }
+
+            showConfirmationModal(reward, walletAddress);
+        }
+
+        // ============================================================
+        // SHOW CONFIRMATION MODAL
+        // ============================================================
+        function showConfirmationModal(reward, walletAddress) {
+            el.confirmAmount.textContent = '$' + reward.toFixed(2) + ' USDT';
+            el.confirmWallet.textContent = walletAddress;
+            el.confirmationModal.classList.add('visible');
+        }
+
+        // ============================================================
+        // FIX 8: PROCESS WITHDRAWAL WITH FINAL SNAPSHOT ONLY
+        // ============================================================
+        async function processWithdrawal() {
+            const walletAddress = el.walletAddressInput.value.trim();
+
+            if (!validateBEP20Wallet(walletAddress)) {
+                showToast('Please enter a valid BEP-20 USDT wallet address.', 'error');
+                return;
+            }
+
+            if (getCampaignStatus() !== 'ENDED') {
+                showToast('Withdrawal is only available after the offer ends.', 'error');
+                return;
+            }
+
+            // Check user is still active
+            const userSnap = await get(ref(db, 'users/' + currentUserId));
+            if (!userSnap.exists()) {
+                showToast('User data not found.', 'error');
+                return;
+            }
+
+            const latestUserData = userSnap.val();
+
+            if (!isUserActive(latestUserData)) {
+                showToast('You are not eligible because your ID is not active.', 'error');
+                return;
+            }
+
+            // FIX 8: Withdrawal must use final snapshot
+            let snapshot = await getCampaignRewardSnapshot(currentUserId);
+
+            if (!snapshot) {
+                snapshot = await finalizeCampaignReward(currentUserId);
+            }
+
+            if (!snapshot || !snapshot.isFinalized || Number(snapshot.finalReward || 0) <= 0) {
+                showToast('No finalized eligible reward is available.', 'error');
+                return;
+            }
+
+            const reward = Number(snapshot.finalReward ?? 0);
+
+            if (reward <= 0) {
+                showToast('You are not eligible for this reward.', 'error');
+                return;
+            }
+
+            if (withdrawalData && ['pending', 'approved', 'paid'].includes(withdrawalData.status)) {
+                showToast('You have already submitted a withdrawal request.', 'warning');
+                return;
+            }
+
+            el.confirmSubmit.disabled = true;
+            el.confirmSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            try {
+                const result = await createAtomicWithdrawal(currentUserId, latestUserData, walletAddress);
+
+                if (result.success) {
+                    showToast('✅ Your withdrawal request has been submitted successfully.', 'success');
+                    withdrawalData = await checkWithdrawalStatus(currentUserId);
+                    el.walletAddressInput.value = '';
+                    el.confirmationModal.classList.remove('visible');
+                    updateUI();
+                } else {
+                    showToast('❌ Failed to submit withdrawal request.', 'error');
+                }
+            } catch (error) {
+                console.error('Withdrawal error:', error);
+                showToast('❌ ' + (error.message || 'Error submitting withdrawal request. Please try again.'), 'error');
+            }
+
+            el.confirmSubmit.disabled = false;
+            el.confirmSubmit.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirm Withdrawal';
+        }
+
+        // ============================================================
+        // LOAD USER DATA WITH ACTIVE CHECK
+        // ============================================================
+        async function loadUserData(user) {
+            try {
+                currentUserId = user.uid;
+                const userSnap = await get(ref(db, 'users/' + user.uid));
+                if (!userSnap.exists()) {
+                    showToast('User data not found. Please complete registration.', 'error');
+                    el.loadingOverlay.classList.add('hidden');
+                    return;
+                }
+
+                currentUserData = userSnap.val();
+                const name = currentUserData.name || currentUserData.username || 'User';
+                el.userName.textContent = name;
+                el.userAvatar.textContent = name.charAt(0).toUpperCase();
+
+                // ============================================================
+                // CAMPAIGN DATA
+                // ============================================================
+                campaignRewardSnapshot = await getCampaignRewardSnapshot(user.uid);
+
+                if (campaignRewardSnapshot) {
+                    isWithdrawalFinalized = true;
+                }
+
+                const userIsActive = isUserActive(currentUserData);
+
+                // INACTIVE USER = ZERO OFFER COUNT
+                if (!userIsActive) {
+                    directReferrals = 0;
+                    console.log('ℹ️ User inactive - offer count forced to 0');
+                } else {
+                    directReferrals = await getCampaignDirectReferrals(user.uid);
+                }
+
+                // FINALIZE ONLY AFTER CAMPAIGN END
+                if (getCampaignStatus() === 'ENDED' && !campaignRewardSnapshot) {
+                    campaignRewardSnapshot = await finalizeCampaignReward(user.uid);
+
+                    if (campaignRewardSnapshot) {
+                        isWithdrawalFinalized = true;
+                        directReferrals = Number(campaignRewardSnapshot.finalDirectCount ?? 0);
+                    }
+                }
+
+                // Setup withdrawal listener
+                setupWithdrawalListener(user.uid);
+                withdrawalData = await checkWithdrawalStatus(user.uid);
+
+                // Referral link
+                const referralCode = currentUserData.referralCode || user.uid.substring(0, 8).toUpperCase();
+                const link = `https://staking.randigital.in/register.html?ref=${referralCode}`;
+                el.referralLinkDisplay.textContent = link;
+                el.referralCodeDisplay.textContent = referralCode;
+                el.totalReferralsDisplay.textContent = directReferrals;
+
+                startCountdown();
+                updateUI();
+
+                el.loadingOverlay.classList.add('hidden');
+
+                const status = getCampaignStatus();
+                if (status === 'UPCOMING') {
+                    showToast('📢 Direct Referral Offer starts on 6 September 2026!', 'warning');
+                } else if (status === 'ACTIVE') {
+                    if (userIsActive) {
+                        showToast('🎯 Offer is ACTIVE! Refer active users to earn more!', 'success');
+                        // FIX 9: Start referral refresh
+                        startReferralRefresh();
+                    } else {
+                        showToast('ℹ️ Activate your ID by purchasing an eligible package to participate in this offer.', 'info');
+                    }
+                } else if (status === 'ENDED') {
+                    if (directReferrals >= CAMPAIGN.minQualifying) {
+                        showToast('🏆 Offer ended! You are eligible for reward withdrawal.', 'success');
+                    } else {
+                        showToast('⏰ Offer ended. You need at least 5 Active Direct Referrals to qualify.', 'warning');
+                    }
+                }
+
+                // FIX 9: Visibility change listener
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        refreshCampaignDirectCount();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                showToast('Error loading data: ' + error.message, 'error');
+                el.loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        // ============================================================
+        // COUNTDOWN
+        // ============================================================
+        function startCountdown() {
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            function update() {
+                const time = getTimeRemaining();
+                const status = getCampaignStatus();
+
+                if (status === 'ENDED') {
+                    el.countdownWrapper.style.display = 'none';
+                    el.campaignEndedMessage.style.display = 'block';
+                    if (countdownInterval) clearInterval(countdownInterval);
+
+                    if (!isWithdrawalFinalized && currentUserId) {
+                        finalizeCampaignReward(currentUserId).then(() => {
+                            updateUI();
+                        });
+                    }
+                    updateUI();
+                    return;
+                }
+
+                el.countdownDays.textContent = String(time.days).padStart(2, '0');
+                el.countdownHours.textContent = String(time.hours).padStart(2, '0');
+                el.countdownMinutes.textContent = String(time.minutes).padStart(2, '0');
+                el.countdownSeconds.textContent = String(time.seconds).padStart(2, '0');
+            }
+
+            update();
+            countdownInterval = setInterval(update, 1000);
+        }
+
+        // ============================================================
+        // WALLET ADDRESS VALIDATION
+        // ============================================================
+        function setupWalletValidation() {
+            el.walletAddressInput.addEventListener('input', () => {
+                const value = el.walletAddressInput.value.trim();
+                const msg = el.walletValidationMsg;
+
+                if (!value) {
+                    el.walletAddressInput.className = 'form-control-custom';
+                    msg.className = 'wallet-validation-msg';
+                    msg.textContent = '';
+                    return;
+                }
+
+                if (validateBEP20Wallet(value)) {
+                    el.walletAddressInput.className = 'form-control-custom valid';
+                    msg.className = 'wallet-validation-msg valid';
+                    msg.textContent = '✅ Valid BEP-20 wallet address';
+                } else {
+                    el.walletAddressInput.className = 'form-control-custom error';
+                    msg.className = 'wallet-validation-msg error';
+                    msg.textContent = '❌ Invalid BEP-20 wallet address. Must start with 0x and contain 40 hex characters.';
+                }
+            });
+        }
+
+        // ============================================================
+        // COPY REFERRAL LINK
+        // ============================================================
+        async function copyReferralLink() {
+            const link = el.referralLinkDisplay.textContent;
+            if (!link || link === 'Loading...') {
+                showToast('Please wait, referral link is loading...', 'warning');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(link);
+                el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+                el.copyReferralBtn.classList.add('copied');
+                showToast('✅ Referral link copied!', 'success');
+                setTimeout(() => {
+                    el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
+                    el.copyReferralBtn.classList.remove('copied');
+                }, 3000);
+            } catch {
+                const textArea = document.createElement('textarea');
+                textArea.value = link;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+                showToast('✅ Referral link copied!', 'success');
+                setTimeout(() => {
+                    el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
+                }, 3000);
+            }
+        }
+
+        // ============================================================
+        // LOGOUT
+        // ============================================================
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                window.location.href = 'login.html';
+            } catch (error) {
+                showToast('Error logging out.', 'error');
+            }
+        }
+
+        // ============================================================
+        // SETUP LISTENERS
+        // ============================================================
+        function setupListeners() {
+            el.copyReferralBtn.addEventListener('click', copyReferralLink);
+            el.logoutBtn.addEventListener('click', handleLogout);
+            el.withdrawBtn.addEventListener('click', handleWithdrawClick);
+            el.popupCloseBtn.addEventListener('click', () => {
+                el.daysPopup.classList.remove('visible');
+            });
+            el.daysPopup.addEventListener('click', (e) => {
+                if (e.target === el.daysPopup) {
+                    el.daysPopup.classList.remove('visible');
+                }
+            });
+            el.confirmCancel.addEventListener('click', () => {
+                el.confirmationModal.classList.remove('visible');
+            });
+            el.confirmationModal.addEventListener('click', (e) => {
+                if (e.target === el.confirmationModal) {
+                    el.confirmationModal.classList.remove('visible');
+                }
+            });
+            el.confirmSubmit.addEventListener('click', processWithdrawal);
+
+            setupWalletValidation();
+        }
+
+        // ============================================================
+        // CLEANUP
+        // ============================================================
+        window.addEventListener('beforeunload', () => {
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (referralRefreshInterval) clearInterval(referralRefreshInterval);
+        });
+
+        // ============================================================
+        // MAIN AUTH HANDLER
+        // ============================================================
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // FIX 5: Sync server time first
+            await syncFirebaseServerTime();
+
+            await loadUserData(user);
+            setupListeners();
+        });
+
+        console.log('✅ Direct Offer Page Loaded Successfully!');
+        console.log('📅 Campaign:', CAMPAIGN);
+        console.log('📊 Milestones:', MILESTONES.length);
+        console.log('✅ User Activation Logic: Canonical - Package Based');
+        console.log('✅ Only ACTIVE users count as referrals');
+        console.log('✅ sponsorUid used as canonical referral source');
+        console.log('✅ Countdown: UPCOMING=startDate, ACTIVE=endDate');
+        console.log('✅ Campaign finalization uses transaction for safety');
+        console.log('✅ Withdrawal requires final snapshot only');
+        console.log('✅ Firebase server time sync implemented');
+        console.log('✅ Zero values handled correctly');
+    </script>
+</body>
+</html>
