@@ -1,5 +1,5 @@
 // ============================================================
-// TRANSFER.JS — v6 (Forgot Password Added)
+// TRANSFER.JS — v6.1 (Forgot Password + Loader + Sender Info)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -391,23 +391,42 @@ async function handlePasswordSetup() {
 }
 
 // ============================================================
-// Password Verify
+// 🔥 Password Verify — UPDATED with Sender + From/To Wallet
 // ============================================================
 function openPasswordVerify(details) {
     pendingTransfer = details;
     const detailsEl = document.getElementById('verifyDetails');
+
+    // Determine wallet badge class + icon
+    let walletClass = 'deposit';
+    let walletIcon = 'bi-wallet2';
+    if (details.walletType === 'referralWallet') { walletClass = 'referral'; walletIcon = 'bi-coin'; }
+    if (details.walletType === 'rndWallet') { walletClass = 'rnd'; walletIcon = 'bi-database'; }
+
     detailsEl.innerHTML = `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span>Amount:</span>
-            <strong style="color: #2ecc71;">${details.amount} ${details.currency}</strong>
+        <div class="verify-row">
+            <span class="label"><i class="bi bi-person-fill"></i> From:</span>
+            <span class="value name">${details.senderName || 'You'}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span>To:</span>
-            <strong style="color: #60a5fa;">${details.recipientName}</strong>
+        <div class="verify-row">
+            <span class="label"><i class="bi bi-wallet2"></i> From Wallet:</span>
+            <span class="verify-wallet-badge ${walletClass}">
+                <i class="bi ${walletIcon}"></i> ${details.walletLabel}
+            </span>
         </div>
-        <div style="display: flex; justify-content: space-between;">
-            <span>Wallet:</span>
-            <strong>${details.walletLabel}</strong>
+        <div class="verify-row">
+            <span class="label"><i class="bi bi-person-check-fill"></i> To:</span>
+            <span class="value name">${details.recipientName}</span>
+        </div>
+        <div class="verify-row">
+            <span class="label"><i class="bi bi-wallet2"></i> To Wallet:</span>
+            <span class="verify-wallet-badge ${walletClass}">
+                <i class="bi ${walletIcon}"></i> ${details.walletLabel}
+            </span>
+        </div>
+        <div class="verify-row">
+            <span class="label"><i class="bi bi-currency-dollar"></i> Amount:</span>
+            <span class="value amount">${details.amount} ${details.currency}</span>
         </div>
     `;
     openModal('verifyModal');
@@ -906,6 +925,11 @@ onAuthStateChanged(auth, async (user) => {
     await reconcilePending();
     await loadUserData(user.uid);
     setupBalanceListener(user.uid);
+
+    // ✅ Hide page loader — data is ready
+    if (typeof window.__hideTransferLoader === 'function') {
+        window.__hideTransferLoader();
+    }
 
     const form = document.getElementById('transferForm');
     if (form) form.addEventListener('submit', handleTransferSubmit);
