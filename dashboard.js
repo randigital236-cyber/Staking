@@ -4,7 +4,6 @@
 // 📌 ALL BUSINESS LOGIC HERE:
 // Firebase Init | Auth | Login | Logout | Dashboard Load
 // Wallet | Referral | Team | Transactions | Packages
-// Transfer (UPDATED - UID + Username + Referral Code Search)
 // Daily Release (Pending Days) | Commission (Duplicate Proof)
 // Backup (Comprehensive) | Recovery (Referral Chain Verify)
 // Validation | Security | Real-time Listener (Debounced)
@@ -145,7 +144,7 @@ async function fetchLiveRate() {
 }
 
 // ============================================================
-// 🔥 GET USER BY USERNAME, UID OR REFERRAL CODE (UPDATED)
+// 🔥 GET USER BY USERNAME, UID OR REFERRAL CODE
 // ============================================================
 async function getUserByIdentifier(identifier) {
     try {
@@ -848,126 +847,6 @@ function calculateUserStats(userData) {
 }
 
 // ============================================================
-// 🔥 ATOMIC TRANSFER (UPDATED - UID + Username + Referral Code Search)
-// ============================================================
-async function atomicTransfer(senderUid, recipientUid, recipientData, amount, walletType, currency, senderUsername, senderUidForHistory) {
-    if (amount <= 0) return { success: false, error: 'Invalid amount' };
-    
-    const senderRef = ref(db, 'users/' + senderUid);
-    const timestamp = Date.now();
-    const date = getTodayDate();
-    const txId = generateTxId();
-    
-    // Get recipient username and UID
-    const recipientUsername = recipientData.username || recipientData.referralCode || recipientUid;
-    const recipientUidForHistory = recipientUid;
-    
-    // Create comprehensive backups
-    await createComprehensiveBackup(senderUid, 'transfer_sender');
-    await createComprehensiveBackup(recipientUid, 'transfer_recipient');
-    
-    const senderResult = await runTransaction(senderRef, (currentData) => {
-        if (!currentData) return currentData;
-        const balance = currentData[walletType] || 0;
-        if (balance < amount) {
-            return currentData;
-        }
-        currentData[walletType] = balance - amount;
-        
-        const transferHistory = currentData.transferHistory || [];
-        transferHistory.push({
-            type: 'sent',
-            to: recipientUsername,
-            toUid: recipientUidForHistory,
-            amount: amount,
-            from: senderUsername,
-            fromUid: senderUidForHistory || senderUid,
-            currency: currency,
-            timestamp: timestamp,
-            txId: txId,
-            status: 'completed'
-        });
-        currentData.transferHistory = transferHistory;
-        
-        const transactions = currentData.transactions || {};
-        transactions[txId] = {
-            type: 'transfer_sent',
-            amount: amount,
-            currency: currency,
-            to: recipientUsername,
-            toUid: recipientUidForHistory,
-            from: senderUsername,
-            fromUid: senderUidForHistory || senderUid,
-            timestamp: timestamp,
-            date: date,
-            status: 'completed'
-        };
-        currentData.transactions = transactions;
-        
-        return currentData;
-    });
-    
-    if (!senderResult.committed) {
-        return { success: false, error: 'Insufficient balance or sender update failed' };
-    }
-    
-    const recipientRef = ref(db, 'users/' + recipientUid);
-    const recipientResult = await runTransaction(recipientRef, (currentData) => {
-        if (!currentData) return currentData;
-        currentData[walletType] = (currentData[walletType] || 0) + amount;
-        
-        const transferHistory = currentData.transferHistory || [];
-        transferHistory.push({
-            type: 'received',
-            from: senderUsername,
-            fromUid: senderUidForHistory || senderUid,
-            to: recipientUsername,
-            toUid: recipientUidForHistory,
-            amount: amount,
-            currency: currency,
-            timestamp: timestamp,
-            txId: txId,
-            status: 'completed'
-        });
-        currentData.transferHistory = transferHistory;
-        
-        const transactions = currentData.transactions || {};
-        transactions[txId] = {
-            type: 'transfer_received',
-            amount: amount,
-            currency: currency,
-            from: senderUsername,
-            fromUid: senderUidForHistory || senderUid,
-            to: recipientUsername,
-            toUid: recipientUidForHistory,
-            timestamp: timestamp,
-            date: date,
-            status: 'completed'
-        };
-        currentData.transactions = transactions;
-        
-        return currentData;
-    });
-    
-    if (!recipientResult.committed) {
-        // Rollback sender
-        await runTransaction(senderRef, (currentData) => {
-            if (!currentData) return currentData;
-            currentData[walletType] = (currentData[walletType] || 0) + amount;
-            const transactions = currentData.transactions || {};
-            if (transactions[txId]) {
-                transactions[txId].status = 'rolled_back';
-            }
-            currentData.transactions = transactions;
-            return currentData;
-        });
-        return { success: false, error: 'Recipient update failed, funds returned' };
-    }
-    
-    return { success: true, txId: txId };
-}
-
-// ============================================================
 // REAL-TIME LISTENER (Debounced - No Duplicate)
 // ============================================================
 function setupRealtimeListener(userId) {
@@ -1045,7 +924,7 @@ function updateDashboardUI(u, stats) {
 }
 
 // ============================================================
-// RENDER DASHBOARD
+// RENDER DASHBOARD (Transfer Section Removed)
 // ============================================================
 function renderDashboard(u) {
     const username = u.username || u.referralCode || 'USER';
@@ -1102,9 +981,6 @@ function renderDashboard(u) {
     
     const referralLink = `${REGISTER_URL}?ref=${u.referralCode}`;
     const rankClass = isMember ? 'rank-badge member' : 'rank-badge';
-    
-    const transferHistory = u.transferHistory || [];
-    const sortedHistory = [...transferHistory].reverse().slice(0, 5);
 
     document.getElementById('dashboardContent').innerHTML = `
         <div class="row g-4">
@@ -1327,57 +1203,6 @@ function renderDashboard(u) {
                 </div>
             </div>
             
-            <!-- ====== TRANSFER SYSTEM ====== -->
-            <div class="col-12">
-                <div class="card-glass">
-                    <div class="card-title"><i class="bi bi-arrow-left-right text-success me-2"></i>Send Money</div>
-                    <form id="transferForm">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <input type="text" id="transferUserId" class="form-control form-control-custom" placeholder="Recipient User ID / Username / Referral Code" required>
-                            </div>
-                            <div class="col-md-3">
-                                <input type="number" id="transferAmount" class="form-control form-control-custom" placeholder="Amount" min="0.01" step="0.01" required>
-                            </div>
-                            <div class="col-md-3">
-                                <select id="transferWallet" class="form-select form-select-custom">
-                                    <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                                    <option value="referralWallet">💳 Referral Wallet (USDT)</option>
-                                    <option value="rndWallet">📊 RND Wallet (RND)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn-primary-custom w-100"><i class="bi bi-send me-1"></i>Send</button>
-                            </div>
-                        </div>
-                    </form>
-                    
-                    <div class="mt-3">
-                        <small class="text-muted">Recent Transfers</small>
-                        <div class="transfer-history">
-                            ${sortedHistory.length === 0 ? `
-                                <div class="text-center text-muted py-2" style="font-size:0.8rem;">
-                                    <i class="bi bi-clock me-1"></i> No transfers yet
-                                </div>
-                            ` : sortedHistory.map(t => `
-                                <div class="transfer-item">
-                                    <div>
-                                        ${t.type === 'sent' ? 
-                                            `<span class="sent"><i class="bi bi-arrow-up-right"></i> Sent to <span class="user">${t.to || 'unknown'}</span> (${t.toUid ? t.toUid.substring(0, 8) : ''})</span>` :
-                                            `<span class="received"><i class="bi bi-arrow-down-left"></i> Received from <span class="user">${t.from || 'unknown'}</span> (${t.fromUid ? t.fromUid.substring(0, 8) : ''})</span>`
-                                        }
-                                    </div>
-                                    <div>
-                                        <span class="amount ${t.type === 'sent' ? 'sent' : 'received'}">${t.type === 'sent' ? '-' : '+'}${t.amount} ${t.currency || 'RND'}</span>
-                                        <div class="date">${new Date(t.timestamp).toLocaleString('hi-IN')}</div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
             <!-- ====== QUICK LINKS ====== -->
             <div class="col-12">
                 <div class="card-glass">
@@ -1402,11 +1227,6 @@ function renderDashboard(u) {
             });
         });
     });
-    
-    document.getElementById('transferForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await handleTransfer();
-    });
 }
 
 // ============================================================
@@ -1425,87 +1245,6 @@ window.copyUserId = function(username) {
         showToast('✅ User ID copied to clipboard!', 'success');
     });
 };
-
-// ============================================================
-// 🔥 TRANSFER HANDLER (UPDATED)
-// ============================================================
-async function handleTransfer() {
-    const recipientIdentifier = document.getElementById('transferUserId').value.trim();
-    const amount = parseFloat(document.getElementById('transferAmount').value);
-    const walletType = document.getElementById('transferWallet').value;
-    const btn = document.querySelector('#transferForm button[type="submit"]');
-    
-    if (!recipientIdentifier) { showToast('❌ Please enter recipient User ID, Username or Referral Code', 'error'); return; }
-    if (!amount || amount <= 0) { showToast('❌ Please enter a valid amount', 'error'); return; }
-    
-    const user = auth.currentUser;
-    if (!user) { showToast('❌ Please login first', 'error'); return; }
-    
-    const senderSnap = await get(ref(db, 'users/' + user.uid));
-    if (!senderSnap.exists()) { showToast('❌ User data not found', 'error'); return; }
-    const senderData = senderSnap.val();
-    const senderUsername = senderData.username || senderData.referralCode;
-    const senderUid = user.uid;
-    
-    // 🔥 Search recipient by UID, Username or Referral Code
-    const recipient = await getUserByIdentifier(recipientIdentifier);
-    if (!recipient) { showToast('❌ User not found! Please check the ID, Username or Referral Code.', 'error'); return; }
-    
-    const recipientUid = recipient.uid;
-    const recipientData = recipient.data;
-    const recipientUsername = recipientData.username || recipientData.referralCode;
-    
-    // 🔥 Self Transfer Check - by UID
-    if (recipientUid === senderUid) { 
-        showToast('❌ You cannot send money to yourself!', 'error'); 
-        return; 
-    }
-    
-    const senderBalance = senderData[walletType] || 0;
-    if (senderBalance < amount) {
-        const walletLabels = {
-            'depositWallet': 'Deposit Wallet (USDT)',
-            'referralWallet': 'Referral Wallet (USDT)',
-            'rndWallet': 'RND Wallet (RND)'
-        };
-        showToast(`❌ Insufficient balance in ${walletLabels[walletType] || 'Wallet'}! You have ${senderBalance.toFixed(4)}`, 'error');
-        return;
-    }
-    
-    const currency = walletType === 'rndWallet' ? 'RND' : 'USDT';
-    
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
-    
-    try {
-        const result = await atomicTransfer(
-            senderUid,
-            recipientUid,
-            recipientData,
-            amount,
-            walletType,
-            currency,
-            senderUsername,
-            senderUid
-        );
-        
-        if (result.success) {
-            showToast(`✅ ${amount} ${currency} sent successfully to ${recipientUsername}!`, 'success');
-            document.getElementById('transferUserId').value = '';
-            document.getElementById('transferAmount').value = '';
-            await loadDashboardData(user.uid);
-        } else {
-            showToast('❌ ' + (result.error || 'Transfer failed. Please try again.'), 'error');
-        }
-        
-    } catch (error) {
-        console.error('Transfer error:', error);
-        showToast('❌ Error sending. Please try again.', 'error');
-    }
-    
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-send me-1"></i>Send';
-}
 
 // ============================================================
 // LOAD DASHBOARD DATA
