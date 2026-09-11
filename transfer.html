@@ -28,7 +28,91 @@
         }
 
         /* ============================================
-           TOP BAR — with 3-dot menu (right side)
+           PAGE LOADING PROGRESS BAR
+           ============================================ */
+        #pageLoader {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        #pageLoader.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .loader-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease;
+        }
+        .loader-brand-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 24px rgba(46, 204, 113, 0.35);
+            animation: pulse 1.5s ease infinite;
+        }
+        .loader-brand-text {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            letter-spacing: 0.5px;
+        }
+        .loader-progress-wrap {
+            width: 280px;
+            max-width: 80vw;
+            height: 6px;
+            background: rgba(148, 163, 184, 0.15);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .loader-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+            border-radius: 999px;
+            transition: width 0.4s ease;
+            box-shadow: 0 0 12px rgba(46, 204, 113, 0.6);
+        }
+        .loader-status {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(46, 204, 113, 0.35); }
+            50% { transform: scale(1.06); box-shadow: 0 10px 32px rgba(46, 204, 113, 0.55); }
+        }
+        @keyframes fadeInUp {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        body.loading .top-bar,
+        body.loading .page-wrapper {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .top-bar, .page-wrapper {
+            transition: opacity 0.4s ease;
+        }
+
+        /* ============================================
+           TOP BAR
            ============================================ */
         .top-bar {
             display: flex;
@@ -70,7 +154,7 @@
         }
 
         /* ============================================
-           SIDEBAR (dashboard style — slides from RIGHT)
+           SIDEBAR
            ============================================ */
         .sidebar-overlay {
             position: fixed;
@@ -106,7 +190,6 @@
             transform: translateX(0);
         }
 
-        /* Sidebar Header */
         .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid rgba(148, 163, 184, 0.1);
@@ -152,7 +235,6 @@
             color: #ef4444;
         }
 
-        /* User Info Block */
         .sidebar-user-block {
             padding: 20px;
             border-bottom: 1px solid rgba(148, 163, 184, 0.1);
@@ -195,7 +277,6 @@
             margin-top: 4px;
         }
 
-        /* Nav Items */
         .sidebar-nav {
             flex: 1;
             padding: 12px 8px;
@@ -229,7 +310,6 @@
             flex-shrink: 0;
         }
 
-        /* Sidebar Footer / Logout */
         .sidebar-footer {
             padding: 16px 20px;
             border-top: 1px solid rgba(148, 163, 184, 0.1);
@@ -255,6 +335,11 @@
 
         .page-header {
             margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         .page-header h1 {
             font-size: 1.6rem;
@@ -269,9 +354,22 @@
             color: #94a3b8;
             font-size: 0.9rem;
         }
+        .secure-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.25);
+            border-radius: 999px;
+            font-size: 0.75rem;
+            color: #2ecc71;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
 
         /* ============================================
-           WALLET CARDS (dashboard style)
+           WALLET CARDS — IMPROVED
            ============================================ */
         .wallet-grid {
             display: grid;
@@ -283,53 +381,79 @@
             background: rgba(30, 41, 59, 0.6);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(148, 163, 184, 0.15);
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 18px;
+            padding: 22px;
             position: relative;
             overflow: hidden;
-            transition: all 0.3s;
+            transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .wallet-card-new:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+            border-color: rgba(46, 204, 113, 0.3);
         }
         .wallet-card-new::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0;
             height: 3px;
-            opacity: 0.8;
+            opacity: 0.9;
+        }
+        .wallet-card-new::after {
+            content: '';
+            position: absolute;
+            bottom: -30px;
+            right: -30px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            opacity: 0.05;
+            transition: all 0.4s;
+        }
+        .wallet-card-new:hover::after {
+            opacity: 0.12;
+            transform: scale(1.3);
         }
         .wallet-card-new.deposit::before { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+        .wallet-card-new.deposit::after { background: #2ecc71; }
         .wallet-card-new.referral::before { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .wallet-card-new.referral::after { background: #fbbf24; }
         .wallet-card-new.rnd::before { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+        .wallet-card-new.rnd::after { background: #60a5fa; }
         
         .wallet-icon-new {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
-            margin-bottom: 14px;
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        .wallet-card-new:hover .wallet-icon-new {
+            transform: scale(1.1) rotate(-5deg);
         }
         .wallet-icon-new.deposit {
             background: rgba(46, 204, 113, 0.15);
             color: #2ecc71;
+            box-shadow: 0 4px 16px rgba(46, 204, 113, 0.15);
         }
         .wallet-icon-new.referral {
             background: rgba(251, 191, 36, 0.15);
             color: #fbbf24;
+            box-shadow: 0 4px 16px rgba(251, 191, 36, 0.15);
         }
         .wallet-icon-new.rnd {
             background: rgba(96, 165, 250, 0.15);
             color: #60a5fa;
+            box-shadow: 0 4px 16px rgba(96, 165, 250, 0.15);
         }
         .wallet-amount {
-            font-size: 1.5rem;
+            font-size: 1.55rem;
             font-weight: 800;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             letter-spacing: -0.5px;
         }
         .wallet-amount.deposit { color: #2ecc71; }
@@ -344,25 +468,34 @@
         .wallet-sub-new {
             font-size: 0.7rem;
             color: #64748b;
-            margin-top: 2px;
+            margin-top: 3px;
         }
 
         /* ============================================
-           FORM CARD
+           FORM CARD — IMPROVED
            ============================================ */
         .form-card {
             background: rgba(30, 41, 59, 0.6);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(148, 163, 184, 0.15);
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 28px;
             margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .form-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(46, 204, 113, 0.4), transparent);
         }
         .card-title-new {
             font-size: 1.1rem;
             font-weight: 700;
             color: #e2e8f0;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -376,12 +509,13 @@
             width: 100%; padding: 14px 16px;
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 10px; color: #e2e8f0;
+            border-radius: 12px; color: #e2e8f0;
             font-size: 1rem; transition: all 0.2s;
         }
         .form-control-custom:focus {
             outline: none; border-color: #2ecc71;
-            box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
+            box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.12);
+            background: rgba(15, 23, 42, 0.8);
         }
         .form-control-custom::placeholder { color: #64748b; }
         select.form-control-custom { cursor: pointer; }
@@ -391,46 +525,85 @@
             width: 100%; padding: 16px;
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             color: white; border: none; border-radius: 12px;
-            font-size: 1.1rem; font-weight: 700;
-            cursor: pointer; transition: all 0.2s; margin-top: 16px;
+            font-size: 1.05rem; font-weight: 700;
+            cursor: pointer; transition: all 0.25s;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 16px rgba(46, 204, 113, 0.2);
         }
         .btn-send:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(46, 204, 113, 0.3);
+            box-shadow: 0 10px 28px rgba(46, 204, 113, 0.4);
         }
-        .btn-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .btn-send.sending { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-        .btn-send.verifying { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .btn-send:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .btn-send:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-send.sending { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3); }
+        .btn-send.verifying { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3); }
+
+        .max-btn {
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            color: #60a5fa;
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .max-btn:hover {
+            background: rgba(96, 165, 250, 0.2);
+            border-color: #60a5fa;
+            transform: translateY(-1px);
+        }
 
         .info-box {
             background: rgba(59, 130, 246, 0.08);
             border: 1px solid rgba(59, 130, 246, 0.2);
-            border-radius: 10px; padding: 14px;
-            margin-top: 20px; font-size: 0.85rem;
+            border-radius: 12px; padding: 14px 16px;
+            margin-top: 22px; font-size: 0.85rem;
             color: #94a3b8; line-height: 1.6;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
         }
-        .info-box i { color: #60a5fa; margin-right: 6px; }
+        .info-box i { color: #60a5fa; margin-top: 2px; flex-shrink: 0; }
 
         /* ============================================
            RECENT TRANSFERS
            ============================================ */
-        .recent-transfers { margin-top: 20px; max-height: 400px; overflow-y: auto; }
+        .recent-transfers { margin-top: 20px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
+        .recent-transfers::-webkit-scrollbar { width: 6px; }
+        .recent-transfers::-webkit-scrollbar-track { background: rgba(148, 163, 184, 0.05); border-radius: 10px; }
+        .recent-transfers::-webkit-scrollbar-thumb { background: rgba(46, 204, 113, 0.3); border-radius: 10px; }
+        .recent-transfers::-webkit-scrollbar-thumb:hover { background: rgba(46, 204, 113, 0.5); }
+        
         .transfer-item {
-            background: rgba(15, 23, 42, 0.5); border-radius: 10px;
-            padding: 14px; margin-bottom: 8px;
+            background: rgba(15, 23, 42, 0.5); border-radius: 12px;
+            padding: 14px 16px; margin-bottom: 8px;
             display: flex; justify-content: space-between; align-items: center;
             font-size: 0.85rem;
             border: 1px solid rgba(148, 163, 184, 0.08);
             transition: all 0.2s;
+            animation: fadeInUp 0.4s ease;
         }
         .transfer-item:hover {
-            border-color: rgba(46, 204, 113, 0.2);
-            background: rgba(15, 23, 42, 0.7);
+            border-color: rgba(46, 204, 113, 0.25);
+            background: rgba(15, 23, 42, 0.8);
+            transform: translateX(4px);
         }
         .transfer-sent { color: #ef4444; }
         .transfer-received { color: #2ecc71; }
         .transfer-amount { font-weight: 700; font-size: 0.95rem; }
-        .transfer-date { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+        .transfer-date { font-size: 0.7rem; color: #64748b; margin-top: 3px; }
         .transfer-name { color: #60a5fa; font-weight: 600; }
 
         /* ============================================
@@ -444,7 +617,7 @@
             background: rgba(30, 41, 59, 0.95);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 10px; padding: 14px 20px;
+            border-radius: 12px; padding: 14px 20px;
             color: #e2e8f0; display: flex; align-items: center; gap: 10px;
             min-width: 280px; max-width: 400px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -479,7 +652,7 @@
         .modal-box {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px; padding: 32px;
+            border-radius: 18px; padding: 32px;
             max-width: 460px; width: 100%;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             animation: modalIn 0.3s ease;
@@ -504,9 +677,9 @@
         .modal-info {
             background: rgba(59, 130, 246, 0.08);
             border: 1px solid rgba(59, 130, 246, 0.2);
-            border-radius: 8px; padding: 12px;
+            border-radius: 10px; padding: 14px;
             margin-bottom: 20px; font-size: 0.8rem;
-            color: #94a3b8; line-height: 1.5;
+            color: #94a3b8; line-height: 1.6;
         }
         .modal-info i { color: #60a5fa; }
         .modal-info.warn {
@@ -514,6 +687,57 @@
             border-color: rgba(245, 158, 11, 0.2);
         }
         .modal-info.warn i { color: #f59e0b; }
+
+        /* 🔥 NEW: Transfer Details Rows in Verify Modal */
+        .verify-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            font-size: 0.88rem;
+        }
+        .verify-row:last-child { border-bottom: none; }
+        .verify-row .label {
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .verify-row .value {
+            font-weight: 700;
+            color: #e2e8f0;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-word;
+        }
+        .verify-row .value.amount { color: #2ecc71; font-size: 1rem; }
+        .verify-row .value.name { color: #60a5fa; }
+        .verify-wallet-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .verify-wallet-badge.deposit {
+            background: rgba(46, 204, 113, 0.15);
+            color: #2ecc71;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+        .verify-wallet-badge.referral {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+        .verify-wallet-badge.rnd {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.3);
+        }
+
         .password-wrapper { position: relative; margin-bottom: 12px; }
         .password-wrapper .modal-input { margin-bottom: 0; padding-right: 50px; }
         .password-eye {
@@ -527,17 +751,17 @@
             width: 100%; padding: 14px 16px;
             background: rgba(15, 23, 42, 0.8);
             border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 10px; color: #e2e8f0;
+            border-radius: 12px; color: #e2e8f0;
             font-size: 1rem; margin-bottom: 12px;
         }
         .modal-input:focus {
             outline: none; border-color: #2ecc71;
-            box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
+            box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.12);
         }
         .modal-btn {
             width: 100%; padding: 14px;
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-            color: white; border: none; border-radius: 10px;
+            color: white; border: none; border-radius: 12px;
             font-size: 1rem; font-weight: 700;
             cursor: pointer; margin-top: 8px; transition: all 0.2s;
         }
@@ -576,19 +800,35 @@
             .wallet-grid { grid-template-columns: 1fr; gap: 12px; }
             .wallet-amount { font-size: 1.3rem; }
             .sidebar-panel { width: 260px; }
+            .page-header h1 { font-size: 1.3rem; }
         }
     </style>
 </head>
-<body>
+<body class="loading">
+
+<!-- ============================================ -->
+<!-- PAGE LOADING PROGRESS BAR -->
+<!-- ============================================ -->
+<div id="pageLoader">
+    <div class="loader-brand">
+        <div class="loader-brand-icon">
+            <i class="bi bi-arrow-left-right"></i>
+        </div>
+        <div class="loader-brand-text">RND Staking</div>
+    </div>
+    <div class="loader-progress-wrap">
+        <div class="loader-progress-bar" id="loaderProgressBar"></div>
+    </div>
+    <div class="loader-status" id="loaderStatus">Starting...</div>
+</div>
 
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- ============================================ -->
-<!-- SIDEBAR (dashboard style, slides from RIGHT) -->
+<!-- SIDEBAR -->
 <!-- ============================================ -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <aside class="sidebar-panel" id="sidebarPanel">
-    <!-- Header -->
     <div class="sidebar-header">
         <div class="sidebar-brand">
             <div class="sidebar-brand-icon">
@@ -601,7 +841,6 @@
         </button>
     </div>
 
-    <!-- User Info -->
     <div class="sidebar-user-block">
         <div class="sidebar-avatar" id="sidebarAvatar">U</div>
         <div class="sidebar-user-info">
@@ -610,67 +849,54 @@
         </div>
     </div>
 
-    <!-- Nav Items -->
     <nav class="sidebar-nav">
         <a href="dashboard.html" class="nav-item">
-    <i class="bi bi-speedometer2"></i>
-    <span>Dashboard</span>
-</a>
-
-<a href="deposit.html" class="nav-item">
-    <i class="bi bi-arrow-down-circle"></i>
-    <span>Deposit</span>
-</a>
-
-<a href="withdrawal.html" class="nav-item">
-    <i class="bi bi-arrow-up-circle"></i>
-    <span>Withdraw</span>
-</a>
-
-<a href="buy-package.html" class="nav-item">
-    <i class="bi bi-box-seam"></i>
-    <span>Buy Package</span>
-</a>
-
-<a href="referrals.html" class="nav-item">
-    <i class="bi bi-people"></i>
-    <span>Referrals</span>
-    <span class="badge" id="referralBadge">0</span>
-</a>
-
-<a href="transfer.html" class="nav-item">
-    <i class="bi bi-arrow-left-right"></i>
-    <span>Send Money</span>
-</a>
-
-<a href="rank-reward.html" class="nav-item">
-    <i class="bi bi-trophy"></i>
-    <span>Rank Reward</span>
-</a>
-
-<!-- DIRECT OFFER -->
-<a href="direct-offer.html" class="nav-item direct-offer-nav" id="directOfferNav">
-    <i class="bi bi-gift"></i>
-    <span>Direct Offer</span>
-</a>
-
-<a href="transactions.html" class="nav-item">
-    <i class="bi bi-receipt"></i>
-    <span>Transactions</span>
-</a>
-
-<a href="invoice.html" class="nav-item">
-    <i class="bi bi-file-text"></i>
-    <span>Invoice</span>
-</a>
-
-<a href="profile.html" class="nav-item">
-    <i class="bi bi-person"></i>
-    <span>Profile</span>
-</a>
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="deposit.html" class="nav-item">
+            <i class="bi bi-arrow-down-circle"></i>
+            <span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="nav-item">
+            <i class="bi bi-arrow-up-circle"></i>
+            <span>Withdraw</span>
+        </a>
+        <a href="buy-package.html" class="nav-item">
+            <i class="bi bi-box-seam"></i>
+            <span>Buy Package</span>
+        </a>
+        <a href="referrals.html" class="nav-item">
+            <i class="bi bi-people"></i>
+            <span>Referrals</span>
+            <span class="badge" id="referralBadge">0</span>
+        </a>
+        <a href="transfer.html" class="nav-item active">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Send Money</span>
+        </a>
+        <a href="rank-reward.html" class="nav-item">
+            <i class="bi bi-trophy"></i>
+            <span>Rank Reward</span>
+        </a>
+        <a href="direct-offer.html" class="nav-item direct-offer-nav" id="directOfferNav">
+            <i class="bi bi-gift"></i>
+            <span>Direct Offer</span>
+        </a>
+        <a href="transactions.html" class="nav-item">
+            <i class="bi bi-receipt"></i>
+            <span>Transactions</span>
+        </a>
+        <a href="invoice.html" class="nav-item">
+            <i class="bi bi-file-text"></i>
+            <span>Invoice</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <i class="bi bi-person"></i>
+            <span>Profile</span>
+        </a>
     </nav>
 
-    <!-- Footer / Logout -->
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
             <i class="bi bi-box-arrow-right"></i>
@@ -680,7 +906,7 @@
 </aside>
 
 <!-- ============================================ -->
-<!-- TOP BAR with menu button -->
+<!-- TOP BAR -->
 <!-- ============================================ -->
 <div class="top-bar">
     <div class="top-bar-title">
@@ -698,10 +924,15 @@
 <div class="page-wrapper">
 
     <div class="page-header">
-        <h1>
-            <i class="bi bi-send"></i> Send Money
-        </h1>
-       
+        <div>
+            <h1>
+                <i class="bi bi-send"></i> Send Money
+            </h1>
+            <p>Instantly transfer USDT or RND to any user on the platform.</p>
+        </div>
+        <span class="secure-badge">
+            <i class="bi bi-shield-check"></i> Secure Transfer
+        </span>
     </div>
 
     <!-- WALLET CARDS -->
@@ -762,25 +993,26 @@
                 <label class="form-label-custom">Amount</label>
                 <input type="number" id="amountInput" class="form-control-custom" 
                        placeholder="0.00" min="0.01" step="0.01" required>
-                <div style="margin-top: 8px; display: flex; justify-content: space-between; font-size: 0.8rem;">
+                <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
                     <span style="color: #64748b;">
                         Available: <strong id="availableText" style="color: #2ecc71;">0</strong>
                     </span>
-                    <button type="button" onclick="setMaxAmount()"
-                        style="background: none; border: none; color: #60a5fa; cursor: pointer; font-size: 0.8rem; text-decoration: underline;">
-                        Send Max
+                    <button type="button" class="max-btn" onclick="setMaxAmount()">
+                        <i class="bi bi-lightning-charge-fill"></i> Send Max
                     </button>
                 </div>
             </div>
 
             <button type="submit" id="sendBtn" class="btn-send">
-                <i class="bi bi-send me-2"></i> Send Money
+                <i class="bi bi-send-fill"></i> Send Money
             </button>
         </form>
 
         <div class="info-box">
             <i class="bi bi-shield-check"></i>
-            <strong>सुरक्षा सूचना:</strong> हर transfer पर password पूछा जाएगा।
+            <div>
+                <strong>सुरक्षा सूचना:</strong> हर transfer पर password पूछा जाएगा। अगर पहली बार transfer कर रहे हैं तो password set करना होगा।
+            </div>
         </div>
     </div>
 
@@ -832,14 +1064,17 @@
     </div>
 </div>
 
+<!-- 🔥 VERIFY MODAL — Now with Sender + Wallet info -->
 <div class="modal-overlay" id="verifyModal">
     <div class="modal-box">
         <div class="modal-icon"><i class="bi bi-lock-fill"></i></div>
-        <div class="modal-title">Enter Transfer Password</div>
+        <div class="modal-title">Confirm Transfer</div>
         <div class="modal-subtitle">Transfer confirm करने के लिए अपना password डालें।</div>
-        <div class="modal-info" id="verifyDetails"></div>
+        
+        <div class="modal-info" id="verifyDetails" style="padding: 16px;"></div>
+        
         <div class="password-wrapper">
-            <input type="password" id="verifyPassword" class="modal-input" placeholder="Password" autocomplete="current-password">
+            <input type="password" id="verifyPassword" class="modal-input" placeholder="Transfer password" autocomplete="current-password">
             <button type="button" class="password-eye" onclick="togglePassword('verifyPassword', this)">
                 <i class="bi bi-eye"></i>
             </button>
@@ -910,14 +1145,57 @@
 </div>
 
 <!-- ============================================ -->
-<!-- LOGIC FILE (unchanged) -->
+<!-- LOGIC FILE -->
 <!-- ============================================ -->
 <script type="module" src="transfer.js"></script>
 
 <!-- ============================================ -->
-<!-- SIDEBAR SCRIPT -->
+<!-- SIDEBAR SCRIPT + LOADER -->
 <!-- ============================================ -->
 <script>
+    // ============================================
+    // PAGE LOADER
+    // ============================================
+    (function() {
+        const loader = document.getElementById('pageLoader');
+        const bar = document.getElementById('loaderProgressBar');
+        const status = document.getElementById('loaderStatus');
+
+        const steps = [
+            { pct: 15, label: 'Connecting...', delay: 200 },
+            { pct: 35, label: 'Loading wallet data...', delay: 500 },
+            { pct: 60, label: 'Fetching user info...', delay: 900 },
+            { pct: 85, label: 'Preparing interface...', delay: 1300 },
+            { pct: 100, label: 'Ready!', delay: 1700 }
+        ];
+
+        steps.forEach(({ pct, label, delay }) => {
+            setTimeout(() => {
+                bar.style.width = pct + '%';
+                status.textContent = label;
+            }, delay);
+        });
+
+        // Hide loader after data is loaded OR after max 3s (fallback)
+        function hideLoader() {
+            bar.style.width = '100%';
+            status.textContent = 'Ready!';
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                document.body.classList.remove('loading');
+            }, 300);
+        }
+
+        // Try to hide when Firebase auth + user data is ready
+        window.__hideTransferLoader = hideLoader;
+
+        // Fallback: hide after 3s max (in case something goes wrong)
+        setTimeout(hideLoader, 3000);
+    })();
+
+    // ============================================
+    // SIDEBAR
+    // ============================================
     const sidebarPanel = document.getElementById('sidebarPanel');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const menuToggleBtn = document.getElementById('menuToggleBtn');
@@ -942,7 +1220,9 @@
         if (e.key === 'Escape') closeSidebar();
     });
 
-    // Logout
+    // ============================================
+    // LOGOUT
+    // ============================================
     document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
         e.preventDefault();
         try {
@@ -973,7 +1253,9 @@
         }
     });
 
-    // Fill sidebar user info
+    // ============================================
+    // SIDEBAR USER INFO
+    // ============================================
     setTimeout(async () => {
         try {
             const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
