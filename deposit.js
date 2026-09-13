@@ -93,12 +93,12 @@ function analyzeError(errorMsg, userAmount) {
         return {
             type: 'error',
             title: '🚫 Duplicate Transaction',
-            message: 'Yeh transaction hash pehle use ho chuka hai. Ek TXID sirf ek baar use ho sakta hai.',
+            message: 'This transaction hash has already been used. A TXID can only be used once.',
             statusHTML: `
                 <i class="bi bi-x-octagon-fill me-2"></i>
                 🚫 <strong>Duplicate Transaction</strong>
-                <br><small>Yeh transaction hash pehle already deposit ho chuka hai.</small>
-                <br><small>💡 Ek TXID sirf ek baar use kiya ja sakta hai. Naya deposit karo to naya hash use karo.</small>
+                <br><small>This transaction hash has already been deposited.</small>
+                <br><small>💡 A TXID can only be used once. For a new deposit, use a new transaction hash.</small>
             `
         };
     }
