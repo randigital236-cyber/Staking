@@ -1210,6 +1210,7 @@ function renderDashboard(u) {
                     <div class="d-flex flex-wrap gap-2">
                         <a href="deposit.html" class="btn-primary-custom"><i class="bi bi-arrow-down-circle me-1"></i>Deposit</a>
                         <a href="withdrawal.html" class="btn-outline-custom"><i class="bi bi-arrow-up-circle me-1"></i>Withdraw</a>
+                        <a href="transfer.html" class="btn-outline-custom"><i class="bi bi-arrow-left-right me-1"></i>Transfer</a>
                         <a href="referrals.html" class="btn-outline-custom"><i class="bi bi-people me-1"></i>Referrals</a>
                         <a href="buy-package.html" class="btn-outline-custom"><i class="bi bi-box-seam me-1"></i>Buy Package</a>
                         <a href="profile.html" class="btn-outline-custom"><i class="bi bi-person me-1"></i>Profile</a>
