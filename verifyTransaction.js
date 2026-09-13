@@ -20,6 +20,23 @@ const ERC20_ABI = [
 const activeVerifications = new Map();
 
 // ============================================================
+// 🔥 AMOUNT TOLERANCE CONFIG
+// ============================================================
+const RELATIVE_TOLERANCE = 0.005;  // 0.5%
+const ABSOLUTE_TOLERANCE = 0.01;   // 0.01 USDT minimum floor
+
+export function amountsMatch(userAmount, chainAmount) {
+    const a = Number(userAmount);
+    const b = Number(chainAmount);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+    if (a <= 0 || b <= 0) return false;
+
+    const diff = Math.abs(a - b);
+    const tolerance = Math.max(b * RELATIVE_TOLERANCE, ABSOLUTE_TOLERANCE);
+    return diff <= tolerance;
+}
+
+// ============================================================
 // 🔒 GET RPC PROVIDER WITH FAILOVER
 // ============================================================
 async function getProvider() {
@@ -56,14 +73,11 @@ async function acquireProcessingLock(txHash, uid, amount) {
     
     try {
         const result = await runTransaction(lockRef, (currentData) => {
-            // If lock exists
             if (currentData !== null) {
                 const now = Date.now();
                 const lockTime = currentData.timestamp || 0;
                 
-                // Check if lock is stale (older than timeout)
                 if (now - lockTime > WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
-                    // Override stale lock
                     return {
                         uid: uid,
                         timestamp: now,
@@ -71,11 +85,9 @@ async function acquireProcessingLock(txHash, uid, amount) {
                         amount: amount
                     };
                 }
-                // Lock is active - reject
                 return;
             }
             
-            // No lock exists - create new
             return {
                 uid: uid,
                 timestamp: Date.now(),
@@ -124,10 +136,48 @@ export async function checkDuplicateTransaction(txHash) {
 }
 
 // ============================================================
-// 🔒 VERIFY TRANSACTION ON BLOCKCHAIN
+// 🔥 PARSE USDT TRANSFER FROM RECEIPT
+// ============================================================
+function parseTransferFromReceipt(receipt) {
+    const iface = new ethers.Interface(ERC20_ABI);
+    let transferEvent = null;
+    let fromAddress = null;
+    let toAddress = null;
+    let transferAmount = null;
+    let tokenContract = null;
+
+    for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
+            continue;
+        }
+        
+        try {
+            const parsedLog = iface.parseLog(log);
+            if (parsedLog && parsedLog.name === 'Transfer') {
+                fromAddress = parsedLog.args.from;
+                toAddress = parsedLog.args.to;
+                transferAmount = parsedLog.args.value;
+                tokenContract = log.address;
+                transferEvent = parsedLog;
+                break;
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+
+    return { transferEvent, fromAddress, toAddress, transferAmount, tokenContract };
+}
+
+// ============================================================
+// 🔒 VERIFY TRANSACTION ON BLOCKCHAIN (FULLY FIXED)
+// ============================================================
+// 🔥 KEY FIX:
+//   - Amount & wallet validation ab confirmations se PEHLE hoti hai
+//   - Agar amount mismatch hai, तुरंत error return karta hai
+//   - Confirmations baad me check hoti hain (sirf agar amount sahi ho)
 // ============================================================
 export async function verifyTransaction(txHash, expectedAmount) {
-    // Check if already being verified
     if (activeVerifications.has(txHash)) {
         return {
             success: false,
@@ -166,7 +216,6 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
-        // Check transaction status
         if (receipt.status !== 1) {
             return {
                 success: false,
@@ -174,7 +223,56 @@ export async function verifyTransaction(txHash, expectedAmount) {
             };
         }
         
-        // Check confirmations
+        // ============================================================
+        // 🔥 STEP 1: PARSE USDT TRANSFER FIRST
+        // ============================================================
+        const parsed = parseTransferFromReceipt(receipt);
+        
+        if (!parsed.transferEvent) {
+            return {
+                success: false,
+                error: "No USDT transfer found in this transaction. Please verify the contract address."
+            };
+        }
+        
+        if (parsed.tokenContract?.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
+            return {
+                success: false,
+                error: `Invalid token. Expected USDT (${WALLET_CONFIG.USDT_CONTRACT}) but got ${parsed.tokenContract || 'unknown'}.`
+            };
+        }
+        
+        if (parsed.toAddress?.toLowerCase() !== WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()) {
+            return {
+                success: false,
+                error: `Wrong receiver wallet. Expected ${WALLET_CONFIG.DEPOSIT_WALLET} but got ${parsed.toAddress}.`
+            };
+        }
+        
+        // ============================================================
+        // 🔥 STEP 2: CHECK AMOUNT — BEFORE CONFIRMATIONS
+        // ============================================================
+        const actualAmount = parseFloat(ethers.formatUnits(parsed.transferAmount, 18));
+        
+        if (expectedAmount && Number(expectedAmount) > 0) {
+            if (!amountsMatch(expectedAmount, actualAmount)) {
+                const tolerance = Math.max(actualAmount * RELATIVE_TOLERANCE, ABSOLUTE_TOLERANCE);
+                
+                // 🔥 Return Amount Mismatch — IMMEDIATELY, no pending!
+                return {
+                    success: false,
+                    error: `Amount mismatch. You entered ${Number(expectedAmount)} USDT but blockchain shows ${actualAmount} USDT.`,
+                    amountMismatch: true,
+                    blockchainAmount: actualAmount,
+                    userAmount: Number(expectedAmount),
+                    tolerance: tolerance
+                };
+            }
+        }
+        
+        // ============================================================
+        // 🔥 STEP 3: NOW CHECK CONFIRMATIONS
+        // ============================================================
         const currentBlock = await provider.getBlockNumber();
         const confirmations = currentBlock - receipt.blockNumber;
         
@@ -185,73 +283,9 @@ export async function verifyTransaction(txHash, expectedAmount) {
                 pending: true,
                 confirmations: confirmations,
                 currentBlock: currentBlock,
-                blockNumber: receipt.blockNumber
-            };
-        }
-        
-        // Parse USDT Transfer event
-        const iface = new ethers.Interface(ERC20_ABI);
-        let transferEvent = null;
-        let fromAddress = null;
-        let toAddress = null;
-        let transferAmount = null;
-        let tokenContract = null;
-        
-        for (const log of receipt.logs) {
-            // Check if log is from USDT contract
-            if (log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
-                continue;
-            }
-            
-            try {
-                const parsedLog = iface.parseLog(log);
-                if (parsedLog && parsedLog.name === 'Transfer') {
-                    fromAddress = parsedLog.args.from;
-                    toAddress = parsedLog.args.to;
-                    transferAmount = parsedLog.args.value;
-                    tokenContract = log.address;
-                    transferEvent = parsedLog;
-                    break;
-                }
-            } catch (e) {
-                continue;
-            }
-        }
-        
-        // No USDT transfer found
-        if (!transferEvent) {
-            return {
-                success: false,
-                error: "No USDT transfer found in this transaction. Please verify the contract address."
-            };
-        }
-        
-        // Validate token contract
-        if (tokenContract?.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
-            return {
-                success: false,
-                error: `Invalid token. Expected USDT (${WALLET_CONFIG.USDT_CONTRACT}) but got ${tokenContract || 'unknown'}.`
-            };
-        }
-        
-        // Validate receiver wallet
-        if (toAddress?.toLowerCase() !== WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()) {
-            return {
-                success: false,
-                error: `Wrong receiver wallet. Expected ${WALLET_CONFIG.DEPOSIT_WALLET} but got ${toAddress}.`
-            };
-        }
-        
-        // Get actual amount from blockchain
-        const actualAmount = parseFloat(ethers.formatUnits(transferAmount, 18));
-        const expectedAmountNum = parseFloat(expectedAmount);
-        
-        // Validate amount with tolerance
-        const tolerance = 0.001;
-        if (Math.abs(actualAmount - expectedAmountNum) > tolerance) {
-            return {
-                success: false,
-                error: `Amount mismatch. Expected ${expectedAmountNum} USDT but blockchain shows ${actualAmount.toFixed(2)} USDT.`
+                blockNumber: receipt.blockNumber,
+                // Extra info for UI
+                blockchainAmount: actualAmount
             };
         }
         
@@ -264,10 +298,10 @@ export async function verifyTransaction(txHash, expectedAmount) {
             receipt: {
                 blockNumber: receipt.blockNumber,
                 confirmations: confirmations,
-                from: fromAddress,
-                to: toAddress,
+                from: parsed.fromAddress,
+                to: parsed.toAddress,
                 amount: actualAmount,
-                tokenContract: tokenContract,
+                tokenContract: parsed.tokenContract,
                 txHash: txHash,
                 blockHash: receipt.blockHash,
                 gasUsed: receipt.gasUsed.toString(),
@@ -291,40 +325,34 @@ export async function verifyTransaction(txHash, expectedAmount) {
 // ============================================================
 export async function processDeposit(uid, txHash, amount, receipt) {
     try {
+        const finalAmount = (receipt && receipt.amount) ? Number(receipt.amount) : Number(amount);
+        
         const userRef = ref(db, `users/${uid}`);
         
-        // 🔥 ALL OPERATIONS INSIDE runTransaction()
         const result = await runTransaction(userRef, (currentData) => {
             if (!currentData) {
                 return { ...currentData };
             }
             
-            // ============================================================
-            // 🔒 STEP 1: Check for duplicate one more time inside transaction
-            // ============================================================
+            // STEP 1: Check duplicate
             const transactions = currentData.transactions || {};
             for (let key in transactions) {
                 const tx = transactions[key];
                 if (tx.type === 'deposit' && tx.txHash === txHash && tx.status === 'success') {
-                    // Already processed
                     return { ...currentData };
                 }
             }
             
-            // ============================================================
-            // 🔒 STEP 2: Update balance
-            // ============================================================
-            const currentBalance = currentData.depositWallet || 0;
-            const newBalance = currentBalance + amount;
+            // STEP 2: Update balance
+            const currentBalance = Number(currentData.depositWallet) || 0;
+            const newBalance = currentBalance + finalAmount;
             
-            // ============================================================
-            // 🔒 STEP 3: Create transaction record
-            // ============================================================
+            // STEP 3: Create transaction record
             const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
             const transactionRecord = {
                 type: 'deposit',
                 status: 'success',
-                amount: amount,
+                amount: finalAmount,
                 txHash: txHash,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
@@ -333,15 +361,11 @@ export async function processDeposit(uid, txHash, amount, receipt) {
                 confirmations: receipt.confirmations,
                 timestamp: Date.now(),
                 date: new Date().toDateString(),
-                description: `Deposit of $${amount.toFixed(2)} USDT verified on blockchain`
+                description: `Deposit of ${finalAmount.toFixed(6)} USDT verified on blockchain`
             };
             
-            // Add to transactions
             transactions[txId] = transactionRecord;
             
-            // ============================================================
-            // 🔒 STEP 4: Update user data
-            // ============================================================
             return {
                 ...currentData,
                 depositWallet: newBalance,
@@ -353,32 +377,27 @@ export async function processDeposit(uid, txHash, amount, receipt) {
             throw new Error("Transaction failed - duplicate or insufficient balance");
         }
         
-        // ============================================================
-        // 🔒 STEP 5: Mark as used (outside transaction - second layer)
-        // ============================================================
+        // STEP 5: Mark as used
         try {
             await set(ref(db, `usedTransactions/${txHash}`), {
                 uid: uid,
-                amount: amount,
+                amount: finalAmount,
                 timestamp: Date.now(),
                 blockNumber: receipt.blockNumber,
                 status: 'completed'
             });
         } catch (err) {
             console.warn('Warning: Could not mark transaction as used:', err);
-            // Non-critical - transaction already processed
         }
         
-        // ============================================================
-        // 🔒 STEP 6: Save to deposit history (for admin)
-        // ============================================================
+        // STEP 6: Save to deposit history
         try {
             const historyRef = ref(db, `depositHistory`);
             const newHistoryRef = push(historyRef);
             await set(newHistoryRef, {
                 uid: uid,
                 txHash: txHash,
-                amount: amount,
+                amount: finalAmount,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
                 to: receipt.to,
@@ -387,12 +406,13 @@ export async function processDeposit(uid, txHash, amount, receipt) {
             });
         } catch (err) {
             console.warn('Warning: Could not save deposit history:', err);
-            // Non-critical
         }
         
         return {
             success: true,
-            newBalance: result.snapshot.val().depositWallet
+            newBalance: result.snapshot.val().depositWallet,
+            amountCredited: finalAmount,
+            blockNumber: receipt.blockNumber
         };
         
     } catch (error) {
@@ -402,15 +422,13 @@ export async function processDeposit(uid, txHash, amount, receipt) {
 }
 
 // ============================================================
-// 🔒 COMPLETE DEPOSIT FLOW
+// 🔒 COMPLETE DEPOSIT FLOW (FIXED)
 // ============================================================
 export async function completeDeposit(uid, txHash, amount, onPending, onSuccess, onError) {
     console.log('🔒 Starting secure deposit flow...');
     
     try {
-        // ============================================================
-        // 🔒 STEP 1: Check duplicate first (fastest check)
-        // ============================================================
+        // STEP 1: Check duplicate
         const duplicateCheck = await checkDuplicateTransaction(txHash);
         if (duplicateCheck.isDuplicate) {
             return {
@@ -419,9 +437,7 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
             };
         }
         
-        // ============================================================
-        // 🔒 STEP 2: Acquire processing lock
-        // ============================================================
+        // STEP 2: Acquire processing lock
         const lockAcquired = await acquireProcessingLock(txHash, uid, amount);
         if (!lockAcquired) {
             return {
@@ -431,43 +447,44 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
         }
         
         try {
-            // ============================================================
-            // 🔒 STEP 3: Verify on blockchain
-            // ============================================================
+            // STEP 3: Verify on blockchain
             const verification = await verifyTransaction(txHash, amount);
             console.log('Verification result:', verification);
             
-            // ============================================================
-            // 🔒 STEP 4: Handle pending (auto-polling)
-            // ============================================================
+            // 🔥 STEP 4: Handle AMOUNT MISMATCH — do NOT enter pending loop!
+            if (verification.amountMismatch) {
+                await releaseProcessingLock(txHash);
+                return verification;  // Return mismatch immediately
+            }
+            
+            // STEP 5: Handle pending (only for valid amounts waiting for confirmations)
             if (verification.pending) {
                 if (onPending) {
                     onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
                 }
                 
-                // Start auto-polling
                 const pollingResult = await startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError);
                 await releaseProcessingLock(txHash);
                 return pollingResult;
             }
             
-            // ============================================================
-            // 🔒 STEP 5: Handle verification failure
-            // ============================================================
+            // STEP 6: Handle other failures
             if (!verification.success) {
                 await releaseProcessingLock(txHash);
                 return verification;
             }
             
-            // ============================================================
-            // 🔒 STEP 6: Process deposit atomically
-            // ============================================================
+            // STEP 7: Process deposit
             try {
                 const result = await processDeposit(uid, txHash, amount, verification.receipt);
                 await releaseProcessingLock(txHash);
                 
                 if (onSuccess) {
-                    onSuccess(result.newBalance);
+                    onSuccess(
+                        result.newBalance,
+                        result.amountCredited,
+                        result.blockNumber
+                    );
                 }
                 
                 return {
@@ -497,7 +514,7 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
 }
 
 // ============================================================
-// 🔒 AUTO-POLLING FOR PENDING TRANSACTIONS
+// 🔒 AUTO-POLLING FOR PENDING TRANSACTIONS (FIXED)
 // ============================================================
 async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError) {
     let attempts = 0;
@@ -507,7 +524,6 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
             attempts++;
             
             try {
-                // Check if lock still exists
                 const lockSnap = await get(ref(db, `processingTransactions/${txHash}`));
                 if (!lockSnap.exists()) {
                     clearInterval(pollInterval);
@@ -518,16 +534,20 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
                     return;
                 }
                 
-                // Verify again
                 const verification = await verifyTransaction(txHash, amount);
                 
-                // Still pending
+                // 🔥 If amount mismatch occurs during polling, stop immediately
+                if (verification.amountMismatch) {
+                    clearInterval(pollInterval);
+                    resolve(verification);
+                    return;
+                }
+                
                 if (verification.pending) {
                     if (onPending) {
                         onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
                     }
                     
-                    // Max attempts reached
                     if (attempts >= WALLET_CONFIG.MAX_POLLING_ATTEMPTS) {
                         clearInterval(pollInterval);
                         resolve({
@@ -540,20 +560,22 @@ async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onErr
                     return;
                 }
                 
-                // Verification done
                 clearInterval(pollInterval);
                 
-                // Verification failed
                 if (!verification.success) {
                     resolve(verification);
                     return;
                 }
                 
-                // Process deposit
                 try {
                     const result = await processDeposit(uid, txHash, amount, verification.receipt);
+                    
                     if (onSuccess) {
-                        onSuccess(result.newBalance);
+                        onSuccess(
+                            result.newBalance,
+                            result.amountCredited,
+                            result.blockNumber
+                        );
                     }
                     resolve({
                         success: true,
@@ -612,7 +634,6 @@ export async function checkPendingVerifications(uid) {
         
         for (const [txHash, lockData] of Object.entries(locks)) {
             if (lockData.uid === uid) {
-                // Check if already used
                 const usedSnap = await get(ref(db, `usedTransactions/${txHash}`));
                 if (usedSnap.exists()) {
                     await remove(ref(db, `processingTransactions/${txHash}`));
