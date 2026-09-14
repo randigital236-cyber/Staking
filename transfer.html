@@ -190,38 +190,34 @@
             transform: translateX(0);
         }
 
+        /* Sidebar header (Menu title + close) — Dashboard style */
         .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid rgba(148, 163, 184, 0.1);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-shrink: 0;
         }
-        .sidebar-brand {
+        .sidebar-header h5 {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: #e2e8f0;
+            margin: 0;
         }
-        .sidebar-brand-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.1rem;
+        .sidebar-header h5 i {
+            color: #2ecc71;
+            font-size: 1.15rem;
         }
         .sidebar-close {
             width: 36px;
             height: 36px;
-            border-radius: 50%;
-            background: rgba(148, 163, 184, 0.15);
-            border: none;
+            border-radius: 10px;
+            background: rgba(148, 163, 184, 0.12);
+            border: 1px solid rgba(148, 163, 184, 0.15);
             color: #94a3b8;
             cursor: pointer;
             display: flex;
@@ -229,98 +225,154 @@
             justify-content: center;
             font-size: 1rem;
             transition: all 0.2s;
+            flex-shrink: 0;
         }
         .sidebar-close:hover {
             background: rgba(239, 68, 68, 0.2);
             color: #ef4444;
+            transform: rotate(90deg);
         }
 
-        .sidebar-user-block {
+        /* User profile block — Dashboard style */
+        .user-profile-sidebar {
             padding: 20px;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.06), transparent);
+            flex-shrink: 0;
+        }
+        .user-profile-sidebar .profile-row {
             display: flex;
             align-items: center;
             gap: 14px;
         }
-        .sidebar-avatar {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
+        .user-profile-sidebar .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-weight: 700;
-            font-size: 1.4rem;
+            font-size: 1.2rem;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
         }
-        .sidebar-user-info {
+        .user-profile-sidebar .profile-info {
             flex: 1;
             min-width: 0;
         }
-        .sidebar-name {
-            font-weight: 700;
-            font-size: 1rem;
+        .user-profile-sidebar .user-name {
             color: #e2e8f0;
+            font-weight: 700;
+            font-size: 0.95rem;
+            line-height: 1.3;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sidebar-uid {
+        .user-profile-sidebar .user-id {
+            color: #64748b;
             font-size: 0.75rem;
-            color: #94a3b8;
+            margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-top: 4px;
         }
 
+        /* Sidebar nav items — Dashboard style */
         .sidebar-nav {
             flex: 1;
-            padding: 12px 8px;
+            padding: 8px 0;
         }
         .nav-item {
             display: flex;
             align-items: center;
             gap: 14px;
-            padding: 14px 16px;
-            border-radius: 10px;
-            color: #cbd5e1;
+            padding: 13px 18px;
+            color: #94a3b8;
             text-decoration: none;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-weight: 500;
-            margin-bottom: 2px;
-            transition: all 0.2s;
+            margin: 3px 12px;
+            border-radius: 12px;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+            min-height: 46px;
+            line-height: 1.3;
+        }
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: #2ecc71;
+            border-radius: 0 4px 4px 0;
+            transition: height 0.3s ease;
         }
         .nav-item:hover {
-            background: rgba(46, 204, 113, 0.1);
-            color: #2ecc71;
+            background: rgba(46, 204, 113, 0.08);
+            color: #ffffff;
+            transform: translateX(3px);
+        }
+        .nav-item:hover::before {
+            height: 20px;
         }
         .nav-item.active {
-            background: linear-gradient(135deg, rgba(46, 204, 113, 0.2) 0%, rgba(46, 204, 113, 0.1) 100%);
+            background: linear-gradient(90deg, rgba(46, 204, 113, 0.16), rgba(46, 204, 113, 0.03));
             color: #2ecc71;
-            border-left: 3px solid #2ecc71;
+            font-weight: 600;
+        }
+        .nav-item.active::before {
+            height: 24px;
         }
         .nav-item i {
             font-size: 1.15rem;
-            width: 22px;
+            width: 24px;
             text-align: center;
             flex-shrink: 0;
         }
+        .nav-item span:first-of-type {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .nav-item .badge {
+            margin-left: auto;
+            background: rgba(46, 204, 113, 0.15);
+            color: #2ecc71;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(46, 204, 113, 0.2);
+            flex-shrink: 0;
+        }
 
+        /* Sidebar footer (Logout) — Dashboard style */
         .sidebar-footer {
-            padding: 16px 20px;
-            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 16px 20px 24px;
+            border-top: 1px solid rgba(148, 163, 184, 0.08);
+            flex-shrink: 0;
         }
         .sidebar-footer .nav-item {
             color: #ef4444;
-            background: rgba(239, 68, 68, 0.08);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            margin: 0;
+            background: rgba(239, 68, 68, 0.06);
+        }
+        .sidebar-footer .nav-item::before {
+            background: #ef4444;
         }
         .sidebar-footer .nav-item:hover {
-            background: rgba(239, 68, 68, 0.15);
+            background: rgba(239, 68, 68, 0.12);
             color: #ef4444;
         }
 
@@ -799,8 +851,15 @@
             .form-card { padding: 20px; }
             .wallet-grid { grid-template-columns: 1fr; gap: 12px; }
             .wallet-amount { font-size: 1.3rem; }
-            .sidebar-panel { width: 260px; }
+            .sidebar-panel { width: 280px; max-width: 85vw; }
             .page-header h1 { font-size: 1.3rem; }
+            .nav-item { padding: 12px 16px; font-size: 0.88rem; }
+        }
+        @media (max-width: 380px) {
+            .sidebar-panel { width: 100%; max-width: 100%; }
+            .sidebar-header { padding: 16px; }
+            .user-profile-sidebar { padding: 16px; }
+            .nav-item { padding: 11px 14px; font-size: 0.85rem; min-height: 44px; }
         }
     </style>
 </head>
@@ -825,30 +884,33 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- ============================================ -->
-<!-- SIDEBAR -->
+<!-- SIDEBAR — Perfect Dashboard-style -->
 <!-- ============================================ -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <aside class="sidebar-panel" id="sidebarPanel">
+    <!-- Header: Menu title + close -->
     <div class="sidebar-header">
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-icon">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-            </div>
-            <span>Menu</span>
-        </div>
+        <h5>
+            <i class="bi bi-grid-1x2-fill"></i>
+            Menu
+        </h5>
         <button class="sidebar-close" id="sidebarCloseBtn">
             <i class="bi bi-x-lg"></i>
         </button>
     </div>
 
-    <div class="sidebar-user-block">
-        <div class="sidebar-avatar" id="sidebarAvatar">U</div>
-        <div class="sidebar-user-info">
-            <div class="sidebar-name" id="sidebarName">User</div>
-            <div class="sidebar-uid" id="sidebarUid">ID: ...</div>
+    <!-- User Profile Block -->
+    <div class="user-profile-sidebar">
+        <div class="profile-row">
+            <div class="avatar" id="sidebarAvatar">U</div>
+            <div class="profile-info">
+                <div class="user-name" id="sidebarName">User</div>
+                <div class="user-id" id="sidebarUid">ID: ---</div>
+            </div>
         </div>
     </div>
 
+    <!-- Nav items -->
     <nav class="sidebar-nav">
         <a href="dashboard.html" class="nav-item">
             <i class="bi bi-speedometer2"></i>
@@ -895,8 +957,13 @@
             <i class="bi bi-person"></i>
             <span>Profile</span>
         </a>
+        <a href="#" onclick="window.open('support.html', '_blank'); return false;" class="nav-item">
+            <i class="bi bi-headset"></i>
+            <span>Support Center</span>
+        </a>
     </nav>
 
+    <!-- Footer: Logout -->
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
             <i class="bi bi-box-arrow-right"></i>
