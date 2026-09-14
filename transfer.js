@@ -1,5 +1,5 @@
 // ============================================================
-// TRANSFER.JS — v6.1 (Forgot Password + Loader + Sender Info)
+// TRANSFER.JS — v6.2 (Mandatory Fix: Pending-First Save)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -174,7 +174,7 @@ async function verifyTransferPassword(uid, password) {
 }
 
 // ============================================================
-// ATOMIC TRANSFER
+// ATOMIC TRANSFER — v6.2 (Pending-First Save)
 // ============================================================
 async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, requestId, senderName, recipientName) {
     if (!senderUid || !recipientUid) return { status: 'failed', error: 'Missing IDs' };
@@ -190,6 +190,55 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     const txId = 'TX_' + requestId.replace(/-/g, '').slice(0, 20);
     const now = Date.now();
 
+    // ============================================================
+    // 🔥 STEP 1: Check existing request + Save PENDING record FIRST
+    // ============================================================
+    try {
+        const existingRequest = await get(requestRef);
+
+        if (existingRequest.exists()) {
+            const req = existingRequest.val();
+
+            if (req.status === "success") {
+                return {
+                    status: "success",
+                    txId,
+                    recipientName,
+                    duplicate: true
+                };
+            }
+
+            if (req.status === "pending") {
+                return {
+                    status: "unknown",
+                    txId,
+                    error: "Transfer already processing."
+                };
+            }
+        }
+
+        await set(requestRef, {
+            requestId,
+            txId,
+            senderUid,
+            recipientUid,
+            amount: safeAmount,
+            currency,
+            walletType,
+            status: "pending",
+            createdAt: now
+        });
+
+    } catch (err) {
+        return {
+            status: "failed",
+            error: "Unable to create transfer request."
+        };
+    }
+
+    // ============================================================
+    // Sender Transaction (unchanged)
+    // ============================================================
     const senderRef = ref(db, `users/${senderUid}`);
     let senderBalanceBefore = 0;
     let alreadyInSender = false;
@@ -228,13 +277,37 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
 
         if (alreadyInSender) return { status: 'success', txId, recipientName, duplicate: true };
         if (!senderResult.committed) {
+            // 🔥 Mark request as failed (insufficient balance)
+            try {
+                await set(requestRef, {
+                    requestId, txId, senderUid, recipientUid,
+                    amount: safeAmount, currency, walletType,
+                    status: "failed",
+                    createdAt: now,
+                    failedAt: Date.now(),
+                    reason: "Insufficient balance"
+                });
+            } catch (_) {}
             return { status: 'failed', error: `Insufficient balance. Available: ${senderBalanceBefore} ${currency}` };
         }
     } catch (err) {
         console.error('Sender error:', err);
-        return { status: 'unknown', error: 'Network error on sender' };
+        try {
+            await set(requestRef, {
+                requestId, txId, senderUid, recipientUid,
+                amount: safeAmount, currency, walletType,
+                status: "failed",
+                createdAt: now,
+                failedAt: Date.now(),
+                reason: "Sender transaction error"
+            });
+        } catch (_) {}
+        return { status: 'failed', error: 'Network error on sender' };
     }
 
+    // ============================================================
+    // Recipient Transaction (unchanged)
+    // ============================================================
     const recipientRef = ref(db, `users/${recipientUid}`);
     let alreadyInRecipient = false;
 
@@ -269,8 +342,9 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         });
 
         if (alreadyInRecipient) {
-            // Already processed
+            // Already processed — fall through to success
         } else if (!recipientResult.committed) {
+            // Rollback sender
             await runTransaction(senderRef, (currentData) => {
                 if (!currentData) return currentData;
                 const hist = currentData.transferHistory || {};
@@ -282,10 +356,27 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
                     currentData.transactions[txId].status = 'reversed';
                 return currentData;
             });
+
+            // 🔥 Mark request as failed (recipient failed)
+            await set(requestRef, {
+                requestId,
+                txId,
+                senderUid,
+                recipientUid,
+                amount: safeAmount,
+                currency,
+                walletType,
+                status: "failed",
+                createdAt: now,
+                failedAt: Date.now(),
+                reason: "Recipient transaction failed"
+            });
+
             return { status: 'failed', error: 'Recipient failed — amount returned' };
         }
     } catch (err) {
         console.error('Recipient error:', err);
+        // Keep as pending (unknown) — reconciliation will pick up
         try {
             await set(requestRef, {
                 requestId, txId, senderUid, recipientUid,
@@ -296,11 +387,21 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         return { status: 'unknown', txId, error: 'Status could not be confirmed.' };
     }
 
+    // ============================================================
+    // 🔥 STEP 2: Update PENDING → SUCCESS
+    // ============================================================
     try {
         await set(requestRef, {
-            requestId, txId, senderUid, recipientUid,
-            amount: safeAmount, currency, walletType,
-            status: 'success', createdAt: now, completedAt: Date.now()
+            requestId,
+            txId,
+            senderUid,
+            recipientUid,
+            amount: safeAmount,
+            currency,
+            walletType,
+            status: "success",
+            createdAt: now,
+            completedAt: Date.now()
         });
     } catch (err) { console.warn('Record write failed:', err); }
 
@@ -391,7 +492,7 @@ async function handlePasswordSetup() {
 }
 
 // ============================================================
-// 🔥 Password Verify — UPDATED with Sender + From/To Wallet
+// 🔥 Password Verify — with Sender + From/To Wallet
 // ============================================================
 function openPasswordVerify(details) {
     pendingTransfer = details;
@@ -692,7 +793,7 @@ async function handleTransferSubmit(e) {
                     clearActiveRequestId();
                     setTimeout(() => loadUserData(user.uid), 500);
                     resetButton(); return;
-                } else if (pData.status === 'unknown') {
+                } else if (pData.status === 'unknown' || pData.status === 'pending') {
                     showToast('⚠️ Previous transfer still verifying. Wait.', 'error');
                     resetButton(); return;
                 } else if (pData.status === 'failed') {
