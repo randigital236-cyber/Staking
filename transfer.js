@@ -1,5 +1,5 @@
 // ============================================================
-// TRANSFER.JS — v6.2 (Mandatory Fix: Pending-First Save)
+// TRANSFER.JS — v6.2 Final (runTransaction + unknownAt)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -174,7 +174,7 @@ async function verifyTransferPassword(uid, password) {
 }
 
 // ============================================================
-// ATOMIC TRANSFER — v6.2 (Pending-First Save)
+// ATOMIC TRANSFER — v6.2 Final
 // ============================================================
 async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, requestId, senderName, recipientName) {
     if (!senderUid || !recipientUid) return { status: 'failed', error: 'Missing IDs' };
@@ -191,49 +191,51 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     const now = Date.now();
 
     // ============================================================
-    // 🔥 STEP 1: Check existing request + Save PENDING record FIRST
+    // 🔥 STEP 1: Atomically check + create PENDING record
     // ============================================================
+    let alreadyCompleted = false;
+    let alreadyPending = false;
+
     try {
-        const existingRequest = await get(requestRef);
-
-        if (existingRequest.exists()) {
-            const req = existingRequest.val();
-
-            if (req.status === "success") {
-                return {
-                    status: "success",
-                    txId,
-                    recipientName,
-                    duplicate: true
-                };
+        const requestResult = await runTransaction(requestRef, (currentData) => {
+            if (currentData) {
+                if (currentData.status === 'success') {
+                    alreadyCompleted = true;
+                    return;
+                }
+                if (currentData.status === 'pending') {
+                    alreadyPending = true;
+                    return;
+                }
+                // If status is 'failed' or 'unknown', allow overwrite to pending
             }
-
-            if (req.status === "pending") {
-                return {
-                    status: "unknown",
-                    txId,
-                    error: "Transfer already processing."
-                };
-            }
-        }
-
-        await set(requestRef, {
-            requestId,
-            txId,
-            senderUid,
-            recipientUid,
-            amount: safeAmount,
-            currency,
-            walletType,
-            status: "pending",
-            createdAt: now
+            return {
+                requestId,
+                txId,
+                senderUid,
+                recipientUid,
+                amount: safeAmount,
+                currency,
+                walletType,
+                status: 'pending',
+                createdAt: now
+            };
         });
 
+        if (alreadyCompleted) {
+            return { status: 'success', txId, recipientName, duplicate: true };
+        }
+
+        if (alreadyPending) {
+            return { status: 'unknown', txId, error: 'Transfer already processing.' };
+        }
+
+        if (!requestResult.committed) {
+            return { status: 'failed', error: 'Unable to create transfer request.' };
+        }
     } catch (err) {
-        return {
-            status: "failed",
-            error: "Unable to create transfer request."
-        };
+        console.error('Request create error:', err);
+        return { status: 'failed', error: 'Unable to create transfer request.' };
     }
 
     // ============================================================
@@ -376,12 +378,15 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         }
     } catch (err) {
         console.error('Recipient error:', err);
-        // Keep as pending (unknown) — reconciliation will pick up
+        // 🔥 Keep as unknown (with unknownAt timestamp)
         try {
             await set(requestRef, {
                 requestId, txId, senderUid, recipientUid,
                 amount: safeAmount, currency, walletType,
-                status: 'unknown', createdAt: now, error: 'Network ambiguity'
+                status: 'unknown',
+                createdAt: now,
+                unknownAt: Date.now(),
+                error: 'Network ambiguity'
             });
         } catch (_) {}
         return { status: 'unknown', txId, error: 'Status could not be confirmed.' };
