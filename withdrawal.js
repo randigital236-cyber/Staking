@@ -1,5 +1,5 @@
 // ============================================================
-// 🔥 WITHDRAWAL PAGE LOGIC - RND STAKING (v3 - Hardened)
+// 🔥 WITHDRAWAL PAGE LOGIC - RND STAKING (v4 - Instant Lock)
 // ============================================================
 // 🔥 Security features:
 //   - Idempotency key (requestId) prevents double submission
@@ -8,6 +8,9 @@
 //   - Pending request tracking (survives refresh/back/multiple tabs)
 //   - Network error safe: reply with UNKNOWN state, don't double-charge
 //   - Hardened amount & address validation
+//   - ✅ v4: INSTANT UI lock (button hides on first click)
+//   - ✅ v4: Inline progress loader (no multiple toasts)
+//   - ✅ v4: finally-block always releases lock
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -48,12 +51,9 @@ const BEP20_REGEX = /^0x[a-fA-F0-9]{40}$/;
 // ============================================================
 // 🔥 UTILITY
 // ============================================================
-// 🔥 Hardened roundTo8
 function roundTo8(v) {
     const n = Number(v);
-
     if (!Number.isFinite(n)) return 0;
-
     return Math.round((n + Number.EPSILON) * 100000000) / 100000000;
 }
 
@@ -188,9 +188,8 @@ async function reserveRequestSlot(uid, requestId, payload) {
     const slotRef = ref(db, `users/${uid}/withdrawalRequests/${requestId}`);
     try {
         const result = await runTransaction(slotRef, (currentData) => {
-            // Agar pehle se hai → abort (duplicate)
             if (currentData !== null) {
-                return; // abort
+                return; // abort — duplicate
             }
             return {
                 requestId,
@@ -227,13 +226,6 @@ async function updateRequestSlot(uid, requestId, updates) {
 // ============================================================
 // 🔥 ATOMIC WITHDRAWAL PROCESS (Hardened)
 // ============================================================
-// 🔥 The heart of the security — this runs atomically on Firebase:
-//    1. Re-reads balance from server (NOT from browser)
-//    2. Strictly validates balance & amount
-//    3. Deducts amount
-//    4. Creates transaction record with withdrawalId
-//    All inside a single runTransaction → no double-charge possible.
-// ============================================================
 async function processAtomicWithdrawal(uid, walletType, amount, address, currency, withdrawalId, requestId) {
     const userRef = ref(db, 'users/' + uid);
     const now = Date.now();
@@ -244,9 +236,7 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null; // abort — user not found
             }
 
-            // ============================================================
-            // STEP 1: Check if this withdrawalId already exists (double-safety)
-            // ============================================================
+            // STEP 1: Check if this withdrawalId already exists
             const transactions = currentData.transactions || {};
             for (let key in transactions) {
                 const tx = transactions[key];
@@ -256,9 +246,7 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 }
             }
 
-            // ============================================================
             // STEP 2: Strictly validate balance and amount
-            // ============================================================
             const balance = roundTo8(currentData[walletType] || 0);
             const amt = roundTo8(amount);
 
@@ -277,9 +265,7 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null; // abort — insufficient
             }
 
-            // ============================================================
             // STEP 3: Compute and validate new balance
-            // ============================================================
             const newBalance = roundTo8(balance - amt);
 
             if (newBalance < 0 || !Number.isFinite(newBalance)) {
@@ -287,9 +273,7 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null;
             }
 
-            // ============================================================
             // STEP 4: Create transaction record
-            // ============================================================
             const txId = 'wd_' + now + '_' + Math.random().toString(36).substr(2, 8);
             transactions[txId] = {
                 type: 'withdrawal',
@@ -329,7 +313,7 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
 }
 
 // ============================================================
-// 🔥 RECONCILE PENDING REQUESTS (survives refresh/back/network fail)
+// 🔥 RECONCILE PENDING REQUESTS
 // ============================================================
 async function reconcilePendingRequests(uid) {
     try {
@@ -343,7 +327,6 @@ async function reconcilePendingRequests(uid) {
         for (const [requestId, data] of Object.entries(requests)) {
             if (!data || data.status !== 'processing') continue;
 
-            // Check if the corresponding transaction exists
             const userSnap = await get(ref(db, 'users/' + uid));
             const userData = userSnap.exists() ? userSnap.val() : null;
             const transactions = userData?.transactions || {};
@@ -358,14 +341,12 @@ async function reconcilePendingRequests(uid) {
             }
 
             if (txFound) {
-                // Success — mark complete
                 await updateRequestSlot(uid, requestId, {
                     status: 'completed',
                     completedAt: Date.now()
                 });
                 results.push({ requestId, status: 'completed' });
             } else {
-                // Was in-progress but no transaction found → likely failed → clear
                 await remove(ref(db, `users/${uid}/withdrawalRequests/${requestId}`));
                 results.push({ requestId, status: 'failed' });
             }
@@ -562,6 +543,17 @@ function renderWithdrawalUI(userData, withdrawals) {
                             <i class="bi bi-arrow-up-circle"></i>
                             <span>Submit Withdrawal</span>
                         </button>
+
+                        <!-- 🔥 v4: Processing Loader (hidden by default) -->
+                        <div id="withdrawLoader" style="display:none; margin-top:14px;">
+                            <div class="withdraw-progress-box">
+                                <div class="withdraw-progress-spinner"></div>
+                                <div class="withdraw-progress-text">
+                                    <strong>Processing Withdrawal...</strong>
+                                    <span>Checking network → Verifying balance → Submitting</span>
+                                </div>
+                            </div>
+                        </div>
                     </form>
 
                     <div class="mt-3">
@@ -615,126 +607,148 @@ function attachOptionHandlers() {
 }
 
 // ============================================================
-// 🔥 ATTACH WITHDRAW FORM HANDLER (Hardened)
+// 🔥 ATTACH WITHDRAW FORM HANDLER (v4 - Instant Lock)
 // ============================================================
 function attachWithdrawHandler(user) {
     const form = document.getElementById('withdrawForm');
     if (!form) return;
 
-    // 🔥 Prevent double-submit at the very front
     let isSubmitting = false;
+
+    // 🔥 Helper: UI lock / unlock in one place
+    function lockUI() {
+        const btn = document.getElementById('withdrawBtn');
+        const loader = document.getElementById('withdrawLoader');
+        if (btn) {
+            btn.disabled = true;
+            btn.style.display = 'none';
+        }
+        if (loader) loader.style.display = 'flex';
+    }
+
+    function unlockUI() {
+        const btn = document.getElementById('withdrawBtn');
+        const loader = document.getElementById('withdrawLoader');
+        if (loader) loader.style.display = 'none';
+        if (btn) {
+            btn.disabled = false;
+            btn.style.display = '';
+            btn.innerHTML = '<i class="bi bi-arrow-up-circle"></i> <span>Submit Withdrawal</span>';
+        }
+    }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         // ============================================================
-        // 🔥 LAYER 1: JavaScript lock (fast, client-side)
+        // 🔥 LAYER 1: Instant double-click block (BEFORE anything)
         // ============================================================
         if (isSubmitting) {
             showToast('⏳ Please wait, aapka request already process ho raha hai...', 'warning');
             return;
         }
 
+        // 🔥 LOCK IMMEDIATELY — before any await, before any validation
+        isSubmitting = true;
+        lockUI();
+
         const walletType = document.getElementById('selectedWallet').value;
         const amountRaw = document.getElementById('withAmount').value;
         const address = document.getElementById('withAddr').value.trim();
-        const btn = document.getElementById('withdrawBtn');
 
         const cfg = WITHDRAW_CONFIG[walletType];
-        if (!cfg) {
-            showToast('❌ Invalid wallet selected.', 'error');
-            return;
-        }
-
-        // ============================================================
-        // 🔥 LAYER 2: Hardened frontend validation
-        // ============================================================
-        // 🔥 Amount validation — strict
-        const amount = Number(amountRaw);
-
-        if (!Number.isFinite(amount) || amount <= 0) {
-            showToast('❌ Please enter a valid amount greater than 0.', 'error');
-            return;
-        }
-
-        const amountString = String(amountRaw).trim();
-        const decimalPart = amountString.includes('.') ? amountString.split('.')[1] : '';
-
-        if (decimalPart.length > 8) {
-            showToast('❌ Maximum 8 decimal places are allowed.', 'error');
-            return;
-        }
-
-        if (amount < cfg.min) {
-            showToast(`❌ Minimum withdrawal for ${cfg.label} is ${cfg.min} ${cfg.currency} (BEP20).`, 'error');
-            return;
-        }
-
-        // 🔥 BEP20 address validation — strict regex
-        if (!BEP20_REGEX.test(address)) {
-            showToast('❌ Please enter a valid BEP20 wallet address.', 'error');
-            return;
-        }
-
-        // ============================================================
-        // 🔥 LAYER 3: Fresh balance from server (hardened)
-        // ============================================================
-        const freshUser = await getUserData(user.uid);
-
-        if (!freshUser) {
-            showToast('❌ Unable to verify your balance. Please try again.', 'error');
-            return;
-        }
-
-        const freshBalance = Number(freshUser[walletType]);
-
-        if (!Number.isFinite(freshBalance) || freshBalance < 0) {
-            showToast('❌ Unable to verify your balance. Please try again.', 'error');
-            return;
-        }
-
-        if (freshBalance < amount) {
-            showToast(`❌ Insufficient balance! You have only ${freshBalance.toFixed(4)} ${cfg.currency}.`, 'error');
-            return;
-        }
-
-        // ============================================================
-        // 🔥 LAYER 4: Generate idempotency key (uniqueness per submission)
-        // ============================================================
-        const requestId = generateRequestId();
-        const withdrawalId = 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-
-        // Lock UI
-        isSubmitting = true;
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing...';
-        }
 
         try {
             // ============================================================
-            // 🔥 LAYER 5: Duplicate check (server-side, fast)
+            // 🔥 LAYER 2: Wallet config validation
+            // ============================================================
+            if (!cfg) {
+                showToast('❌ Invalid wallet selected.', 'error');
+                return; // finally will unlock
+            }
+
+            // ============================================================
+            // 🔥 LAYER 3: Hardened frontend validation
+            // ============================================================
+            const amount = Number(amountRaw);
+
+            if (!Number.isFinite(amount) || amount <= 0) {
+                showToast('❌ Please enter a valid amount greater than 0.', 'error');
+                return;
+            }
+
+            const amountString = String(amountRaw).trim();
+            const decimalPart = amountString.includes('.') ? amountString.split('.')[1] : '';
+
+            if (decimalPart.length > 8) {
+                showToast('❌ Maximum 8 decimal places are allowed.', 'error');
+                return;
+            }
+
+            if (amount < cfg.min) {
+                showToast(`❌ Minimum withdrawal for ${cfg.label} is ${cfg.min} ${cfg.currency} (BEP20).`, 'error');
+                return;
+            }
+
+            if (!BEP20_REGEX.test(address)) {
+                showToast('❌ Please enter a valid BEP20 wallet address.', 'error');
+                return;
+            }
+
+            // ============================================================
+            // 🔥 LAYER 4: Fresh balance from server
+            // ============================================================
+            const freshUser = await getUserData(user.uid);
+
+            if (!freshUser) {
+                showToast('❌ Unable to verify your balance. Please try again.', 'error');
+                return;
+            }
+
+            const freshBalance = Number(freshUser[walletType]);
+
+            if (!Number.isFinite(freshBalance) || freshBalance < 0) {
+                showToast('❌ Unable to verify your balance. Please try again.', 'error');
+                return;
+            }
+
+            if (freshBalance < amount) {
+                showToast(
+                    `❌ Insufficient balance! You have only ${freshBalance.toFixed(4)} ${cfg.currency}.`,
+                    'error'
+                );
+                return; // single toast, then finally unlocks
+            }
+
+            // ============================================================
+            // 🔥 LAYER 5: Idempotency keys
+            // ============================================================
+            const requestId = generateRequestId();
+            const withdrawalId = 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+
+            // ============================================================
+            // 🔥 LAYER 6: Duplicate check (server-side)
             // ============================================================
             const dupCheck = await checkDuplicateRequest(user.uid, requestId);
             if (dupCheck.isDuplicate) {
                 showToast('⚠️ Yeh request already process ho chuki hai.', 'warning');
-                throw new Error('Duplicate request — aborted');
+                return;
             }
 
             // ============================================================
-            // 🔥 LAYER 6: Reserve the request slot atomically
+            // 🔥 LAYER 7: Reserve request slot atomically
             // ============================================================
             const reserved = await reserveRequestSlot(user.uid, requestId, {
                 walletType, amount, currency: cfg.currency, address
             });
+
             if (!reserved) {
                 showToast('⏳ Yeh request already process ho rahi hai. Please wait...', 'warning');
-                throw new Error('Could not reserve request slot');
+                return;
             }
 
             // ============================================================
-            // 🔥 LAYER 7: Atomic withdrawal on Firebase
-            //          (re-verifies balance, deducts, creates tx)
+            // 🔥 LAYER 8: Atomic withdrawal on Firebase
             // ============================================================
             const result = await processAtomicWithdrawal(
                 user.uid,
@@ -757,7 +771,7 @@ function attachWithdrawHandler(user) {
             }
 
             // ============================================================
-            // 🔥 LAYER 8: Mark slot completed
+            // 🔥 LAYER 9: Mark slot completed
             // ============================================================
             await updateRequestSlot(user.uid, requestId, {
                 status: 'completed',
@@ -766,7 +780,7 @@ function attachWithdrawHandler(user) {
             });
 
             // ============================================================
-            // 🔥 LAYER 9: Push to root withdrawals (admin visibility)
+            // 🔥 LAYER 10: Push to root withdrawals (admin visibility)
             // ============================================================
             try {
                 await push(ref(db, 'withdrawals'), {
@@ -785,32 +799,33 @@ function attachWithdrawHandler(user) {
             }
 
             // ✅ SUCCESS
-            showToast(`✅ Withdrawal request submitted! ${amount} ${cfg.currency} will be processed by admin.`, 'success', 6000);
+            showToast(
+                `✅ Withdrawal request submitted! ${amount} ${cfg.currency} will be processed by admin.`,
+                'success'
+            );
 
-            // Clear form
             document.getElementById('withAmount').value = '';
             document.getElementById('withAddr').value = '';
 
-            // Reload to show updated balance + history
             setTimeout(() => { window.location.reload(); }, 2000);
+            return; // 🔥 skip unlock — reload ho raha hai
 
         } catch (err) {
             console.error('Withdrawal error:', err);
 
-            // Network ambiguity — do NOT encourage re-submission
             if (err?.message?.includes('network') || err?.code === 'NETWORK_ERROR') {
-                showToast('⚠️ Network issue — aapka request process ho sakti hai. DO NOT submit again. Page refresh karke check karein.', 'warning', 10000);
-            } else if (!err?.message?.includes('aborted') && !err?.message?.includes('reserve')) {
+                showToast(
+                    '⚠️ Network issue — aapka request process ho sakti hai. DO NOT submit again. Page refresh karke check karein.',
+                    'warning'
+                );
+            } else {
                 showToast('❌ Error submitting withdrawal. Please try again.', 'error');
             }
 
         } finally {
-            // 🔥 ALWAYS release lock (success, error, network fail — sab me)
+            // 🔥 ALWAYS release lock (except reload case handled above)
             isSubmitting = false;
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-arrow-up-circle"></i> Submit Withdrawal';
-            }
+            unlockUI();
         }
     });
 }
@@ -825,10 +840,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
-        // ============================================================
-        // Reconcile any pending requests before rendering
-        // (safe if user refreshed mid-flight)
-        // ============================================================
         try {
             await reconcilePendingRequests(user.uid);
         } catch (err) {
