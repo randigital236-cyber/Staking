@@ -857,6 +857,56 @@
         }
 
         /* ============================================================
+           🔥 v4: WITHDRAW PROGRESS LOADER (NEW)
+           ============================================================ */
+        .withdraw-progress-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.08), rgba(96, 165, 250, 0.08));
+            border: 1px solid rgba(46, 204, 113, 0.35);
+            border-radius: 12px;
+            animation: fadeInLoader 0.25s ease;
+        }
+
+        .withdraw-progress-spinner {
+            width: 26px;
+            height: 26px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #2ecc71;
+            border-radius: 50%;
+            animation: spinLoader 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        .withdraw-progress-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .withdraw-progress-text strong {
+            color: #fff;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .withdraw-progress-text span {
+            color: #9aa5b1;
+            font-size: 0.75rem;
+        }
+
+        @keyframes spinLoader {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInLoader {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================================
            RESPONSIVE
            ============================================================ */
         @media (max-width: 992px) {
