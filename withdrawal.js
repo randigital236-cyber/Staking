@@ -1,5 +1,5 @@
 // ============================================================
-// 🔥 WITHDRAWAL PAGE LOGIC - RND STAKING (v4 - Instant Lock)
+// 🔥 WITHDRAWAL PAGE LOGIC - RND STAKING (v5 - Financial Safe)
 // ============================================================
 // 🔥 Security features:
 //   - Idempotency key (requestId) prevents double submission
@@ -11,6 +11,9 @@
 //   - ✅ v4: INSTANT UI lock (button hides on first click)
 //   - ✅ v4: Inline progress loader (no multiple toasts)
 //   - ✅ v4: finally-block always releases lock
+//   - ✅ v5: deducted/deductedAmount/deductedFromWallet tracking
+//   - ✅ v5: Refund-safe reject support from admin panel
+//   - ✅ v5: Root withdrawal push wrapped safely
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -224,7 +227,12 @@ async function updateRequestSlot(uid, requestId, updates) {
 }
 
 // ============================================================
-// 🔥 ATOMIC WITHDRAWAL PROCESS (Hardened)
+// 🔥 ATOMIC WITHDRAWAL PROCESS (Hardened v5)
+// ============================================================
+// 🔥 v5 Changes:
+//   - Added: deducted, deductedAmount, deductedFromWallet
+//   - These fields allow admin reject to trigger a refund
+//   - Prevents double processing via withdrawalId + requestId
 // ============================================================
 async function processAtomicWithdrawal(uid, walletType, amount, address, currency, withdrawalId, requestId) {
     const userRef = ref(db, 'users/' + uid);
@@ -236,17 +244,29 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null; // abort — user not found
             }
 
-            // STEP 1: Check if this withdrawalId already exists
+            // ============================================================
+            // STEP 1: Check if this withdrawalId OR requestId already exists
+            // ============================================================
             const transactions = currentData.transactions || {};
             for (let key in transactions) {
                 const tx = transactions[key];
-                if (tx && tx.type === 'withdrawal' && tx.withdrawalId === withdrawalId) {
-                    console.warn('⚠️ Withdrawal already exists in transactions:', withdrawalId);
-                    return; // abort — duplicate
+                if (!tx || tx.type !== 'withdrawal') continue;
+
+                // ✅ Duplicate by withdrawalId
+                if (tx.withdrawalId === withdrawalId) {
+                    console.warn('⚠️ Withdrawal already exists (by withdrawalId):', withdrawalId);
+                    return; // abort
+                }
+                // ✅ Duplicate by requestId (extra safety)
+                if (requestId && tx.requestId === requestId) {
+                    console.warn('⚠️ Withdrawal already exists (by requestId):', requestId);
+                    return; // abort
                 }
             }
 
+            // ============================================================
             // STEP 2: Strictly validate balance and amount
+            // ============================================================
             const balance = roundTo8(currentData[walletType] || 0);
             const amt = roundTo8(amount);
 
@@ -265,7 +285,9 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null; // abort — insufficient
             }
 
+            // ============================================================
             // STEP 3: Compute and validate new balance
+            // ============================================================
             const newBalance = roundTo8(balance - amt);
 
             if (newBalance < 0 || !Number.isFinite(newBalance)) {
@@ -273,7 +295,9 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 return null;
             }
 
-            // STEP 4: Create transaction record
+            // ============================================================
+            // STEP 4: Create transaction record (with deduction tracking)
+            // ============================================================
             const txId = 'wd_' + now + '_' + Math.random().toString(36).substr(2, 8);
             transactions[txId] = {
                 type: 'withdrawal',
@@ -286,7 +310,16 @@ async function processAtomicWithdrawal(uid, walletType, amount, address, currenc
                 timestamp: now,
                 date: new Date().toDateString(),
                 status: 'pending',
-                description: `Withdrawal of ${amt} ${currency} to ${address.substring(0, 15)}...`
+                description: `Withdrawal of ${amt} ${currency} to ${address.substring(0, 15)}...`,
+
+                // ============================================================
+                // 🔥 v5: DEDUCTION TRACKING (for admin reject → refund)
+                // ============================================================
+                deducted: true,                    // amount was deducted from wallet
+                deductedAmount: amt,               // how much was deducted
+                deductedFromWallet: walletType,    // which wallet
+                deductedAt: now,                   // when
+                refunded: false                    // will be set true if admin rejects
             };
 
             return {
@@ -607,7 +640,7 @@ function attachOptionHandlers() {
 }
 
 // ============================================================
-// 🔥 ATTACH WITHDRAW FORM HANDLER (v4 - Instant Lock)
+// 🔥 ATTACH WITHDRAW FORM HANDLER (v5 - Financial Safe)
 // ============================================================
 function attachWithdrawHandler(user) {
     const form = document.getElementById('withdrawForm');
@@ -615,7 +648,6 @@ function attachWithdrawHandler(user) {
 
     let isSubmitting = false;
 
-    // 🔥 Helper: UI lock / unlock in one place
     function lockUI() {
         const btn = document.getElementById('withdrawBtn');
         const loader = document.getElementById('withdrawLoader');
@@ -641,14 +673,13 @@ function attachWithdrawHandler(user) {
         e.preventDefault();
 
         // ============================================================
-        // 🔥 LAYER 1: Instant double-click block (BEFORE anything)
+        // 🔥 LAYER 1: Instant double-click block
         // ============================================================
         if (isSubmitting) {
             showToast('⏳ Please wait, aapka request already process ho raha hai...', 'warning');
             return;
         }
 
-        // 🔥 LOCK IMMEDIATELY — before any await, before any validation
         isSubmitting = true;
         lockUI();
 
@@ -664,7 +695,7 @@ function attachWithdrawHandler(user) {
             // ============================================================
             if (!cfg) {
                 showToast('❌ Invalid wallet selected.', 'error');
-                return; // finally will unlock
+                return;
             }
 
             // ============================================================
@@ -717,7 +748,7 @@ function attachWithdrawHandler(user) {
                     `❌ Insufficient balance! You have only ${freshBalance.toFixed(4)} ${cfg.currency}.`,
                     'error'
                 );
-                return; // single toast, then finally unlocks
+                return;
             }
 
             // ============================================================
@@ -781,6 +812,7 @@ function attachWithdrawHandler(user) {
 
             // ============================================================
             // 🔥 LAYER 10: Push to root withdrawals (admin visibility)
+            // 🔥 v5: Wrapped safely — even if this fails, main tx is done
             // ============================================================
             try {
                 await push(ref(db, 'withdrawals'), {
@@ -792,10 +824,18 @@ function attachWithdrawHandler(user) {
                     walletType,
                     wallet: address,
                     status: 'pending',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+
+                    // 🔥 v5: Mirror deduction tracking for admin refund logic
+                    deducted: true,
+                    deductedAmount: amount,
+                    deductedFromWallet: walletType,
+                    deductedAt: Date.now(),
+                    refunded: false
                 });
             } catch (err) {
                 console.warn('Root withdrawal save warning (non-critical):', err);
+                // Main transaction is already committed — no rollback needed
             }
 
             // ✅ SUCCESS
@@ -808,7 +848,7 @@ function attachWithdrawHandler(user) {
             document.getElementById('withAddr').value = '';
 
             setTimeout(() => { window.location.reload(); }, 2000);
-            return; // 🔥 skip unlock — reload ho raha hai
+            return;
 
         } catch (err) {
             console.error('Withdrawal error:', err);
@@ -823,7 +863,6 @@ function attachWithdrawHandler(user) {
             }
 
         } finally {
-            // 🔥 ALWAYS release lock (except reload case handled above)
             isSubmitting = false;
             unlockUI();
         }
