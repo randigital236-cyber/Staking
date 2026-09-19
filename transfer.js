@@ -1,15 +1,25 @@
 // ============================================================
-// TRANSFER.JS — v6.2 Final (runTransaction + unknownAt)
+// TRANSFER.JS — v7.2 Final (Client-Side Only, No Cloud Function)
+// Complete safety: stale pending, unknown recovery, rollback retry,
+// background checker, multi-request tracking
 // ============================================================
 
 import { initializeApp } from "firebase/app";
-import { 
-    getAuth, 
+import {
+    getAuth,
     onAuthStateChanged,
     EmailAuthProvider,
     reauthenticateWithCredential
 } from "firebase/auth";
-import { getDatabase, ref, get, runTransaction, set, onValue } from "firebase/database";
+import {
+    getDatabase,
+    ref,
+    get,
+    runTransaction,
+    set,
+    update,
+    onValue
+} from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -26,9 +36,20 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// ============================================================
+// Config
+// ============================================================
 const WALLET_CURRENCY = { depositWallet: 'USDT', referralWallet: 'USDT', rndWallet: 'RND' };
 const WALLET_PRECISION = { depositWallet: 2, referralWallet: 2, rndWallet: 8 };
 
+const ACTIVE_REQUESTS_KEY = 'activeTransferRequestIds';
+const STALE_PENDING_MS = 90 * 1000;          // 90 sec
+const STALE_RECHECK_INTERVAL_MS = 60 * 1000;  // 1 min
+const FALLBACK_USER_SCAN = false;             // Production: false
+
+// ============================================================
+// State
+// ============================================================
 let currentUserData = null;
 let currentUserId = null;
 let transferLock = false;
@@ -36,11 +57,13 @@ let balanceListenerOff = null;
 let currentBalances = { depositWallet: 0, referralWallet: 0, rndWallet: 0 };
 let pendingTransfer = null;
 let modalOpen = false;
+let reconciliationTimer = null;
+let staleCheckTimer = null;
 
 // ============================================================
 // 👁️ Eye toggle
 // ============================================================
-window.togglePassword = function(inputId, btn) {
+window.togglePassword = function (inputId, btn) {
     const input = document.getElementById(inputId);
     if (!input) return;
     const icon = btn.querySelector('i');
@@ -65,20 +88,64 @@ async function hashPassword(password) {
 }
 
 // ============================================================
-// 🔑 Idempotency
+// 🔑 Multi-Request Tracking
 // ============================================================
+function getActiveRequestIds() {
+    try {
+        const raw = localStorage.getItem(ACTIVE_REQUESTS_KEY);
+        if (!raw) {
+            // Legacy migration
+            const legacy = localStorage.getItem('activeTransferRequestId');
+            if (legacy) {
+                const arr = [legacy];
+                localStorage.setItem(ACTIVE_REQUESTS_KEY, JSON.stringify(arr));
+                return arr;
+            }
+            return [];
+        }
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+}
+
+function addActiveRequestId(id) {
+    const arr = getActiveRequestIds();
+    if (!arr.includes(id)) arr.push(id);
+    localStorage.setItem(ACTIVE_REQUESTS_KEY, JSON.stringify(arr));
+}
+
+function removeActiveRequestId(id) {
+    const arr = getActiveRequestIds().filter(x => x !== id);
+    localStorage.setItem(ACTIVE_REQUESTS_KEY, JSON.stringify(arr));
+}
+
 function getOrCreateRequestId() {
-    let existing = localStorage.getItem('activeTransferRequestId');
-    if (existing) return existing;
-    let newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    const arr = getActiveRequestIds();
+    if (arr.length > 0) return arr[arr.length - 1];
+    const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? crypto.randomUUID()
         : 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
-    localStorage.setItem('activeTransferRequestId', newId);
+    addActiveRequestId(newId);
     return newId;
 }
-function clearActiveRequestId() {
-    localStorage.removeItem('activeTransferRequestId');
+
+function clearActiveRequestId(specificId = null) {
+    if (specificId) {
+        removeActiveRequestId(specificId);
+    } else {
+        localStorage.removeItem(ACTIVE_REQUESTS_KEY);
+        localStorage.removeItem('activeTransferRequestId');
+    }
     localStorage.removeItem('activeTransferDetails');
+}
+
+// ============================================================
+// 🕐 Stale pending detector
+// ============================================================
+function isStalePending(requestData) {
+    if (!requestData || requestData.status !== 'pending') return false;
+    const createdAt = requestData.createdAt || 0;
+    return (Date.now() - createdAt) > STALE_PENDING_MS;
 }
 
 // ============================================================
@@ -86,11 +153,14 @@ function clearActiveRequestId() {
 // ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
-    if (!container) return;
+    if (!container) {
+        console.log(`[Toast ${type}]`, message);
+        return;
+    }
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' 
-        ? 'bi-check-circle-fill text-success' 
+    const icon = type === 'success'
+        ? 'bi-check-circle-fill text-success'
         : 'bi-exclamation-triangle-fill text-danger';
     toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
     container.appendChild(toast);
@@ -101,9 +171,12 @@ function showToast(message, type = 'success') {
     }, 5000);
 }
 
+// ============================================================
+// Precision helpers
+// ============================================================
 function roundToPrecision(v, p) {
     const f = Math.pow(10, p);
-    return Math.round(v * f) / f;
+    return Math.round((v + Number.EPSILON) * f) / f;
 }
 
 function validateAmount(amount, walletType) {
@@ -117,7 +190,9 @@ function validateAmount(amount, walletType) {
     return { valid: true, value: rounded };
 }
 
-function getTodayDate() { return new Date().toISOString().split('T')[0]; }
+function getTodayDate() {
+    return new Date().toISOString().split('T')[0];
+}
 
 // ============================================================
 // Lookup
@@ -125,15 +200,36 @@ function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 async function getUserByIdentifier(identifier) {
     try {
         if (!identifier) return null;
+
+        // 1. Direct UID lookup
         const uidSnap = await get(ref(db, 'users/' + identifier));
         if (uidSnap.exists()) return { uid: identifier, data: uidSnap.val(), source: 'uid' };
+
+        // 2. Indexed lookup
+        const [unameSnap, refSnap] = await Promise.all([
+            get(ref(db, 'lookup/username/' + identifier)),
+            get(ref(db, 'lookup/referralCode/' + identifier))
+        ]);
+
+        let uid = null;
+        if (unameSnap.exists()) uid = unameSnap.val();
+        else if (refSnap.exists()) uid = refSnap.val();
+
+        if (uid) {
+            const uSnap = await get(ref(db, 'users/' + uid));
+            if (uSnap.exists()) return { uid, data: uSnap.val(), source: 'index' };
+        }
+
+        // 3. Fallback scan (dev only)
+        if (!FALLBACK_USER_SCAN) return null;
+
         const usersSnap = await get(ref(db, 'users'));
         if (usersSnap.exists()) {
             const users = usersSnap.val();
             for (const uid in users) {
                 const u = users[uid];
                 if (u.username === identifier || u.referralCode === identifier)
-                    return { uid: uid, data: u, source: 'match' };
+                    return { uid, data: u, source: 'scan' };
             }
         }
         return null;
@@ -174,13 +270,143 @@ async function verifyTransferPassword(uid, password) {
 }
 
 // ============================================================
-// ATOMIC TRANSFER — v6.2 Final
+// History normalizer (array → object)
+// ============================================================
+function normalizeTransferHistory(currentData) {
+    if (!currentData.transferHistory || Array.isArray(currentData.transferHistory)) {
+        const arr = currentData.transferHistory || [];
+        const obj = {};
+        arr.forEach((item, i) => {
+            obj[item.txId || `legacy_${i}`] = item;
+        });
+        currentData.transferHistory = obj;
+    }
+    return currentData.transferHistory;
+}
+
+// ============================================================
+// Safe request patch
+// ============================================================
+async function patchRequest(requestRef, patch) {
+    try {
+        await update(requestRef, { ...patch, updatedAt: Date.now() });
+    } catch (err) {
+        console.warn('patchRequest failed:', err);
+    }
+}
+
+// ============================================================
+// 🔧 resolveUnknownTransfer — 4 case resolver
+// ============================================================
+async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, walletType, amount) {
+    try {
+        const [senderSnap, recipientSnap] = await Promise.all([
+            get(ref(db, `users/${senderUid}/transferHistory/${txId}`)),
+            get(ref(db, `users/${recipientUid}/transferHistory/${txId}`))
+        ]);
+
+        const senderEntry = senderSnap.exists() ? senderSnap.val() : null;
+        const recipientEntry = recipientSnap.exists() ? recipientSnap.val() : null;
+
+        const senderReversed = senderEntry && senderEntry.status === 'reversed';
+        const senderCompleted = senderEntry && senderEntry.status === 'completed';
+
+        const requestRef = ref(db, `transferRequests/${requestId}`);
+
+        // CASE A: Recipient got it → SUCCESS
+        if (recipientEntry && !senderReversed) {
+            await patchRequest(requestRef, {
+                status: 'success',
+                completedAt: Date.now(),
+                resolvedBy: 'reconciliation'
+            });
+            return { status: 'success' };
+        }
+
+        // CASE B: Sender debited, Recipient missing → REFUND
+        if (senderCompleted && !recipientEntry) {
+            const precision = WALLET_PRECISION[walletType] || 8;
+            const senderRef = ref(db, `users/${senderUid}`);
+
+            let refunded = false;
+            try {
+                const rbResult = await runTransaction(senderRef, (currentData) => {
+                    if (!currentData) return currentData;
+                    normalizeTransferHistory(currentData);
+                    const hist = currentData.transferHistory || {};
+                    if (hist[txId] && hist[txId].status === 'reversed') return;
+
+                    currentData[walletType] = roundToPrecision(
+                        (currentData[walletType] || 0) + amount, precision
+                    );
+                    if (currentData.transferHistory[txId]) {
+                        currentData.transferHistory[txId].status = 'reversed';
+                        currentData.transferHistory[txId].reversedAt = Date.now();
+                        currentData.transferHistory[txId].reversedReason = 'recipient_missing';
+                    }
+                    if (currentData.transactions && currentData.transactions[txId]) {
+                        currentData.transactions[txId].status = 'reversed';
+                    }
+                    return currentData;
+                });
+                refunded = rbResult.committed;
+            } catch (rbErr) {
+                console.error('Refund failed:', rbErr);
+            }
+
+            if (refunded) {
+                await patchRequest(requestRef, {
+                    status: 'failed',
+                    failedAt: Date.now(),
+                    reason: 'Refunded — recipient never credited',
+                    resolvedBy: 'reconciliation'
+                });
+                return { status: 'failed', error: 'Refunded to sender' };
+            }
+            await patchRequest(requestRef, {
+                lastCheckedAt: Date.now(),
+                lastError: 'refund_failed'
+            });
+            return { status: 'unknown' };
+        }
+
+        // CASE C: Neither wallet touched → FAILED
+        if (!senderEntry && !recipientEntry) {
+            await patchRequest(requestRef, {
+                status: 'failed',
+                failedAt: Date.now(),
+                reason: 'Neither wallet touched',
+                resolvedBy: 'reconciliation'
+            });
+            return { status: 'failed', error: 'No debit detected' };
+        }
+
+        // CASE D: Data corruption
+        if (senderReversed && recipientEntry) {
+            await patchRequest(requestRef, {
+                status: 'unknown',
+                needsManualReview: true,
+                lastCheckedAt: Date.now(),
+                lastError: 'Data inconsistency'
+            });
+            return { status: 'unknown', error: 'Manual review needed' };
+        }
+
+        return { status: 'unknown' };
+    } catch (err) {
+        console.error('Resolve unknown error:', err);
+        return { status: 'unknown', error: err.message };
+    }
+}
+
+// ============================================================
+// ATOMIC TRANSFER — v7.2
 // ============================================================
 async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, requestId, senderName, recipientName) {
     if (!senderUid || !recipientUid) return { status: 'failed', error: 'Missing IDs' };
     if (senderUid === recipientUid) return { status: 'failed', error: 'Cannot send to yourself' };
     if (!WALLET_CURRENCY[walletType]) return { status: 'failed', error: 'Invalid wallet' };
-    
+
     const amountCheck = validateAmount(amount, walletType);
     if (!amountCheck.valid) return { status: 'failed', error: amountCheck.error };
     const safeAmount = amountCheck.value;
@@ -191,7 +417,7 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     const now = Date.now();
 
     // ============================================================
-    // 🔥 STEP 1: Atomically check + create PENDING record
+    // STEP 1: Create PENDING record
     // ============================================================
     let alreadyCompleted = false;
     let alreadyPending = false;
@@ -199,36 +425,29 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     try {
         const requestResult = await runTransaction(requestRef, (currentData) => {
             if (currentData) {
-                if (currentData.status === 'success') {
-                    alreadyCompleted = true;
-                    return;
-                }
-                if (currentData.status === 'pending') {
-                    alreadyPending = true;
-                    return;
-                }
-                // If status is 'failed' or 'unknown', allow overwrite to pending
+                if (currentData.status === 'success') { alreadyCompleted = true; return; }
+                if (currentData.status === 'pending') { alreadyPending = true; return; }
+                return {
+                    ...currentData,
+                    requestId, txId, senderUid, recipientUid,
+                    amount: safeAmount, currency, walletType,
+                    status: 'pending',
+                    createdAt: currentData.createdAt || now,
+                    retriedAt: now,
+                    retryCount: (currentData.retryCount || 0) + 1
+                };
             }
             return {
-                requestId,
-                txId,
-                senderUid,
-                recipientUid,
-                amount: safeAmount,
-                currency,
-                walletType,
+                requestId, txId, senderUid, recipientUid,
+                amount: safeAmount, currency, walletType,
                 status: 'pending',
-                createdAt: now
+                createdAt: now,
+                retryCount: 0
             };
         });
 
-        if (alreadyCompleted) {
-            return { status: 'success', txId, recipientName, duplicate: true };
-        }
-
-        if (alreadyPending) {
-            return { status: 'unknown', txId, error: 'Transfer already processing.' };
-        }
+        if (alreadyCompleted) return { status: 'success', txId, recipientName, duplicate: true };
+        if (alreadyPending) return { status: 'unknown', txId, error: 'Transfer already processing.' };
 
         if (!requestResult.committed) {
             return { status: 'failed', error: 'Unable to create transfer request.' };
@@ -239,7 +458,7 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     }
 
     // ============================================================
-    // Sender Transaction (unchanged)
+    // STEP 2: Sender debit
     // ============================================================
     const senderRef = ref(db, `users/${senderUid}`);
     let senderBalanceBefore = 0;
@@ -248,21 +467,18 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     try {
         const senderResult = await runTransaction(senderRef, (currentData) => {
             if (!currentData) return currentData;
+            normalizeTransferHistory(currentData);
             const history = currentData.transferHistory || {};
             if (history[txId]) { alreadyInSender = true; return; }
+
             const balance = roundToPrecision(currentData[walletType] || 0, precision);
             senderBalanceBefore = balance;
             if (balance < safeAmount) return;
-            currentData[walletType] = roundToPrecision(balance - safeAmount, precision);
 
-            if (!currentData.transferHistory || Array.isArray(currentData.transferHistory)) {
-                const arr = currentData.transferHistory || [];
-                const obj = {};
-                arr.forEach((item, i) => { obj[item.txId || `legacy_${i}`] = item; });
-                currentData.transferHistory = obj;
-            }
+            currentData[walletType] = roundToPrecision(balance - safeAmount, precision);
             currentData.transferHistory[txId] = {
-                type: 'sent', to: recipientName, toUid: recipientUid, toUsername: recipientName,
+                type: 'sent',
+                to: recipientName, toUid: recipientUid, toUsername: recipientName,
                 amount: safeAmount, currency, walletType,
                 from: senderName, fromUid: senderUid, fromUsername: senderName,
                 timestamp: now, txId, requestId, status: 'completed'
@@ -278,37 +494,30 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         });
 
         if (alreadyInSender) return { status: 'success', txId, recipientName, duplicate: true };
+
         if (!senderResult.committed) {
-            // 🔥 Mark request as failed (insufficient balance)
-            try {
-                await set(requestRef, {
-                    requestId, txId, senderUid, recipientUid,
-                    amount: safeAmount, currency, walletType,
-                    status: "failed",
-                    createdAt: now,
-                    failedAt: Date.now(),
-                    reason: "Insufficient balance"
-                });
-            } catch (_) {}
-            return { status: 'failed', error: `Insufficient balance. Available: ${senderBalanceBefore} ${currency}` };
+            await patchRequest(requestRef, {
+                status: 'failed',
+                failedAt: Date.now(),
+                reason: 'Insufficient balance'
+            });
+            return {
+                status: 'failed',
+                error: `Insufficient balance. Available: ${senderBalanceBefore} ${currency}`
+            };
         }
     } catch (err) {
         console.error('Sender error:', err);
-        try {
-            await set(requestRef, {
-                requestId, txId, senderUid, recipientUid,
-                amount: safeAmount, currency, walletType,
-                status: "failed",
-                createdAt: now,
-                failedAt: Date.now(),
-                reason: "Sender transaction error"
-            });
-        } catch (_) {}
+        await patchRequest(requestRef, {
+            status: 'failed',
+            failedAt: Date.now(),
+            reason: 'Sender transaction error'
+        });
         return { status: 'failed', error: 'Network error on sender' };
     }
 
     // ============================================================
-    // Recipient Transaction (unchanged)
+    // STEP 3: Recipient credit
     // ============================================================
     const recipientRef = ref(db, `users/${recipientUid}`);
     let alreadyInRecipient = false;
@@ -316,19 +525,16 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     try {
         const recipientResult = await runTransaction(recipientRef, (currentData) => {
             if (!currentData) return currentData;
+            normalizeTransferHistory(currentData);
             const history = currentData.transferHistory || {};
             if (history[txId]) { alreadyInRecipient = true; return; }
+
             const balance = roundToPrecision(currentData[walletType] || 0, precision);
             currentData[walletType] = roundToPrecision(balance + safeAmount, precision);
 
-            if (!currentData.transferHistory || Array.isArray(currentData.transferHistory)) {
-                const arr = currentData.transferHistory || [];
-                const obj = {};
-                arr.forEach((item, i) => { obj[item.txId || `legacy_${i}`] = item; });
-                currentData.transferHistory = obj;
-            }
             currentData.transferHistory[txId] = {
-                type: 'received', from: senderName, fromUid: senderUid, fromUsername: senderName,
+                type: 'received',
+                from: senderName, fromUid: senderUid, fromUsername: senderName,
                 to: recipientName, toUid: recipientUid, toUsername: recipientName,
                 amount: safeAmount, currency, walletType,
                 timestamp: now, txId, requestId, status: 'completed'
@@ -344,71 +550,70 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         });
 
         if (alreadyInRecipient) {
-            // Already processed — fall through to success
+            // already done — success path
         } else if (!recipientResult.committed) {
+            // ============================================================
             // Rollback sender
-            await runTransaction(senderRef, (currentData) => {
-                if (!currentData) return currentData;
-                const hist = currentData.transferHistory || {};
-                if (hist[txId] && hist[txId].status === 'reversed') return;
-                currentData[walletType] = roundToPrecision((currentData[walletType] || 0) + safeAmount, precision);
-                if (currentData.transferHistory && currentData.transferHistory[txId])
-                    currentData.transferHistory[txId].status = 'reversed';
-                if (currentData.transactions && currentData.transactions[txId])
-                    currentData.transactions[txId].status = 'reversed';
-                return currentData;
-            });
+            // ============================================================
+            let rollbackSuccess = false;
+            try {
+                const rbResult = await runTransaction(senderRef, (currentData) => {
+                    if (!currentData) return currentData;
+                    normalizeTransferHistory(currentData);
+                    const hist = currentData.transferHistory || {};
+                    if (hist[txId] && hist[txId].status === 'reversed') return;
 
-            // 🔥 Mark request as failed (recipient failed)
-            await set(requestRef, {
-                requestId,
-                txId,
-                senderUid,
-                recipientUid,
-                amount: safeAmount,
-                currency,
-                walletType,
-                status: "failed",
-                createdAt: now,
+                    currentData[walletType] = roundToPrecision(
+                        (currentData[walletType] || 0) + safeAmount, precision
+                    );
+                    if (currentData.transferHistory[txId]) {
+                        currentData.transferHistory[txId].status = 'reversed';
+                        currentData.transferHistory[txId].reversedAt = Date.now();
+                    }
+                    if (currentData.transactions && currentData.transactions[txId]) {
+                        currentData.transactions[txId].status = 'reversed';
+                    }
+                    return currentData;
+                });
+                rollbackSuccess = rbResult.committed;
+            } catch (rbErr) {
+                console.error('Rollback failed:', rbErr);
+            }
+
+            if (!rollbackSuccess) {
+                await patchRequest(requestRef, {
+                    status: 'unknown',
+                    unknownAt: Date.now(),
+                    error: 'Recipient failed + rollback failed',
+                    lastError: 'rollback_failed'
+                });
+                return { status: 'unknown', txId, error: 'Rollback pending — will retry' };
+            }
+
+            await patchRequest(requestRef, {
+                status: 'failed',
                 failedAt: Date.now(),
-                reason: "Recipient transaction failed"
+                reason: 'Recipient transaction failed — refunded'
             });
-
             return { status: 'failed', error: 'Recipient failed — amount returned' };
         }
     } catch (err) {
         console.error('Recipient error:', err);
-        // 🔥 Keep as unknown (with unknownAt timestamp)
-        try {
-            await set(requestRef, {
-                requestId, txId, senderUid, recipientUid,
-                amount: safeAmount, currency, walletType,
-                status: 'unknown',
-                createdAt: now,
-                unknownAt: Date.now(),
-                error: 'Network ambiguity'
-            });
-        } catch (_) {}
+        await patchRequest(requestRef, {
+            status: 'unknown',
+            unknownAt: Date.now(),
+            error: 'Network ambiguity'
+        });
         return { status: 'unknown', txId, error: 'Status could not be confirmed.' };
     }
 
     // ============================================================
-    // 🔥 STEP 2: Update PENDING → SUCCESS
+    // STEP 4: Mark SUCCESS
     // ============================================================
-    try {
-        await set(requestRef, {
-            requestId,
-            txId,
-            senderUid,
-            recipientUid,
-            amount: safeAmount,
-            currency,
-            walletType,
-            status: "success",
-            createdAt: now,
-            completedAt: Date.now()
-        });
-    } catch (err) { console.warn('Record write failed:', err); }
+    await patchRequest(requestRef, {
+        status: 'success',
+        completedAt: Date.now()
+    });
 
     return { status: 'success', txId, recipientName };
 }
@@ -421,34 +626,36 @@ function openModal(id) {
     if (m) m.classList.add('active');
     modalOpen = true;
 }
+
 function closeModal(id) {
     const m = document.getElementById(id);
     if (m) m.classList.remove('active');
     modalOpen = false;
+
     if (id === 'setupModal') {
-        ['setupPassword', 'setupPasswordConfirm'].forEach(id => {
-            const el = document.getElementById(id);
+        ['setupPassword', 'setupPasswordConfirm'].forEach(eid => {
+            const el = document.getElementById(eid);
             if (el) { el.value = ''; el.type = 'password'; }
         });
         document.querySelectorAll('#setupModal .password-eye i').forEach(i => i.className = 'bi bi-eye');
-        document.getElementById('setupError').classList.remove('show');
+        document.getElementById('setupError')?.classList.remove('show');
     }
     if (id === 'verifyModal') {
         const el = document.getElementById('verifyPassword');
         if (el) { el.value = ''; el.type = 'password'; }
         document.querySelectorAll('#verifyModal .password-eye i').forEach(i => i.className = 'bi bi-eye');
-        document.getElementById('verifyError').classList.remove('show');
+        document.getElementById('verifyError')?.classList.remove('show');
     }
     if (id === 'forgotModal') {
-        ['forgotAccountPassword', 'forgotNewPassword', 'forgotNewPasswordConfirm'].forEach(id => {
-            const el = document.getElementById(id);
+        ['forgotAccountPassword', 'forgotNewPassword', 'forgotNewPasswordConfirm'].forEach(eid => {
+            const el = document.getElementById(eid);
             if (el) { el.value = ''; el.type = 'password'; }
         });
         document.querySelectorAll('#forgotModal .password-eye i').forEach(i => i.className = 'bi bi-eye');
-        document.getElementById('forgotError1').classList.remove('show');
-        document.getElementById('forgotError2').classList.remove('show');
-        document.getElementById('forgotStep1').classList.add('active');
-        document.getElementById('forgotStep2').classList.remove('active');
+        document.getElementById('forgotError1')?.classList.remove('show');
+        document.getElementById('forgotError2')?.classList.remove('show');
+        document.getElementById('forgotStep1')?.classList.add('active');
+        document.getElementById('forgotStep2')?.classList.remove('active');
     }
 }
 
@@ -457,7 +664,7 @@ function closeModal(id) {
 // ============================================================
 function openPasswordSetup() {
     openModal('setupModal');
-    setTimeout(() => document.getElementById('setupPassword').focus(), 200);
+    setTimeout(() => document.getElementById('setupPassword')?.focus(), 200);
 }
 
 async function handlePasswordSetup() {
@@ -497,13 +704,12 @@ async function handlePasswordSetup() {
 }
 
 // ============================================================
-// 🔥 Password Verify — with Sender + From/To Wallet
+// Password Verify
 // ============================================================
 function openPasswordVerify(details) {
     pendingTransfer = details;
     const detailsEl = document.getElementById('verifyDetails');
 
-    // Determine wallet badge class + icon
     let walletClass = 'deposit';
     let walletIcon = 'bi-wallet2';
     if (details.walletType === 'referralWallet') { walletClass = 'referral'; walletIcon = 'bi-coin'; }
@@ -536,7 +742,7 @@ function openPasswordVerify(details) {
         </div>
     `;
     openModal('verifyModal');
-    setTimeout(() => document.getElementById('verifyPassword').focus(), 200);
+    setTimeout(() => document.getElementById('verifyPassword')?.focus(), 200);
 }
 
 async function handlePasswordVerify() {
@@ -576,7 +782,6 @@ async function handlePasswordVerify() {
         btn.innerHTML = '<i class="bi bi-shield-check me-2"></i>Verify & Send';
 
         await executeTransfer(details);
-
     } catch (err) {
         console.error('Verify error:', err);
         errorEl.textContent = 'Error आया।';
@@ -616,20 +821,45 @@ async function executeTransfer(details) {
             }
             document.getElementById('recipientInput').value = '';
             document.getElementById('amountInput').value = '';
-            clearActiveRequestId();
+            clearActiveRequestId(details.requestId);
             setTimeout(() => loadUserData(user.uid), 500);
             resetButton();
         } else if (result.status === 'unknown') {
-            showToast('⚠️ Status could not be confirmed. Please wait...', 'error');
+            showToast('⚠️ Status could not be confirmed. Auto-recovery शुरू...', 'error');
             if (btn) {
                 btn.className = 'btn-send verifying';
                 btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
             }
+
+            // Immediate resolve attempt
+            const snap = await get(ref(db, `transferRequests/${details.requestId}`));
+            if (snap.exists()) {
+                const d = snap.val();
+                const resolved = await resolveUnknownTransfer(
+                    details.requestId, d.txId, d.senderUid, d.recipientUid,
+                    d.walletType, d.amount
+                );
+                if (resolved.status === 'success') {
+                    showToast('✅ Transfer confirmed (recovered)!', 'success');
+                    clearActiveRequestId(details.requestId);
+                    loadUserData(user.uid);
+                    resetButton();
+                    return;
+                }
+                if (resolved.status === 'failed') {
+                    showToast('❌ Transfer failed — amount refunded.', 'error');
+                    clearActiveRequestId(details.requestId);
+                    loadUserData(user.uid);
+                    resetButton();
+                    return;
+                }
+            }
+
             startReconciliationLoop(details.requestId, user.uid);
             return;
         } else {
             showToast('❌ ' + (result.error || 'Transfer failed'), 'error');
-            clearActiveRequestId();
+            clearActiveRequestId(details.requestId);
             resetButton();
         }
     } catch (err) {
@@ -651,7 +881,7 @@ function resetButton() {
 }
 
 // ============================================================
-// 🆕 FORGOT PASSWORD — Step 1: Verify account password
+// FORGOT PASSWORD — Step 1
 // ============================================================
 async function handleForgotVerify() {
     const password = document.getElementById('forgotAccountPassword').value;
@@ -676,16 +906,13 @@ async function handleForgotVerify() {
     btn.innerHTML = '<span class="loading-spinner me-2"></span>Verifying...';
 
     try {
-        // 🔑 Firebase से verify करो — असली तरीका
         const credential = EmailAuthProvider.credential(user.email, password);
         await reauthenticateWithCredential(user, credential);
 
-        // ✅ Password सही — step 2 दिखाओ
         document.getElementById('forgotStep1').classList.remove('active');
         document.getElementById('forgotStep2').classList.add('active');
         document.getElementById('forgotAccountPassword').value = '';
-        setTimeout(() => document.getElementById('forgotNewPassword').focus(), 200);
-
+        setTimeout(() => document.getElementById('forgotNewPassword')?.focus(), 200);
     } catch (err) {
         console.error('Forgot verify error:', err);
         let msg = '❌ Account password गलत है';
@@ -705,7 +932,7 @@ async function handleForgotVerify() {
 }
 
 // ============================================================
-// 🆕 FORGOT PASSWORD — Step 2: Set new password
+// FORGOT PASSWORD — Step 2
 // ============================================================
 async function handleForgotReset() {
     const pwd = document.getElementById('forgotNewPassword').value;
@@ -733,7 +960,6 @@ async function handleForgotReset() {
         showToast('✅ Transfer password reset successfully!', 'success');
         closeModal('forgotModal');
         pendingTransfer = null;
-        // 🔑 User को फिर Send दबाना पड़ेगा
     } catch (err) {
         console.error('Reset error:', err);
         errorEl.textContent = 'Password save नहीं हुआ।';
@@ -768,6 +994,7 @@ async function handleTransferSubmit(e) {
         const amountRaw = document.getElementById('amountInput').value;
 
         if (!recipientInput) { showToast('❌ Enter recipient', 'error'); resetButton(); return; }
+
         const amount = parseFloat(amountRaw);
         if (!isFinite(amount) || Number.isNaN(amount) || amount <= 0) {
             showToast('❌ Valid amount डालें', 'error'); resetButton(); return;
@@ -788,27 +1015,65 @@ async function handleTransferSubmit(e) {
         if (!recipient) { showToast('❌ User not found!', 'error'); resetButton(); return; }
         if (recipient.uid === user.uid) { showToast('❌ Cannot send to yourself!', 'error'); resetButton(); return; }
 
-        const existingRequestId = localStorage.getItem('activeTransferRequestId');
-        if (existingRequestId) {
-            const pendingSnap = await get(ref(db, `transferRequests/${existingRequestId}`));
-            if (pendingSnap.exists()) {
+        // ============================================================
+        // Check existing active requests
+        // ============================================================
+        const activeIds = getActiveRequestIds();
+        for (const existingRequestId of activeIds) {
+            try {
+                const pendingSnap = await get(ref(db, `transferRequests/${existingRequestId}`));
+                if (!pendingSnap.exists()) { removeActiveRequestId(existingRequestId); continue; }
+
                 const pData = pendingSnap.val();
+
                 if (pData.status === 'success') {
-                    showToast('✅ Previous transfer completed. Refreshing...', 'success');
-                    clearActiveRequestId();
-                    setTimeout(() => loadUserData(user.uid), 500);
-                    resetButton(); return;
-                } else if (pData.status === 'unknown' || pData.status === 'pending') {
+                    removeActiveRequestId(existingRequestId);
+                    continue;
+                }
+
+                if (pData.status === 'failed') {
+                    removeActiveRequestId(existingRequestId);
+                    continue;
+                }
+
+                // Stale pending → promote
+                if (isStalePending(pData)) {
+                    await patchRequest(ref(db, `transferRequests/${existingRequestId}`), {
+                        status: 'unknown',
+                        unknownAt: Date.now(),
+                        promotedFrom: 'submit_precheck'
+                    });
+                    pData.status = 'unknown';
+                }
+
+                if (pData.status === 'unknown' || pData.status === 'pending') {
+                    const resolved = await resolveUnknownTransfer(
+                        existingRequestId, pData.txId, pData.senderUid,
+                        pData.recipientUid, pData.walletType, pData.amount
+                    );
+                    if (resolved.status === 'success') {
+                        showToast('✅ Previous transfer confirmed!', 'success');
+                        removeActiveRequestId(existingRequestId);
+                        loadUserData(user.uid);
+                        resetButton(); return;
+                    }
+                    if (resolved.status === 'failed') {
+                        showToast('❌ Previous failed & refunded.', 'error');
+                        removeActiveRequestId(existingRequestId);
+                        loadUserData(user.uid);
+                        resetButton(); return;
+                    }
                     showToast('⚠️ Previous transfer still verifying. Wait.', 'error');
                     resetButton(); return;
-                } else if (pData.status === 'failed') {
-                    clearActiveRequestId();
                 }
-            } else {
-                clearActiveRequestId();
+            } catch (err) {
+                console.warn('Precheck error:', err);
             }
         }
 
+        // ============================================================
+        // Create new request
+        // ============================================================
         const requestId = getOrCreateRequestId();
         const senderName = getUserDisplayName(currentUserData, user.uid);
         const recipientName = getUserDisplayName(recipient.data, recipient.uid);
@@ -822,11 +1087,12 @@ async function handleTransferSubmit(e) {
 
         const hasPwd = await hasTransferPassword(user.uid);
 
-        transferLock = false;
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-send me-2"></i> Send Money';
         }
+
+        transferLock = false;
 
         if (!hasPwd) {
             openPasswordSetup();
@@ -849,59 +1115,226 @@ function getWalletLabel(w) {
 }
 
 // ============================================================
-// Reconciliation
+// Reconciliation Loop (10 min max)
 // ============================================================
 function startReconciliationLoop(requestId, userId) {
+    if (reconciliationTimer) clearTimeout(reconciliationTimer);
+
     let attempts = 0;
-    const maxAttempts = 30;
+    const maxAttempts = 60;
+
     const check = async () => {
         attempts++;
         try {
             const snap = await get(ref(db, `transferRequests/${requestId}`));
-            if (snap.exists()) {
-                const data = snap.val();
-                if (data.status === 'success') {
-                    showToast('✅ Transfer confirmed!', 'success');
-                    clearActiveRequestId();
+            if (!snap.exists()) {
+                if (attempts < maxAttempts) {
+                    reconciliationTimer = setTimeout(check, 10000);
+                }
+                return;
+            }
+
+            const data = snap.val();
+
+            if (data.status === 'success') {
+                showToast('✅ Transfer confirmed!', 'success');
+                clearActiveRequestId(requestId);
+                loadUserData(userId);
+                resetButton();
+                startStaleChecker();
+                return;
+            }
+
+            if (data.status === 'failed') {
+                showToast('❌ Transfer failed & refunded.', 'error');
+                clearActiveRequestId(requestId);
+                loadUserData(userId);
+                resetButton();
+                startStaleChecker();
+                return;
+            }
+
+            // Stale pending → promote
+            if (isStalePending(data)) {
+                await patchRequest(ref(db, `transferRequests/${requestId}`), {
+                    status: 'unknown',
+                    unknownAt: Date.now(),
+                    promotedFrom: 'reconciliation_loop'
+                });
+                data.status = 'unknown';
+            }
+
+            if (data.status === 'unknown') {
+                const resolved = await resolveUnknownTransfer(
+                    requestId, data.txId, data.senderUid,
+                    data.recipientUid, data.walletType, data.amount
+                );
+                if (resolved.status === 'success') {
+                    showToast('✅ Transfer confirmed (recovered)!', 'success');
+                    clearActiveRequestId(requestId);
                     loadUserData(userId);
                     resetButton();
+                    startStaleChecker();
                     return;
-                } else if (data.status === 'failed') {
-                    showToast('❌ Transfer failed.', 'error');
-                    clearActiveRequestId();
+                }
+                if (resolved.status === 'failed') {
+                    showToast('❌ Transfer failed — amount refunded.', 'error');
+                    clearActiveRequestId(requestId);
                     loadUserData(userId);
                     resetButton();
+                    startStaleChecker();
                     return;
                 }
             }
+
             if (attempts >= maxAttempts) {
-                showToast('⚠️ Still verifying. Refresh later.', 'error');
+                showToast('⚠️ Verifying... Background में जारी रहेगा।', 'error');
+                try {
+                    await update(ref(db, `transferRequests/${requestId}`), {
+                        stuckAt: Date.now(),
+                        stuckCheckpoint: attempts
+                    });
+                } catch (_) {}
+                resetButton();
+                startStaleChecker();
                 return;
             }
-            setTimeout(check, 10000);
+
+            reconciliationTimer = setTimeout(check, 10000);
         } catch (err) {
-            if (attempts < maxAttempts) setTimeout(check, 10000);
+            if (attempts < maxAttempts) {
+                reconciliationTimer = setTimeout(check, 10000);
+            } else {
+                resetButton();
+                startStaleChecker();
+            }
         }
     };
-    setTimeout(check, 3000);
+
+    reconciliationTimer = setTimeout(check, 3000);
 }
 
-async function reconcilePending() {
-    const requestId = localStorage.getItem('activeTransferRequestId');
-    if (!requestId) return;
-    try {
-        const snap = await get(ref(db, `transferRequests/${requestId}`));
-        if (snap.exists()) {
+// ============================================================
+// Background Stale Checker (हर 1 मिनट)
+// ============================================================
+function startStaleChecker() {
+    if (staleCheckTimer) clearInterval(staleCheckTimer);
+    staleCheckTimer = setInterval(async () => {
+        const ids = getActiveRequestIds();
+        if (ids.length === 0) {
+            clearInterval(staleCheckTimer);
+            staleCheckTimer = null;
+            return;
+        }
+        for (const requestId of ids) {
+            try {
+                const snap = await get(ref(db, `transferRequests/${requestId}`));
+                if (!snap.exists()) { removeActiveRequestId(requestId); continue; }
+                const data = snap.val();
+
+                if (data.status === 'success' || data.status === 'failed') {
+                    removeActiveRequestId(requestId);
+                    if (currentUserId) loadUserData(currentUserId);
+                    continue;
+                }
+
+                if (isStalePending(data)) {
+                    await patchRequest(ref(db, `transferRequests/${requestId}`), {
+                        status: 'unknown',
+                        unknownAt: Date.now(),
+                        promotedFrom: 'stale_checker'
+                    });
+                    data.status = 'unknown';
+                }
+
+                if (data.status === 'unknown') {
+                    const resolved = await resolveUnknownTransfer(
+                        requestId, data.txId, data.senderUid,
+                        data.recipientUid, data.walletType, data.amount
+                    );
+                    if (resolved.status === 'success' || resolved.status === 'failed') {
+                        removeActiveRequestId(requestId);
+                        if (currentUserId) loadUserData(currentUserId);
+                    }
+                }
+            } catch (_) { /* silent */ }
+        }
+    }, STALE_RECHECK_INTERVAL_MS);
+}
+
+// ============================================================
+// On-Load Verification (all active requests)
+// ============================================================
+async function verifyPendingTransfersOnLoad() {
+    const ids = getActiveRequestIds();
+    if (ids.length === 0) return;
+
+    let anyBlocking = false;
+
+    for (const requestId of ids) {
+        try {
+            const snap = await get(ref(db, `transferRequests/${requestId}`));
+            if (!snap.exists()) {
+                removeActiveRequestId(requestId);
+                continue;
+            }
+
             const data = snap.val();
+
             if (data.status === 'success') {
                 showToast('✅ Previous transfer confirmed!', 'success');
-                clearActiveRequestId();
+                removeActiveRequestId(requestId);
                 if (currentUserId) loadUserData(currentUserId);
-            } else if (data.status === 'failed') {
+                continue;
+            }
+
+            if (data.status === 'failed') {
                 showToast('❌ Previous transfer failed.', 'error');
-                clearActiveRequestId();
-            } else {
-                showToast('⚠️ Previous transfer still verifying.', 'error');
+                removeActiveRequestId(requestId);
+                if (currentUserId) loadUserData(currentUserId);
+                continue;
+            }
+
+            // Stale pending → promote
+            if (isStalePending(data)) {
+                await patchRequest(ref(db, `transferRequests/${requestId}`), {
+                    status: 'unknown',
+                    unknownAt: Date.now(),
+                    promotedFrom: 'stale_pending'
+                });
+                data.status = 'unknown';
+            }
+
+            if (data.status === 'unknown') {
+                const resolved = await resolveUnknownTransfer(
+                    requestId, data.txId, data.senderUid,
+                    data.recipientUid, data.walletType, data.amount
+                );
+
+                if (resolved.status === 'success') {
+                    showToast('✅ Transfer confirmed!', 'success');
+                    removeActiveRequestId(requestId);
+                    if (currentUserId) loadUserData(currentUserId);
+                    continue;
+                }
+                if (resolved.status === 'failed') {
+                    showToast('❌ Transfer failed & refunded.', 'error');
+                    removeActiveRequestId(requestId);
+                    if (currentUserId) loadUserData(currentUserId);
+                    continue;
+                }
+
+                anyBlocking = true;
+                const btn = document.getElementById('sendBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.className = 'btn-send verifying';
+                    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
+                }
+                transferLock = true;
+                startReconciliationLoop(requestId, currentUserId);
+            } else if (data.status === 'pending') {
+                anyBlocking = true;
                 const btn = document.getElementById('sendBtn');
                 if (btn) {
                     btn.disabled = true;
@@ -911,10 +1344,13 @@ async function reconcilePending() {
                 transferLock = true;
                 startReconciliationLoop(requestId, currentUserId);
             }
-        } else {
-            clearActiveRequestId();
+        } catch (err) {
+            console.warn(`Reconcile error for ${requestId}:`, err);
         }
-    } catch (err) { console.warn('Reconcile error:', err); }
+    }
+
+    startStaleChecker();
+    return anyBlocking;
 }
 
 // ============================================================
@@ -953,7 +1389,7 @@ function updateAvailableText() {
         availText.textContent = balance.toFixed(WALLET_PRECISION[walletType]) + ' ' + WALLET_CURRENCY[walletType];
 }
 
-window.setMaxAmount = function() {
+window.setMaxAmount = function () {
     const walletType = document.getElementById('walletSelect').value;
     const balance = currentBalances[walletType] || 0;
     document.getElementById('amountInput').value = balance.toFixed(WALLET_PRECISION[walletType]);
@@ -965,14 +1401,17 @@ window.setMaxAmount = function() {
 function renderRecentTransfers(u) {
     const container = document.getElementById('recentTransfers');
     if (!container) return;
+
     let rawHistory = u.transferHistory || [];
     let arr = Array.isArray(rawHistory) ? rawHistory : Object.values(rawHistory).filter(Boolean);
     arr.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     const recent = arr.slice(0, 5);
+
     if (recent.length === 0) {
         container.innerHTML = `<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;"><i class="bi bi-clock"></i> No transfers yet</div>`;
         return;
     }
+
     container.innerHTML = recent.map(t => {
         const isSent = t.type === 'sent';
         const name = isSent ? (t.to || t.toUsername || 'Unknown') : (t.from || t.fromUsername || 'Unknown');
@@ -980,13 +1419,16 @@ function renderRecentTransfers(u) {
         const sign = isSent ? '-' : '+';
         const cls = isSent ? 'transfer-sent' : 'transfer-received';
         const date = t.timestamp ? new Date(t.timestamp).toLocaleString('hi-IN') : '';
+        const statusBadge = t.status === 'reversed'
+            ? ' <span style="color:#f59e0b;font-size:0.7rem;">(reversed)</span>'
+            : '';
         return `
             <div class="transfer-item">
                 <div>
                     <div class="${cls}" style="font-size: 0.85rem;">
                         <i class="bi bi-arrow-${isSent ? 'up-right' : 'down-left'}"></i>
-                        ${isSent ? 'Sent to' : 'Received from'} 
-                        <span class="transfer-name">${name}</span>
+                        ${isSent ? 'Sent to' : 'Received from'}
+                        <span class="transfer-name">${name}</span>${statusBadge}
                     </div>
                     ${uid ? `<div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">ID: ${uid.slice(0, 12)}...</div>` : ''}
                     <div class="transfer-date">${date}</div>
@@ -1011,14 +1453,19 @@ async function loadUserData(uid) {
         currentBalances.rndWallet = u.rndWallet || 0;
         updateBalanceUI();
         renderRecentTransfers(u);
-    } catch (err) { console.error('Load error:', err); }
+    } catch (err) {
+        console.error('Load error:', err);
+    }
 }
 
 // ============================================================
 // Init
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = 'login.html'; return; }
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
     currentUserId = user.uid;
 
     const snap = await get(ref(db, 'users/' + user.uid));
@@ -1028,11 +1475,10 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
-    await reconcilePending();
+    await verifyPendingTransfersOnLoad();
     await loadUserData(user.uid);
     setupBalanceListener(user.uid);
 
-    // ✅ Hide page loader — data is ready
     if (typeof window.__hideTransferLoader === 'function') {
         window.__hideTransferLoader();
     }
@@ -1041,38 +1487,37 @@ onAuthStateChanged(auth, async (user) => {
     if (form) form.addEventListener('submit', handleTransferSubmit);
 
     // Setup
-    document.getElementById('setupBtn').addEventListener('click', handlePasswordSetup);
-    document.getElementById('setupPasswordConfirm').addEventListener('keypress', (e) => {
+    document.getElementById('setupBtn')?.addEventListener('click', handlePasswordSetup);
+    document.getElementById('setupPasswordConfirm')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handlePasswordSetup();
     });
 
     // Verify
-    document.getElementById('verifyBtn').addEventListener('click', handlePasswordVerify);
-    document.getElementById('verifyPassword').addEventListener('keypress', (e) => {
+    document.getElementById('verifyBtn')?.addEventListener('click', handlePasswordVerify);
+    document.getElementById('verifyPassword')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handlePasswordVerify();
     });
-    document.getElementById('verifyCancelBtn').addEventListener('click', () => {
+    document.getElementById('verifyCancelBtn')?.addEventListener('click', () => {
         closeModal('verifyModal');
         pendingTransfer = null;
         resetButton();
     });
 
-    // 🆕 Forgot Password
-    document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
-        // Verify modal बंद करके forgot modal खोलो
+    // Forgot Password
+    document.getElementById('forgotPasswordBtn')?.addEventListener('click', () => {
         closeModal('verifyModal');
         openModal('forgotModal');
-        setTimeout(() => document.getElementById('forgotAccountPassword').focus(), 200);
+        setTimeout(() => document.getElementById('forgotAccountPassword')?.focus(), 200);
     });
-    document.getElementById('forgotVerifyBtn').addEventListener('click', handleForgotVerify);
-    document.getElementById('forgotAccountPassword').addEventListener('keypress', (e) => {
+    document.getElementById('forgotVerifyBtn')?.addEventListener('click', handleForgotVerify);
+    document.getElementById('forgotAccountPassword')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleForgotVerify();
     });
-    document.getElementById('forgotResetBtn').addEventListener('click', handleForgotReset);
-    document.getElementById('forgotNewPasswordConfirm').addEventListener('keypress', (e) => {
+    document.getElementById('forgotResetBtn')?.addEventListener('click', handleForgotReset);
+    document.getElementById('forgotNewPasswordConfirm')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleForgotReset();
     });
-    document.getElementById('forgotCancelBtn1').addEventListener('click', () => {
+    document.getElementById('forgotCancelBtn1')?.addEventListener('click', () => {
         closeModal('forgotModal');
         pendingTransfer = null;
         resetButton();
@@ -1094,8 +1539,27 @@ onAuthStateChanged(auth, async (user) => {
             }
         });
     }
+
+    // 🔥 Background recheck on visibility change
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && getActiveRequestIds().length > 0) {
+            verifyPendingTransfersOnLoad();
+        }
+    });
+
+    // 🔥 Background recheck on network online
+    window.addEventListener('online', () => {
+        if (getActiveRequestIds().length > 0) {
+            verifyPendingTransfersOnLoad();
+        }
+    });
 });
 
+// ============================================================
+// Cleanup
+// ============================================================
 window.addEventListener('beforeunload', () => {
     if (balanceListenerOff) { balanceListenerOff(); balanceListenerOff = null; }
+    if (reconciliationTimer) { clearTimeout(reconciliationTimer); reconciliationTimer = null; }
+    if (staleCheckTimer) { clearInterval(staleCheckTimer); staleCheckTimer = null; }
 });
