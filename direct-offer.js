@@ -10,9 +10,9 @@
 //   FIX 1 (new) : Prevent duplicate Firebase onValue() listeners
 //   FIX 2 (new) : Correct isWithdrawalFinalized state
 //   FIX 3 (new) : Clean up Firebase listener on page unload
-//   FIX (amount) : $50-or-more packages now qualify
-//   FIX (time)   : Server time offset via onValue(), non-blocking
-//   FIX (load)   : Loading overlay guaranteed close
+//   FIX (amount): $50+ packages now qualify (was: exact $50 only)
+//   FIX (time)  : Server time offset via onValue() — non-blocking
+//   FIX (load)  : Loading overlay guaranteed close on every path
 // ============================================================
 
 // ============================================================
@@ -138,22 +138,24 @@ let isProcessingWithdrawal = false;
 let referralRefreshInterval = null;
 let firebaseServerOffset = 0;
 
+// Firebase listener unsubscribe handles
 let withdrawalListenerUnsubscribe = null;
 let serverTimeListenerUnsubscribe = null;
+
+// DOM listener duplication protection
 let listenersInitialized = false;
 
 // ============================================================
 // FIREBASE SERVER TIME SYNC — FIXED
 // ============================================================
-// समस्या: ref(db, '.info/serverTimeOffset') कुछ SDK संस्करणों में
-// "Invalid token in path" error देता है जब get() से पढ़ा जाए।
+// समस्या: `ref(db, '.info/serverTimeOffset')` को `get()` से पढ़ने पर
+// कुछ SDK संस्करणों में "Invalid token in path" error आता है।
 //
 // समाधान:
-//   1. onValue() का उपयोग करें — यह special virtual path के लिए
+//   1. `onValue()` का उपयोग करें — यह special virtual path के लिए
 //      सही API है
 //   2. Non-blocking रखें — page load को न रोके
-//   3. Offset fail होने पर 0 (client time) पर fallback
-//   4. कभी भी loading overlay को block न करे
+//   3. Error आने पर client time (offset = 0) पर fallback
 // ============================================================
 function syncFirebaseServerTime() {
     // पहले से कोई listener हो तो हटाएँ
@@ -369,7 +371,6 @@ async function getCampaignDirectReferrals(userId) {
 
 // ============================================================
 // FIX 4 — REWARD CALCULATION
-// $10 per qualified direct referral
 // ============================================================
 function calculateReward(directCount) {
     const count = Math.max(0, Number(directCount) || 0);
@@ -1829,15 +1830,10 @@ async function processWithdrawal() {
 // ============================================================
 async function loadUserData(user) {
     try {
-        // ============================================================
         // SAFETY: invalid user object
-        // ============================================================
         if (!user || !user.uid) {
             console.error('loadUserData: invalid user object');
             showToast('User session error. Please login again.', 'error');
-            if (el.loadingOverlay) {
-                el.loadingOverlay.classList.add('hidden');
-            }
             return;
         }
 
@@ -1915,9 +1911,7 @@ async function loadUserData(user) {
             'error'
         );
     } finally {
-        // ============================================================
         // SAFETY: हर हाल में loading overlay बंद करें
-        // ============================================================
         if (el.loadingOverlay) {
             el.loadingOverlay.classList.add('hidden');
         }
@@ -2072,7 +2066,7 @@ async function handleLogout() {
 }
 
 // ============================================================
-// FIX 19 — SETUP LISTENERS
+// FIX 19 — SETUP LISTENERS (DUPLICATION PROTECTION)
 // ============================================================
 function setupListeners() {
     if (listenersInitialized) {
@@ -2087,7 +2081,7 @@ function setupListeners() {
 
     if (el.popupCloseBtn) {
         el.popupCloseBtn.addEventListener('click', () => {
-            el.daysPopup.classList.remove('visible');
+            if (el.daysPopup) el.daysPopup.classList.remove('visible');
         });
     }
     if (el.daysPopup) {
@@ -2099,7 +2093,7 @@ function setupListeners() {
     }
     if (el.confirmCancel) {
         el.confirmCancel.addEventListener('click', () => {
-            el.confirmationModal.classList.remove('visible');
+            if (el.confirmationModal) el.confirmationModal.classList.remove('visible');
         });
     }
     if (el.confirmationModal) {
@@ -2117,7 +2111,7 @@ function setupListeners() {
 }
 
 // ============================================================
-// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER
+// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER (ONCE)
 // ============================================================
 document.addEventListener(
     'visibilitychange',
@@ -2167,16 +2161,47 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ============================================================
-// MAIN AUTH HANDLER — NON-BLOCKING
+// SAFETY TIMEOUT — अगर Firebase Auth 10 सेकंड में respond न करे
+// ============================================================
+const AUTH_TIMEOUT_MS = 10000;
+let authResolved = false;
+
+const authTimeoutHandle = setTimeout(() => {
+    if (!authResolved) {
+        console.warn(
+            '⚠️ Firebase Auth did not respond within ' +
+            AUTH_TIMEOUT_MS + 'ms. Force-closing loading overlay.'
+        );
+
+        // Loading overlay force-close
+        if (el.loadingOverlay) {
+            el.loadingOverlay.classList.add('hidden');
+        }
+
+        // अगर user session नहीं है तो login पर भेजें
+        if (!auth.currentUser) {
+            window.location.href = 'login.html';
+        }
+    }
+}, AUTH_TIMEOUT_MS);
+
+// ============================================================
+// MAIN AUTH HANDLER
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
+    // Auth response आ गया — timeout cancel करें
+    authResolved = true;
+    clearTimeout(authTimeoutHandle);
+
     if (!user) {
+        console.log('ℹ️ No user session — redirecting to login.');
         window.location.href = 'login.html';
         return;
     }
 
-    // Server time sync NON-BLOCKING है — page load को नहीं रोकेगा।
-    // यह background में चलता रहेगा और offset मिलते ही countdown update होगा।
+    console.log('✅ User authenticated:', user.uid);
+
+    // Server time sync NON-BLOCKING (background में चलेगा)
     syncFirebaseServerTime();
 
     // User data load करें
@@ -2192,4 +2217,5 @@ console.log('💰 $10 per qualified referral ($50+ package qualifies)');
 console.log('🔄 Every 5 referrals = $50 cycle (unlimited)');
 console.log('🔒 Withdrawal: Locked until Offer ENDED');
 console.log('⏱️ Server time sync: onValue() non-blocking');
+console.log('🛡️ Safety timeout: 10 seconds');
 console.log('🔥 Firebase: rnd2-70080');
