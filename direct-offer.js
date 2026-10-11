@@ -1,5 +1,5 @@
 // ============================================================
-// RND $50 PACKAGE DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT
+// RND $50+ PACKAGE DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT
 // Campaign: direct_offer_50pack_oct2026
 //
 // All Fixes Applied:
@@ -10,7 +10,9 @@
 //   FIX 1 (new) : Prevent duplicate Firebase onValue() listeners
 //   FIX 2 (new) : Correct isWithdrawalFinalized state
 //   FIX 3 (new) : Clean up Firebase listener on page unload
-//   FIX (amount) : $50-or-more packages now qualify (was: exact $50 only)
+//   FIX (amount) : $50-or-more packages now qualify
+//   FIX (time)   : Server time offset via onValue(), non-blocking
+//   FIX (load)   : Loading overlay guaranteed close
 // ============================================================
 
 // ============================================================
@@ -21,7 +23,7 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get, update, onValue, runTransaction } from "firebase/database";
 
 // ============================================================
-// FIREBASE CONFIG (UNCHANGED — rnd2-70080)
+// FIREBASE CONFIG (rnd2-70080)
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -39,8 +41,8 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 // ============================================================
-// CAMPAIGN CONFIGURATION (UNCHANGED)
-// requiredPackageAmount: 50 now acts as MINIMUM qualifying amount
+// CAMPAIGN CONFIGURATION
+// requiredPackageAmount: 50 = MINIMUM qualifying amount
 // ============================================================
 const CAMPAIGN = {
     campaignId: 'direct_offer_50pack_oct2026',
@@ -137,17 +139,65 @@ let referralRefreshInterval = null;
 let firebaseServerOffset = 0;
 
 let withdrawalListenerUnsubscribe = null;
+let serverTimeListenerUnsubscribe = null;
 let listenersInitialized = false;
 
 // ============================================================
-// FIREBASE SERVER-ADJUSTED TIME
+// FIREBASE SERVER TIME SYNC — FIXED
 // ============================================================
-async function syncFirebaseServerTime() {
+// समस्या: ref(db, '.info/serverTimeOffset') कुछ SDK संस्करणों में
+// "Invalid token in path" error देता है जब get() से पढ़ा जाए।
+//
+// समाधान:
+//   1. onValue() का उपयोग करें — यह special virtual path के लिए
+//      सही API है
+//   2. Non-blocking रखें — page load को न रोके
+//   3. Offset fail होने पर 0 (client time) पर fallback
+//   4. कभी भी loading overlay को block न करे
+// ============================================================
+function syncFirebaseServerTime() {
+    // पहले से कोई listener हो तो हटाएँ
+    if (serverTimeListenerUnsubscribe) {
+        try {
+            serverTimeListenerUnsubscribe();
+        } catch (e) {
+            console.warn('Error unsubscribing old server time listener:', e);
+        }
+        serverTimeListenerUnsubscribe = null;
+    }
+
     try {
-        const snap = await get(ref(db, '.info/serverTimeOffset'));
-        firebaseServerOffset = snap.exists() ? Number(snap.val() || 0) : 0;
+        const offsetRef = ref(db, '.info/serverTimeOffset');
+
+        serverTimeListenerUnsubscribe = onValue(
+            offsetRef,
+            (snapshot) => {
+                const raw = snapshot.val();
+                const offset = Number(raw || 0);
+                firebaseServerOffset = Number.isFinite(offset) ? offset : 0;
+
+                // Offset मिलते ही countdown और UI update करें
+                if (typeof updateUI === 'function') {
+                    try {
+                        updateUI();
+                    } catch (e) {
+                        console.warn('updateUI after server-time sync failed:', e);
+                    }
+                }
+            },
+            (error) => {
+                console.warn(
+                    'Firebase server time offset unavailable. Using client time as fallback.',
+                    error?.message || error
+                );
+                firebaseServerOffset = 0;
+            }
+        );
     } catch (error) {
-        console.error('Unable to read Firebase server time offset:', error);
+        console.warn(
+            'Could not attach Firebase server time listener. Using client time as fallback.',
+            error?.message || error
+        );
         firebaseServerOffset = 0;
     }
 }
@@ -219,9 +269,8 @@ function getPackageActivationTime(pkg) {
 }
 
 // ============================================================
-// ✅ UPDATED — CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK
-// Now: $50 OR MORE qualifies (was: exact $50 only)
-// All other rules unchanged: status === active, activation time within campaign
+// CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK
+// $50 OR MORE qualifies (was: exact $50 only)
 // ============================================================
 function hasCampaignActivePackage(userData) {
     if (!isUserActive(userData)) {
@@ -256,7 +305,6 @@ function hasCampaignActivePackage(userData) {
 
 // ============================================================
 // GET CAMPAIGN DIRECT REFERRALS
-// (Unchanged — calls hasCampaignActivePackage which now accepts $50+)
 // ============================================================
 async function getCampaignDirectReferrals(userId) {
     try {
@@ -320,8 +368,8 @@ async function getCampaignDirectReferrals(userId) {
 }
 
 // ============================================================
-// FIX 4 — REWARD CALCULATION NORMALIZED
-// (Unchanged — $10 per qualified direct referral regardless of package amount)
+// FIX 4 — REWARD CALCULATION
+// $10 per qualified direct referral
 // ============================================================
 function calculateReward(directCount) {
     const count = Math.max(0, Number(directCount) || 0);
@@ -759,7 +807,7 @@ async function createAtomicWithdrawal(
         const adminData = {
             ...lockedCampaign,
             campaignName:
-                'RND Direct Referral $50 Package Offer',
+                'RND Direct Referral $50+ Package Offer',
             type:
                 'direct_offer_50pack_withdrawal',
             asset: 'USDT',
@@ -773,7 +821,7 @@ async function createAtomicWithdrawal(
             type:
                 'direct_offer_50pack_withdrawal',
             subtype:
-                'Direct Referral $50 Package Offer Withdrawal',
+                'Direct Referral $50+ Package Offer Withdrawal',
             amount: finalReward,
             currency: 'USDT',
             network:
@@ -784,7 +832,7 @@ async function createAtomicWithdrawal(
             timestamp: timestamp,
             date: date,
             description:
-                `Direct Referral $50 Package Offer Withdrawal of $${finalReward} USDT (BEP-20)`,
+                `Direct Referral $50+ Package Offer Withdrawal of $${finalReward} USDT (BEP-20)`,
             txId: txId,
             txHash: null
         };
@@ -946,6 +994,8 @@ async function createAtomicWithdrawal(
 // ============================================================
 function showToast(message, type = 'success') {
     const container = el.toastContainer;
+    if (!container) return;
+
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
     const iconMap = {
@@ -1073,95 +1123,189 @@ function updateWithdrawalUI(reward, status) {
         displayReward = Number(campaignRewardSnapshot.finalReward ?? 0);
     }
 
-    el.withdrawAmount.textContent = '$' + displayReward.toFixed(2) + ' USDT';
+    if (el.withdrawAmount) {
+        el.withdrawAmount.textContent = '$' + displayReward.toFixed(2) + ' USDT';
+    }
 
     const showWalletForm = campaignStatus === 'ENDED' && isEligible && !isWithdrawn;
-    el.walletFormGroup.style.display = showWalletForm ? 'block' : 'none';
+    if (el.walletFormGroup) {
+        el.walletFormGroup.style.display = showWalletForm ? 'block' : 'none';
+    }
 
-    el.withdrawalInfoBox.style.display = 'block';
+    if (el.withdrawalInfoBox) {
+        el.withdrawalInfoBox.style.display = 'block';
+    }
 
     if (status) {
         const normalizedStatus = String(status.status || '').toLowerCase();
 
         if (normalizedStatus === 'pending') {
-            el.withdrawBtn.disabled = true;
-            el.withdrawBtn.innerHTML = '<i class="bi bi-clock me-2"></i>Pending Approval';
-            el.withdrawBtn.className = 'btn-withdraw btn-pending';
-            el.withdrawalInfoText.textContent = '⏳ Your withdrawal request is pending admin approval.';
-            el.withdrawalStatus.className = 'withdrawal-status visible pending';
-            el.withdrawalStatus.textContent = 'Your withdrawal request is under admin review.';
-            el.withdrawalDetails.classList.remove('visible');
-            el.withdrawalSubtitle.textContent = 'Withdrawal pending approval';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '<i class="bi bi-clock me-2"></i>Pending Approval';
+                el.withdrawBtn.className = 'btn-withdraw btn-pending';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = '⏳ Your withdrawal request is pending admin approval.';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.className = 'withdrawal-status visible pending';
+                el.withdrawalStatus.textContent = 'Your withdrawal request is under admin review.';
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = 'Withdrawal pending approval';
+            }
         } else if (normalizedStatus === 'approved') {
-            el.withdrawBtn.disabled = true;
-            el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Approved';
-            el.withdrawBtn.className = 'btn-withdraw btn-approved';
-            el.withdrawalInfoText.textContent = '✅ Your withdrawal has been approved and is being processed.';
-            el.withdrawalStatus.className = 'withdrawal-status visible approved';
-            el.withdrawalStatus.textContent = 'Your withdrawal has been approved and is being processed.';
-            el.withdrawalDetails.classList.remove('visible');
-            el.withdrawalSubtitle.textContent = 'Withdrawal approved - processing payment';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Approved';
+                el.withdrawBtn.className = 'btn-withdraw btn-approved';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = '✅ Your withdrawal has been approved and is being processed.';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.className = 'withdrawal-status visible approved';
+                el.withdrawalStatus.textContent = 'Your withdrawal has been approved and is being processed.';
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = 'Withdrawal approved - processing payment';
+            }
         } else if (normalizedStatus === 'paid') {
-            el.withdrawBtn.disabled = true;
-            el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Paid ✓';
-            el.withdrawBtn.className = 'btn-withdraw btn-paid';
-            el.withdrawalInfoText.textContent = '✅ Payment completed successfully!';
-            el.withdrawalStatus.className = 'withdrawal-status visible paid';
-            el.withdrawalStatus.textContent = 'Payment has been sent to your wallet.';
-            el.withdrawalDetails.classList.add('visible');
-            el.detailAmount.textContent = '$' + (status.finalReward || displayReward).toFixed(2) + ' USDT';
-            el.detailWallet.textContent = status.walletAddress || '---';
-            el.detailPaidDate.textContent = status.paidAt ? new Date(status.paidAt).toLocaleString() : '---';
-            el.detailTxHash.textContent = status.txHash || 'Pending';
-            el.withdrawalSubtitle.textContent = '✅ Payment Completed';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Paid ✓';
+                el.withdrawBtn.className = 'btn-withdraw btn-paid';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = '✅ Payment completed successfully!';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.className = 'withdrawal-status visible paid';
+                el.withdrawalStatus.textContent = 'Payment has been sent to your wallet.';
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.add('visible');
+            }
+            if (el.detailAmount) {
+                el.detailAmount.textContent = '$' + (status.finalReward || displayReward).toFixed(2) + ' USDT';
+            }
+            if (el.detailWallet) {
+                el.detailWallet.textContent = status.walletAddress || '---';
+            }
+            if (el.detailPaidDate) {
+                el.detailPaidDate.textContent = status.paidAt ? new Date(status.paidAt).toLocaleString() : '---';
+            }
+            if (el.detailTxHash) {
+                el.detailTxHash.textContent = status.txHash || 'Pending';
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = '✅ Payment Completed';
+            }
         } else if (normalizedStatus === 'rejected') {
-            el.withdrawBtn.disabled = false;
-            el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
-            el.withdrawBtn.className = 'btn-withdraw btn-rejected';
-            el.withdrawalInfoText.textContent = '⚠️ Your previous request was rejected. You can try again.';
-            el.withdrawalStatus.className = 'withdrawal-status visible rejected';
-            el.withdrawalStatus.textContent = 'Your request was rejected. Please check your wallet address and try again.';
-            el.withdrawalDetails.classList.remove('visible');
-            el.withdrawalSubtitle.textContent = 'Request rejected - try again';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = false;
+                el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
+                el.withdrawBtn.className = 'btn-withdraw btn-rejected';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = '⚠️ Your previous request was rejected. You can try again.';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.className = 'withdrawal-status visible rejected';
+                el.withdrawalStatus.textContent = 'Your request was rejected. Please check your wallet address and try again.';
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = 'Request rejected - try again';
+            }
         }
         return;
     }
 
     if (campaignStatus === 'UPCOMING') {
-        el.withdrawBtn.disabled = true;
-        el.withdrawBtn.innerHTML = '⏳ Withdrawal Opens After Offer Ends';
-        el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+        if (el.withdrawBtn) {
+            el.withdrawBtn.disabled = true;
+            el.withdrawBtn.innerHTML = '⏳ Withdrawal Opens After Offer Ends';
+            el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+        }
         const time = getTimeRemaining();
-        el.withdrawalInfoText.textContent = `📅 Campaign starts on 10 October 2026. Withdrawal will be available after the offer ends on 24 October 2026. Time until start: ${formatTimeRemaining(time)}`;
-        el.withdrawalStatus.classList.remove('visible');
-        el.withdrawalDetails.classList.remove('visible');
-        el.withdrawalSubtitle.textContent = 'Withdrawal not available yet';
+        if (el.withdrawalInfoText) {
+            el.withdrawalInfoText.textContent = `📅 Campaign starts on 10 October 2026. Withdrawal will be available after the offer ends on 24 October 2026. Time until start: ${formatTimeRemaining(time)}`;
+        }
+        if (el.withdrawalStatus) {
+            el.withdrawalStatus.classList.remove('visible');
+        }
+        if (el.withdrawalDetails) {
+            el.withdrawalDetails.classList.remove('visible');
+        }
+        if (el.withdrawalSubtitle) {
+            el.withdrawalSubtitle.textContent = 'Withdrawal not available yet';
+        }
     } else if (campaignStatus === 'ACTIVE') {
-        el.withdrawBtn.disabled = true;
-        el.withdrawBtn.innerHTML = '🔒 Withdrawal Locked — Offer Active';
-        el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+        if (el.withdrawBtn) {
+            el.withdrawBtn.disabled = true;
+            el.withdrawBtn.innerHTML = '🔒 Withdrawal Locked — Offer Active';
+            el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+        }
         const time = getTimeRemaining();
-        el.withdrawalInfoText.textContent = `🔒 Withdrawal is locked while the offer is active. It will open after 24 October 2026. Time remaining: ${formatTimeRemaining(time)}`;
-        el.withdrawalStatus.classList.remove('visible');
-        el.withdrawalDetails.classList.remove('visible');
-        el.withdrawalSubtitle.textContent = 'Withdrawal locked - offer active';
+        if (el.withdrawalInfoText) {
+            el.withdrawalInfoText.textContent = `🔒 Withdrawal is locked while the offer is active. It will open after 24 October 2026. Time remaining: ${formatTimeRemaining(time)}`;
+        }
+        if (el.withdrawalStatus) {
+            el.withdrawalStatus.classList.remove('visible');
+        }
+        if (el.withdrawalDetails) {
+            el.withdrawalDetails.classList.remove('visible');
+        }
+        if (el.withdrawalSubtitle) {
+            el.withdrawalSubtitle.textContent = 'Withdrawal locked - offer active';
+        }
     } else if (campaignStatus === 'ENDED') {
         if (isEligible) {
-            el.withdrawBtn.disabled = false;
-            el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
-            el.withdrawBtn.className = 'btn-withdraw';
-            el.withdrawalInfoText.textContent = '🎉 Offer ended! You are eligible to withdraw your reward.';
-            el.withdrawalStatus.classList.remove('visible');
-            el.withdrawalDetails.classList.remove('visible');
-            el.withdrawalSubtitle.textContent = 'Withdrawal available - claim your reward!';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = false;
+                el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
+                el.withdrawBtn.className = 'btn-withdraw';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = '🎉 Offer ended! You are eligible to withdraw your reward.';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.classList.remove('visible');
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = 'Withdrawal available - claim your reward!';
+            }
         } else {
-            el.withdrawBtn.disabled = true;
-            el.withdrawBtn.innerHTML = '⛔ Not Eligible';
-            el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
-            el.withdrawalInfoText.textContent = 'Complete at least 1 qualified referral to be eligible for withdrawal.';
-            el.withdrawalStatus.classList.remove('visible');
-            el.withdrawalDetails.classList.remove('visible');
-            el.withdrawalSubtitle.textContent = 'Not eligible for withdrawal';
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '⛔ Not Eligible';
+                el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent = 'Complete at least 1 qualified referral to be eligible for withdrawal.';
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.classList.remove('visible');
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent = 'Not eligible for withdrawal';
+            }
         }
     }
 }
@@ -1193,8 +1337,10 @@ async function refreshCampaignDirectCount() {
         if (safeLatest !== directReferrals) {
             directReferrals = safeLatest;
 
-            el.totalReferralsDisplay.textContent =
-                String(directReferrals);
+            if (el.totalReferralsDisplay) {
+                el.totalReferralsDisplay.textContent =
+                    String(directReferrals);
+            }
 
             updateUI();
         }
@@ -1250,7 +1396,9 @@ function updateUI() {
         'ENDED': { class: 'ended', text: '🏁 Offer Ended - Withdrawal Available' }
     }[campaignStatus] || { class: 'upcoming', text: '⏳ Upcoming' };
 
-    el.campaignStatusBadge.innerHTML = `<span class="campaign-status-badge ${statusBadge.class}">${statusBadge.text}</span>`;
+    if (el.campaignStatusBadge) {
+        el.campaignStatusBadge.innerHTML = `<span class="campaign-status-badge ${statusBadge.class}">${statusBadge.text}</span>`;
+    }
 
     let displayReward = calculateReward(directReferrals);
     let displayDirectCount = directReferrals;
@@ -1263,20 +1411,24 @@ function updateUI() {
         isWithdrawalFinalized = true;
     }
 
-    el.statDirectRefs.textContent = displayDirectCount;
-    el.statEligibleReward.textContent = '$' + displayReward;
-    el.statReferralPeriod.textContent = campaignStatus === 'ENDED' ? 'Final Count' : 'Campaign Period';
+    if (el.statDirectRefs) el.statDirectRefs.textContent = displayDirectCount;
+    if (el.statEligibleReward) el.statEligibleReward.textContent = '$' + displayReward;
+    if (el.statReferralPeriod) {
+        el.statReferralPeriod.textContent = campaignStatus === 'ENDED' ? 'Final Count' : 'Campaign Period';
+    }
 
-    if (displayDirectCount > 0) {
-        const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
-        const cycleInfo = cycles > 0 ? `${cycles} cycle${cycles > 1 ? 's' : ''} completed` : '';
-        el.statRewardNote.textContent = isFinal
-            ? `🏆 Final: $${displayReward} (${displayDirectCount} qualified refs)`
-            : `💰 $${displayReward} earned (${displayDirectCount} refs)${cycleInfo ? ' • ' + cycleInfo : ''}`;
-        el.statRewardNote.style.color = '#fbbf24';
-    } else {
-        el.statRewardNote.textContent = 'Earn $10 per qualified $50+ package referral';
-        el.statRewardNote.style.color = '#64748b';
+    if (el.statRewardNote) {
+        if (displayDirectCount > 0) {
+            const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
+            const cycleInfo = cycles > 0 ? `${cycles} cycle${cycles > 1 ? 's' : ''} completed` : '';
+            el.statRewardNote.textContent = isFinal
+                ? `🏆 Final: $${displayReward} (${displayDirectCount} qualified refs)`
+                : `💰 $${displayReward} earned (${displayDirectCount} refs)${cycleInfo ? ' • ' + cycleInfo : ''}`;
+            el.statRewardNote.style.color = '#fbbf24';
+        } else {
+            el.statRewardNote.textContent = 'Earn $10 per qualified $50+ package referral';
+            el.statRewardNote.style.color = '#64748b';
+        }
     }
 
     const completedCycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
@@ -1284,14 +1436,18 @@ function updateUI() {
     const nextMilestoneReward = (completedCycles + 1) * CAMPAIGN.cycleReward;
     const neededForNextCycle = Math.max(0, nextCycleEnd - displayDirectCount);
 
-    el.statNextMilestone.textContent =
-        `${nextCycleEnd} → $${nextMilestoneReward}`;
+    if (el.statNextMilestone) {
+        el.statNextMilestone.textContent = `${nextCycleEnd} → $${nextMilestoneReward}`;
+    }
 
-    el.statNextMilestoneSub.textContent =
-        `${neededForNextCycle} more needed for next cycle`;
+    if (el.statNextMilestoneSub) {
+        el.statNextMilestoneSub.textContent = `${neededForNextCycle} more needed for next cycle`;
+    }
 
-    el.statMaxReward.textContent = '∞';
-    el.statMaxReward.style.color = '#a78bfa';
+    if (el.statMaxReward) {
+        el.statMaxReward.textContent = '∞';
+        el.statMaxReward.style.color = '#a78bfa';
+    }
 
     const cycleProgress = getCurrentCycleProgress(displayDirectCount);
 
@@ -1304,57 +1460,68 @@ function updateUI() {
             )
         );
 
-    el.progressCurrent.textContent = String(cycleProgress);
-    el.progressTarget.textContent = String(CAMPAIGN.cycleSize);
-    el.progressFill.style.width = progressPercent + '%';
+    if (el.progressCurrent) el.progressCurrent.textContent = String(cycleProgress);
+    if (el.progressTarget) el.progressTarget.textContent = String(CAMPAIGN.cycleSize);
+    if (el.progressFill) el.progressFill.style.width = progressPercent + '%';
 
     const neededForCycle =
         Math.max(0, CAMPAIGN.cycleSize - cycleProgress);
 
     if (cycleProgress === CAMPAIGN.cycleSize) {
-        el.needMore.textContent = '0';
-
-        el.nextMilestoneText.innerHTML =
-            '<i class="bi bi-trophy" style="color:#fbbf24;"></i> ' +
-            '🎉 Cycle complete! Start the next cycle by referring more $50+ package users.';
+        if (el.needMore) el.needMore.textContent = '0';
+        if (el.nextMilestoneText) {
+            el.nextMilestoneText.innerHTML =
+                '<i class="bi bi-trophy" style="color:#fbbf24;"></i> ' +
+                '🎉 Cycle complete! Start the next cycle by referring more $50+ package users.';
+        }
     } else {
-        el.needMore.textContent = String(neededForCycle);
-
-        el.nextMilestoneText.innerHTML =
-            '<i class="bi bi-bullseye" style="color:#fbbf24;"></i> ' +
-            `Need <strong>${neededForCycle}</strong> more qualified referrals ` +
-            'to complete this $50 cycle.';
+        if (el.needMore) el.needMore.textContent = String(neededForCycle);
+        if (el.nextMilestoneText) {
+            el.nextMilestoneText.innerHTML =
+                '<i class="bi bi-bullseye" style="color:#fbbf24;"></i> ' +
+                `Need <strong>${neededForCycle}</strong> more qualified referrals ` +
+                'to complete this $50 cycle.';
+        }
     }
 
     renderCycleProgress(displayDirectCount);
 
-    if (displayDirectCount === 0) {
-        el.notEligibleBox.classList.add('visible');
-    } else {
-        el.notEligibleBox.classList.remove('visible');
+    if (el.notEligibleBox) {
+        if (displayDirectCount === 0) {
+            el.notEligibleBox.classList.add('visible');
+        } else {
+            el.notEligibleBox.classList.remove('visible');
+        }
     }
 
-    el.walletAmount.textContent = displayReward.toFixed(2);
+    if (el.walletAmount) {
+        el.walletAmount.textContent = displayReward.toFixed(2);
+    }
+
     if (isFinal) {
-        el.finalBadge.style.display = 'inline';
-        el.walletLabel.textContent = 'Final Offer Earnings';
-        if (displayReward > 0) {
-            el.walletStatusText.textContent = `🏆 Final earnings locked! $${displayReward} USDT from ${displayDirectCount} qualified referrals.`;
-        } else {
-            el.walletStatusText.textContent = 'No reward earned this campaign.';
+        if (el.finalBadge) el.finalBadge.style.display = 'inline';
+        if (el.walletLabel) el.walletLabel.textContent = 'Final Offer Earnings';
+        if (el.walletStatusText) {
+            if (displayReward > 0) {
+                el.walletStatusText.textContent = `🏆 Final earnings locked! $${displayReward} USDT from ${displayDirectCount} qualified referrals.`;
+            } else {
+                el.walletStatusText.textContent = 'No reward earned this campaign.';
+            }
         }
     } else {
-        el.finalBadge.style.display = 'none';
-        el.walletLabel.textContent = 'Estimated Offer Earnings';
-        if (displayReward === 0) {
-            el.walletStatusText.textContent = '💡 Refer users who activate the $50+ package to earn $10 each!';
-        } else {
-            const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
-            const remainder = displayDirectCount % CAMPAIGN.cycleSize;
-            if (remainder === 0 && cycles > 0) {
-                el.walletStatusText.textContent = `💰 $${displayReward} USDT earned! ${cycles} full cycle${cycles > 1 ? 's' : ''} completed.`;
+        if (el.finalBadge) el.finalBadge.style.display = 'none';
+        if (el.walletLabel) el.walletLabel.textContent = 'Estimated Offer Earnings';
+        if (el.walletStatusText) {
+            if (displayReward === 0) {
+                el.walletStatusText.textContent = '💡 Refer users who activate the $50+ package to earn $10 each!';
             } else {
-                el.walletStatusText.textContent = `💰 $${displayReward} USDT estimated! ${CAMPAIGN.cycleSize - remainder} more to complete this cycle.`;
+                const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
+                const remainder = displayDirectCount % CAMPAIGN.cycleSize;
+                if (remainder === 0 && cycles > 0) {
+                    el.walletStatusText.textContent = `💰 $${displayReward} USDT earned! ${cycles} full cycle${cycles > 1 ? 's' : ''} completed.`;
+                } else {
+                    el.walletStatusText.textContent = `💰 $${displayReward} USDT estimated! ${CAMPAIGN.cycleSize - remainder} more to complete this cycle.`;
+                }
             }
         }
     }
@@ -1371,9 +1538,9 @@ function showDaysPopup() {
     const time = getTimeRemaining();
 
     if (campaignStatus === 'UPCOMING') {
-        el.popupIcon.textContent = '📅';
-        el.popupTitle.textContent = 'Offer Not Started Yet';
-        el.popupText.innerHTML = `
+        if (el.popupIcon) el.popupIcon.textContent = '📅';
+        if (el.popupTitle) el.popupTitle.textContent = 'Offer Not Started Yet';
+        if (el.popupText) el.popupText.innerHTML = `
             The $50+ Package Direct Referral Offer has not started yet.
             <br><br>
             <strong>Starts:</strong> 10 October 2026
@@ -1386,9 +1553,9 @@ function showDaysPopup() {
             <div class="popup-days">${time.days > 0 ? time.days + 'd' : ''} ${time.hours}h ${time.minutes}m</div>
         `;
     } else if (campaignStatus === 'ACTIVE') {
-        el.popupIcon.textContent = '🔒';
-        el.popupTitle.textContent = 'Withdrawal Locked — Offer Active';
-        el.popupText.innerHTML = `
+        if (el.popupIcon) el.popupIcon.textContent = '🔒';
+        if (el.popupTitle) el.popupTitle.textContent = 'Withdrawal Locked — Offer Active';
+        if (el.popupText) el.popupText.innerHTML = `
             🔒 Your reward is currently locked while the offer is active.
             <br><br>
             <strong>Your Estimated Reward:</strong> $${reward.toFixed(2)} USDT
@@ -1403,9 +1570,9 @@ function showDaysPopup() {
     } else if (campaignStatus === 'ENDED') {
         const finalReward = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalReward ?? 0) : reward;
         if (finalReward > 0) {
-            el.popupIcon.textContent = '🎉';
-            el.popupTitle.textContent = 'Offer Ended!';
-            el.popupText.innerHTML = `
+            if (el.popupIcon) el.popupIcon.textContent = '🎉';
+            if (el.popupTitle) el.popupTitle.textContent = 'Offer Ended!';
+            if (el.popupText) el.popupText.innerHTML = `
                 Your withdrawal is now available.
                 <br><br>
                 <strong>Eligible Reward:</strong> $${finalReward.toFixed(2)} USDT
@@ -1413,9 +1580,9 @@ function showDaysPopup() {
                 Click <strong>"Withdraw Reward"</strong> to continue.
             `;
         } else {
-            el.popupIcon.textContent = '⛔';
-            el.popupTitle.textContent = 'Not Eligible';
-            el.popupText.innerHTML = `
+            if (el.popupIcon) el.popupIcon.textContent = '⛔';
+            if (el.popupTitle) el.popupTitle.textContent = 'Not Eligible';
+            if (el.popupText) el.popupText.innerHTML = `
                 You are not eligible for withdrawal because you have 0 qualified referrals.
                 <br><br>
                 <strong>Minimum required:</strong> 1 Qualified Direct Referral ($50+ package)
@@ -1425,7 +1592,9 @@ function showDaysPopup() {
         }
     }
 
-    el.daysPopup.classList.add('visible');
+    if (el.daysPopup) {
+        el.daysPopup.classList.add('visible');
+    }
 }
 
 // ============================================================
@@ -1476,7 +1645,7 @@ function handleWithdrawClick() {
     }
 
     const walletAddress =
-        el.walletAddressInput.value.trim();
+        el.walletAddressInput ? el.walletAddressInput.value.trim() : '';
 
     if (!validateBEP20Wallet(walletAddress)) {
         showToast(
@@ -1484,7 +1653,9 @@ function handleWithdrawClick() {
             'error'
         );
 
-        el.walletAddressInput.classList.add('error');
+        if (el.walletAddressInput) {
+            el.walletAddressInput.classList.add('error');
+        }
 
         return;
     }
@@ -1505,21 +1676,27 @@ function showConfirmationModal(
     const safeReward =
         Number(reward);
 
-    el.confirmAmount.textContent =
-        '$' +
-        (
-            Number.isFinite(safeReward)
-                ? safeReward.toFixed(2)
-                : '0.00'
-        ) +
-        ' USDT';
+    if (el.confirmAmount) {
+        el.confirmAmount.textContent =
+            '$' +
+            (
+                Number.isFinite(safeReward)
+                    ? safeReward.toFixed(2)
+                    : '0.00'
+            ) +
+            ' USDT';
+    }
 
-    el.confirmWallet.textContent =
-        String(walletAddress || '');
+    if (el.confirmWallet) {
+        el.confirmWallet.textContent =
+            String(walletAddress || '');
+    }
 
-    el.confirmationModal.classList.add(
-        'visible'
-    );
+    if (el.confirmationModal) {
+        el.confirmationModal.classList.add(
+            'visible'
+        );
+    }
 }
 
 // ============================================================
@@ -1534,13 +1711,15 @@ async function processWithdrawal() {
     const originalSubmitHTML =
         '<i class="bi bi-check-circle me-1"></i>Confirm Withdrawal';
 
-    el.confirmSubmit.disabled = true;
-    el.confirmSubmit.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    if (el.confirmSubmit) {
+        el.confirmSubmit.disabled = true;
+        el.confirmSubmit.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    }
 
     try {
         const walletAddress =
-            el.walletAddressInput.value.trim();
+            el.walletAddressInput ? el.walletAddressInput.value.trim() : '';
 
         if (!validateBEP20Wallet(walletAddress)) {
             showToast('Please enter a valid BEP-20 USDT wallet address.', 'error');
@@ -1614,8 +1793,12 @@ async function processWithdrawal() {
             withdrawalData =
                 await checkWithdrawalStatus(currentUserId);
 
-            el.walletAddressInput.value = '';
-            el.confirmationModal.classList.remove('visible');
+            if (el.walletAddressInput) {
+                el.walletAddressInput.value = '';
+            }
+            if (el.confirmationModal) {
+                el.confirmationModal.classList.remove('visible');
+            }
 
             updateUI();
         } else {
@@ -1634,28 +1817,41 @@ async function processWithdrawal() {
 
     } finally {
         isProcessingWithdrawal = false;
-        el.confirmSubmit.disabled = false;
-        el.confirmSubmit.innerHTML = originalSubmitHTML;
+        if (el.confirmSubmit) {
+            el.confirmSubmit.disabled = false;
+            el.confirmSubmit.innerHTML = originalSubmitHTML;
+        }
     }
 }
 
 // ============================================================
-// LOAD USER DATA
+// LOAD USER DATA — SAFETY WRAPPED
 // ============================================================
 async function loadUserData(user) {
     try {
+        // ============================================================
+        // SAFETY: invalid user object
+        // ============================================================
+        if (!user || !user.uid) {
+            console.error('loadUserData: invalid user object');
+            showToast('User session error. Please login again.', 'error');
+            if (el.loadingOverlay) {
+                el.loadingOverlay.classList.add('hidden');
+            }
+            return;
+        }
+
         currentUserId = user.uid;
         const userSnap = await get(ref(db, 'users/' + user.uid));
         if (!userSnap.exists()) {
             showToast('User data not found. Please complete registration.', 'error');
-            el.loadingOverlay.classList.add('hidden');
             return;
         }
 
         currentUserData = userSnap.val();
         const name = currentUserData.name || currentUserData.username || 'User';
-        el.userName.textContent = name;
-        el.userAvatar.textContent = name.charAt(0).toUpperCase();
+        if (el.userName) el.userName.textContent = name;
+        if (el.userAvatar) el.userAvatar.textContent = name.charAt(0).toUpperCase();
 
         campaignRewardSnapshot =
             await getCampaignRewardSnapshot(user.uid);
@@ -1686,14 +1882,12 @@ async function loadUserData(user) {
 
         const referralCode = currentUserData.referralCode || user.uid.substring(0, 8).toUpperCase();
         const link = `https://staking.randigital.in/register.html?ref=${referralCode}`;
-        el.referralLinkDisplay.textContent = link;
-        el.referralCodeDisplay.textContent = referralCode;
-        el.totalReferralsDisplay.textContent = directReferrals;
+        if (el.referralLinkDisplay) el.referralLinkDisplay.textContent = link;
+        if (el.referralCodeDisplay) el.referralCodeDisplay.textContent = referralCode;
+        if (el.totalReferralsDisplay) el.totalReferralsDisplay.textContent = directReferrals;
 
         startCountdown();
         updateUI();
-
-        el.loadingOverlay.classList.add('hidden');
 
         const status = getCampaignStatus();
         if (status === 'UPCOMING') {
@@ -1715,8 +1909,18 @@ async function loadUserData(user) {
 
     } catch (error) {
         console.error('Error loading user data:', error);
-        showToast('Error loading data: ' + error.message, 'error');
-        el.loadingOverlay.classList.add('hidden');
+        showToast(
+            'Error loading data: ' +
+            (error?.message || 'Unknown error'),
+            'error'
+        );
+    } finally {
+        // ============================================================
+        // SAFETY: हर हाल में loading overlay बंद करें
+        // ============================================================
+        if (el.loadingOverlay) {
+            el.loadingOverlay.classList.add('hidden');
+        }
     }
 }
 
@@ -1731,8 +1935,8 @@ function startCountdown() {
         const status = getCampaignStatus();
 
         if (status === 'ENDED') {
-            el.countdownWrapper.style.display = 'none';
-            el.campaignEndedMessage.style.display = 'block';
+            if (el.countdownWrapper) el.countdownWrapper.style.display = 'none';
+            if (el.campaignEndedMessage) el.campaignEndedMessage.style.display = 'block';
 
             if (countdownInterval) {
                 clearInterval(countdownInterval);
@@ -1773,10 +1977,10 @@ function startCountdown() {
             return;
         }
 
-        el.countdownDays.textContent = String(time.days).padStart(2, '0');
-        el.countdownHours.textContent = String(time.hours).padStart(2, '0');
-        el.countdownMinutes.textContent = String(time.minutes).padStart(2, '0');
-        el.countdownSeconds.textContent = String(time.seconds).padStart(2, '0');
+        if (el.countdownDays) el.countdownDays.textContent = String(time.days).padStart(2, '0');
+        if (el.countdownHours) el.countdownHours.textContent = String(time.hours).padStart(2, '0');
+        if (el.countdownMinutes) el.countdownMinutes.textContent = String(time.minutes).padStart(2, '0');
+        if (el.countdownSeconds) el.countdownSeconds.textContent = String(time.seconds).padStart(2, '0');
     }
 
     update();
@@ -1787,9 +1991,13 @@ function startCountdown() {
 // WALLET ADDRESS VALIDATION UI
 // ============================================================
 function setupWalletValidation() {
+    if (!el.walletAddressInput) return;
+
     el.walletAddressInput.addEventListener('input', () => {
         const value = el.walletAddressInput.value.trim();
         const msg = el.walletValidationMsg;
+
+        if (!msg) return;
 
         if (!value) {
             el.walletAddressInput.className = 'form-control-custom';
@@ -1814,19 +2022,23 @@ function setupWalletValidation() {
 // COPY REFERRAL LINK
 // ============================================================
 async function copyReferralLink() {
-    const link = el.referralLinkDisplay.textContent;
+    const link = el.referralLinkDisplay ? el.referralLinkDisplay.textContent : '';
     if (!link || link === 'Loading...') {
         showToast('Please wait, referral link is loading...', 'warning');
         return;
     }
     try {
         await navigator.clipboard.writeText(link);
-        el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
-        el.copyReferralBtn.classList.add('copied');
+        if (el.copyReferralBtn) {
+            el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+            el.copyReferralBtn.classList.add('copied');
+        }
         showToast('✅ Referral link copied!', 'success');
         setTimeout(() => {
-            el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
-            el.copyReferralBtn.classList.remove('copied');
+            if (el.copyReferralBtn) {
+                el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
+                el.copyReferralBtn.classList.remove('copied');
+            }
         }, 3000);
     } catch {
         const textArea = document.createElement('textarea');
@@ -1835,10 +2047,14 @@ async function copyReferralLink() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+        if (el.copyReferralBtn) {
+            el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+        }
         showToast('✅ Referral link copied!', 'success');
         setTimeout(() => {
-            el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
+            if (el.copyReferralBtn) {
+                el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link';
+            }
         }, 3000);
     }
 }
@@ -1865,26 +2081,37 @@ function setupListeners() {
 
     listenersInitialized = true;
 
-    el.copyReferralBtn.addEventListener('click', copyReferralLink);
-    el.logoutBtn.addEventListener('click', handleLogout);
-    el.withdrawBtn.addEventListener('click', handleWithdrawClick);
-    el.popupCloseBtn.addEventListener('click', () => {
-        el.daysPopup.classList.remove('visible');
-    });
-    el.daysPopup.addEventListener('click', (e) => {
-        if (e.target === el.daysPopup) {
+    if (el.copyReferralBtn) el.copyReferralBtn.addEventListener('click', copyReferralLink);
+    if (el.logoutBtn) el.logoutBtn.addEventListener('click', handleLogout);
+    if (el.withdrawBtn) el.withdrawBtn.addEventListener('click', handleWithdrawClick);
+
+    if (el.popupCloseBtn) {
+        el.popupCloseBtn.addEventListener('click', () => {
             el.daysPopup.classList.remove('visible');
-        }
-    });
-    el.confirmCancel.addEventListener('click', () => {
-        el.confirmationModal.classList.remove('visible');
-    });
-    el.confirmationModal.addEventListener('click', (e) => {
-        if (e.target === el.confirmationModal) {
+        });
+    }
+    if (el.daysPopup) {
+        el.daysPopup.addEventListener('click', (e) => {
+            if (e.target === el.daysPopup) {
+                el.daysPopup.classList.remove('visible');
+            }
+        });
+    }
+    if (el.confirmCancel) {
+        el.confirmCancel.addEventListener('click', () => {
             el.confirmationModal.classList.remove('visible');
-        }
-    });
-    el.confirmSubmit.addEventListener('click', processWithdrawal);
+        });
+    }
+    if (el.confirmationModal) {
+        el.confirmationModal.addEventListener('click', (e) => {
+            if (e.target === el.confirmationModal) {
+                el.confirmationModal.classList.remove('visible');
+            }
+        });
+    }
+    if (el.confirmSubmit) {
+        el.confirmSubmit.addEventListener('click', processWithdrawal);
+    }
 
     setupWalletValidation();
 }
@@ -1921,13 +2148,26 @@ window.addEventListener('beforeunload', () => {
     }
 
     if (withdrawalListenerUnsubscribe) {
-        withdrawalListenerUnsubscribe();
+        try {
+            withdrawalListenerUnsubscribe();
+        } catch (e) {
+            console.warn('Error during withdrawal listener cleanup:', e);
+        }
         withdrawalListenerUnsubscribe = null;
+    }
+
+    if (serverTimeListenerUnsubscribe) {
+        try {
+            serverTimeListenerUnsubscribe();
+        } catch (e) {
+            console.warn('Error during server time listener cleanup:', e);
+        }
+        serverTimeListenerUnsubscribe = null;
     }
 });
 
 // ============================================================
-// MAIN AUTH HANDLER
+// MAIN AUTH HANDLER — NON-BLOCKING
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -1935,15 +2175,21 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
-    await syncFirebaseServerTime();
+    // Server time sync NON-BLOCKING है — page load को नहीं रोकेगा।
+    // यह background में चलता रहेगा और offset मिलते ही countdown update होगा।
+    syncFirebaseServerTime();
+
+    // User data load करें
     await loadUserData(user);
+
+    // Listeners attach करें
     setupListeners();
 });
 
 console.log('✅ $50+ Package Direct Offer — FINAL PRODUCTION VERSION');
 console.log('📅 Campaign:', CAMPAIGN.campaignId);
-console.log('💰 $10 per qualified referral ($50+ package now qualifies)');
+console.log('💰 $10 per qualified referral ($50+ package qualifies)');
 console.log('🔄 Every 5 referrals = $50 cycle (unlimited)');
 console.log('🔒 Withdrawal: Locked until Offer ENDED');
-console.log('✅ FIX 1–21 + FIX A + FIX B + FIX C + NEW FIX 1/2/3 + AMOUNT FIX applied');
+console.log('⏱️ Server time sync: onValue() non-blocking');
 console.log('🔥 Firebase: rnd2-70080');
