@@ -13,6 +13,7 @@
 //   FIX (amount): $50+ packages now qualify (was: exact $50 only)
 //   FIX (time)  : Server time offset via onValue() — non-blocking
 //   FIX (load)  : Loading overlay guaranteed close on every path
+//   FIX (min5)  : Minimum 5 qualified referrals required for withdrawal
 // ============================================================
 
 // ============================================================
@@ -42,7 +43,6 @@ const db = getDatabase(app);
 
 // ============================================================
 // CAMPAIGN CONFIGURATION
-// requiredPackageAmount: 50 = MINIMUM qualifying amount
 // ============================================================
 const CAMPAIGN = {
     campaignId: 'direct_offer_50pack_oct2026',
@@ -52,7 +52,9 @@ const CAMPAIGN = {
     rewardPerReferral: 10,
     cycleSize: 5,
     cycleReward: 50,
-    maxQualifying: Infinity
+    maxQualifying: Infinity,
+    // ✅ NEW — Minimum qualified referrals required for withdrawal
+    minReferralsForWithdrawal: 5
 };
 
 // ============================================================
@@ -138,27 +140,15 @@ let isProcessingWithdrawal = false;
 let referralRefreshInterval = null;
 let firebaseServerOffset = 0;
 
-// Firebase listener unsubscribe handles
 let withdrawalListenerUnsubscribe = null;
 let serverTimeListenerUnsubscribe = null;
 
-// DOM listener duplication protection
 let listenersInitialized = false;
 
 // ============================================================
-// FIREBASE SERVER TIME SYNC — FIXED
-// ============================================================
-// समस्या: `ref(db, '.info/serverTimeOffset')` को `get()` से पढ़ने पर
-// कुछ SDK संस्करणों में "Invalid token in path" error आता है।
-//
-// समाधान:
-//   1. `onValue()` का उपयोग करें — यह special virtual path के लिए
-//      सही API है
-//   2. Non-blocking रखें — page load को न रोके
-//   3. Error आने पर client time (offset = 0) पर fallback
+// FIREBASE SERVER TIME SYNC
 // ============================================================
 function syncFirebaseServerTime() {
-    // पहले से कोई listener हो तो हटाएँ
     if (serverTimeListenerUnsubscribe) {
         try {
             serverTimeListenerUnsubscribe();
@@ -178,7 +168,6 @@ function syncFirebaseServerTime() {
                 const offset = Number(raw || 0);
                 firebaseServerOffset = Number.isFinite(offset) ? offset : 0;
 
-                // Offset मिलते ही countdown और UI update करें
                 if (typeof updateUI === 'function') {
                     try {
                         updateUI();
@@ -272,7 +261,7 @@ function getPackageActivationTime(pkg) {
 
 // ============================================================
 // CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK
-// $50 OR MORE qualifies (was: exact $50 only)
+// $50 OR MORE qualifies
 // ============================================================
 function hasCampaignActivePackage(userData) {
     if (!isUserActive(userData)) {
@@ -289,7 +278,6 @@ function hasCampaignActivePackage(userData) {
 
         const pkgAmount = Number(pkg.usdtAmount || 0);
 
-        // $50 या उससे अधिक का सक्रिय पैकेज योग्य होगा।
         if (!Number.isFinite(pkgAmount) || pkgAmount < CAMPAIGN.requiredPackageAmount) {
             continue;
         }
@@ -401,6 +389,17 @@ function getCurrentCycleProgress(directCount) {
 
 function getTotalCyclesCompleted(directCount) {
     return Math.floor(directCount / CAMPAIGN.cycleSize);
+}
+
+// ============================================================
+// ✅ NEW — CHECK IF WITHDRAWAL ELIGIBLE (Minimum 5 referrals)
+// ============================================================
+// यह function हर जगह use होगा ताकि कोई भी bypass न कर सके।
+// Condition: finalDirectCount >= 5 (minReferralsForWithdrawal)
+// ============================================================
+function isWithdrawalEligible(finalDirectCount) {
+    const count = Math.max(0, Number(finalDirectCount) || 0);
+    return count >= CAMPAIGN.minReferralsForWithdrawal;
 }
 
 // ============================================================
@@ -687,6 +686,7 @@ function validateBEP20Wallet(address) {
 
 // ============================================================
 // FIX 9 + FIX A — WITHDRAWAL CREATION WITH SAFE ROLLBACK
+// + ✅ NEW: Minimum 5 referrals check inside transaction
 // ============================================================
 async function createAtomicWithdrawal(
     userId,
@@ -744,6 +744,18 @@ async function createAtomicWithdrawal(
                     return;
                 }
 
+                // ✅ NEW — Minimum 5 referrals check (transaction safe)
+                const finalCount = Number(current.finalDirectCount || 0);
+                if (!isWithdrawalEligible(finalCount)) {
+                    console.warn(
+                        `Withdrawal blocked inside transaction: ` +
+                        `user has ${finalCount} referrals, ` +
+                        `minimum ${CAMPAIGN.minReferralsForWithdrawal} required.`
+                    );
+                    // Returning undefined aborts the transaction
+                    return;
+                }
+
                 const reward =
                     Number(current.finalReward || 0);
 
@@ -772,7 +784,7 @@ async function createAtomicWithdrawal(
 
         if (!lockResult.committed) {
             throw new Error(
-                'Withdrawal already submitted or reward unavailable'
+                'Withdrawal already submitted, reward unavailable, or minimum referrals not met'
             );
         }
 
@@ -1105,14 +1117,22 @@ function renderCycleProgress(directCount) {
 }
 
 // ============================================================
-// FIX 12 + FIX B — UPDATE WITHDRAWAL UI
+// FIX 12 + FIX B + ✅ NEW: Minimum 5 referrals for withdrawal
 // ============================================================
 function updateWithdrawalUI(reward, status) {
     const campaignStatus = getCampaignStatus();
 
-    const isEligible =
-        Number(directReferrals) > 0 &&
-        Number(reward) > 0;
+    // ✅ NEW — final count use करो (snapshot से, अगर exists)
+    let effectiveCount = Number(directReferrals) || 0;
+
+    if (campaignStatus === 'ENDED' && campaignRewardSnapshot) {
+        effectiveCount = Number(campaignRewardSnapshot.finalDirectCount || 0);
+    }
+
+    // ✅ NEW — Minimum 5 referrals + reward > 0
+    const meetsMinimumReferrals = isWithdrawalEligible(effectiveCount);
+    const hasPositiveReward = Number(reward) > 0;
+    const isEligible = meetsMinimumReferrals && hasPositiveReward;
 
     const isWithdrawn =
         !!status &&
@@ -1271,7 +1291,9 @@ function updateWithdrawalUI(reward, status) {
             el.withdrawalSubtitle.textContent = 'Withdrawal locked - offer active';
         }
     } else if (campaignStatus === 'ENDED') {
+        // ✅ NEW — Three-way branch: eligible / has reward but <5 refs / no reward
         if (isEligible) {
+            // User has ≥ 5 referrals AND reward > 0
             if (el.withdrawBtn) {
                 el.withdrawBtn.disabled = false;
                 el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward';
@@ -1289,14 +1311,43 @@ function updateWithdrawalUI(reward, status) {
             if (el.withdrawalSubtitle) {
                 el.withdrawalSubtitle.textContent = 'Withdrawal available - claim your reward!';
             }
+        } else if (hasPositiveReward && !meetsMinimumReferrals) {
+            // User has some referrals (1-4) but less than 5 → NOT eligible
+            const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - effectiveCount);
+
+            if (el.withdrawBtn) {
+                el.withdrawBtn.disabled = true;
+                el.withdrawBtn.innerHTML = '⛔ Minimum 5 Referrals Required';
+                el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
+            }
+            if (el.withdrawalInfoText) {
+                el.withdrawalInfoText.textContent =
+                    `⛔ Minimum 5 qualified direct referrals required for withdrawal. ` +
+                    `You currently have ${effectiveCount} referral${effectiveCount === 1 ? '' : 's'}. ` +
+                    `Need ${needed} more to unlock withdrawal.`;
+            }
+            if (el.withdrawalStatus) {
+                el.withdrawalStatus.classList.remove('visible');
+            }
+            if (el.withdrawalDetails) {
+                el.withdrawalDetails.classList.remove('visible');
+            }
+            if (el.withdrawalSubtitle) {
+                el.withdrawalSubtitle.textContent =
+                    `Need ${needed} more referral${needed === 1 ? '' : 's'} to withdraw`;
+            }
         } else {
+            // User has 0 referrals (or no reward)
             if (el.withdrawBtn) {
                 el.withdrawBtn.disabled = true;
                 el.withdrawBtn.innerHTML = '⛔ Not Eligible';
                 el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
             }
             if (el.withdrawalInfoText) {
-                el.withdrawalInfoText.textContent = 'Complete at least 1 qualified referral to be eligible for withdrawal.';
+                el.withdrawalInfoText.textContent =
+                    `Complete at least ${CAMPAIGN.minReferralsForWithdrawal} qualified referrals ` +
+                    `($$${CAMPAIGN.minReferralsForWithdrawal * CAMPAIGN.rewardPerReferral}) ` +
+                    `to be eligible for withdrawal.`;
             }
             if (el.withdrawalStatus) {
                 el.withdrawalStatus.classList.remove('visible');
@@ -1570,15 +1621,38 @@ function showDaysPopup() {
         `;
     } else if (campaignStatus === 'ENDED') {
         const finalReward = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalReward ?? 0) : reward;
-        if (finalReward > 0) {
+        const finalCount = campaignRewardSnapshot
+            ? Number(campaignRewardSnapshot.finalDirectCount ?? 0)
+            : Number(directReferrals) || 0;
+
+        // ✅ NEW — Show "not eligible" if < 5 referrals
+        if (finalReward > 0 && isWithdrawalEligible(finalCount)) {
             if (el.popupIcon) el.popupIcon.textContent = '🎉';
             if (el.popupTitle) el.popupTitle.textContent = 'Offer Ended!';
             if (el.popupText) el.popupText.innerHTML = `
                 Your withdrawal is now available.
                 <br><br>
                 <strong>Eligible Reward:</strong> $${finalReward.toFixed(2)} USDT
+                <br>
+                <strong>Qualified Referrals:</strong> ${finalCount}
                 <br><br>
                 Click <strong>"Withdraw Reward"</strong> to continue.
+            `;
+        } else if (finalReward > 0 && !isWithdrawalEligible(finalCount)) {
+            // Has reward but fewer than 5 referrals
+            const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - finalCount);
+            if (el.popupIcon) el.popupIcon.textContent = '⛔';
+            if (el.popupTitle) el.popupTitle.textContent = 'Minimum 5 Referrals Required';
+            if (el.popupText) el.popupText.innerHTML = `
+                आपके पास अभी <strong>${finalCount}</strong> qualified referral${finalCount === 1 ? '' : 's'} हैं।
+                <br><br>
+                Withdrawal के लिए <strong>${CAMPAIGN.minReferralsForWithdrawal}</strong> qualified referrals ज़रूरी हैं।
+                <br>
+                अभी और <strong>${needed}</strong> referral${needed === 1 ? '' : 's'} चाहिए।
+                <br><br>
+                <span style="color:#94a3b8;font-size:0.85rem;">
+                    आपका अर्जित reward ($${finalReward.toFixed(2)}) safe है, लेकिन 5 referrals पूरे होने तक withdrawal unlock नहीं होगा।
+                </span>
             `;
         } else {
             if (el.popupIcon) el.popupIcon.textContent = '⛔';
@@ -1586,9 +1660,9 @@ function showDaysPopup() {
             if (el.popupText) el.popupText.innerHTML = `
                 You are not eligible for withdrawal because you have 0 qualified referrals.
                 <br><br>
-                <strong>Minimum required:</strong> 1 Qualified Direct Referral ($50+ package)
+                <strong>Minimum required:</strong> ${CAMPAIGN.minReferralsForWithdrawal} Qualified Direct Referrals ($50+ package)
                 <br>
-                <strong>Your qualified referrals:</strong> ${directReferrals}
+                <strong>Your qualified referrals:</strong> ${finalCount}
             `;
         }
     }
@@ -1599,7 +1673,7 @@ function showDaysPopup() {
 }
 
 // ============================================================
-// FIX 14 — HANDLE WITHDRAWAL BUTTON CLICK
+// FIX 14 + ✅ NEW: Minimum 5 referrals check
 // ============================================================
 function handleWithdrawClick() {
     const status = getCampaignStatus();
@@ -1610,18 +1684,29 @@ function handleWithdrawClick() {
     }
 
     let reward = 0;
+    let finalCount = 0;
 
     if (
         campaignRewardSnapshot &&
         campaignRewardSnapshot.isFinalized === true
     ) {
-        reward =
-            Number(
-                campaignRewardSnapshot.finalReward || 0
-            );
+        reward = Number(campaignRewardSnapshot.finalReward || 0);
+        finalCount = Number(campaignRewardSnapshot.finalDirectCount || 0);
     } else {
-        reward =
-            calculateReward(directReferrals);
+        reward = calculateReward(directReferrals);
+        finalCount = Number(directReferrals) || 0;
+    }
+
+    // ✅ NEW — Minimum 5 referrals check (before anything else)
+    if (!isWithdrawalEligible(finalCount)) {
+        const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - finalCount);
+        showToast(
+            `Minimum ${CAMPAIGN.minReferralsForWithdrawal} qualified referrals required. ` +
+            `You have ${finalCount}. Need ${needed} more.`,
+            'warning'
+        );
+        showDaysPopup();
+        return;
     }
 
     if (!Number.isFinite(reward) || reward <= 0) {
@@ -1701,7 +1786,7 @@ function showConfirmationModal(
 }
 
 // ============================================================
-// FIX 15 + FIX C — PROCESS WITHDRAWAL
+// FIX 15 + FIX C + ✅ NEW: Minimum 5 referrals check
 // ============================================================
 async function processWithdrawal() {
 
@@ -1752,12 +1837,20 @@ async function processWithdrawal() {
             snapshot = await finalizeCampaignReward(currentUserId);
         }
 
-        if (
-            !snapshot ||
-            !snapshot.isFinalized ||
-            Number(snapshot.finalReward || 0) <= 0
-        ) {
+        if (!snapshot || !snapshot.isFinalized) {
             showToast('No finalized eligible reward is available.', 'error');
+            return;
+        }
+
+        // ✅ NEW — Minimum 5 referrals check (server snapshot based)
+        const finalCount = Number(snapshot.finalDirectCount || 0);
+        if (!isWithdrawalEligible(finalCount)) {
+            const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - finalCount);
+            showToast(
+                `Minimum ${CAMPAIGN.minReferralsForWithdrawal} qualified referrals required for withdrawal. ` +
+                `You currently have ${finalCount}. Need ${needed} more.`,
+                'warning'
+            );
             return;
         }
 
@@ -1826,11 +1919,10 @@ async function processWithdrawal() {
 }
 
 // ============================================================
-// LOAD USER DATA — SAFETY WRAPPED
+// LOAD USER DATA
 // ============================================================
 async function loadUserData(user) {
     try {
-        // SAFETY: invalid user object
         if (!user || !user.uid) {
             console.error('loadUserData: invalid user object');
             showToast('User session error. Please login again.', 'error');
@@ -1911,7 +2003,6 @@ async function loadUserData(user) {
             'error'
         );
     } finally {
-        // SAFETY: हर हाल में loading overlay बंद करें
         if (el.loadingOverlay) {
             el.loadingOverlay.classList.add('hidden');
         }
@@ -2066,7 +2157,7 @@ async function handleLogout() {
 }
 
 // ============================================================
-// FIX 19 — SETUP LISTENERS (DUPLICATION PROTECTION)
+// FIX 19 — SETUP LISTENERS
 // ============================================================
 function setupListeners() {
     if (listenersInitialized) {
@@ -2111,7 +2202,7 @@ function setupListeners() {
 }
 
 // ============================================================
-// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER (ONCE)
+// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER
 // ============================================================
 document.addEventListener(
     'visibilitychange',
@@ -2173,12 +2264,10 @@ const authTimeoutHandle = setTimeout(() => {
             AUTH_TIMEOUT_MS + 'ms. Force-closing loading overlay.'
         );
 
-        // Loading overlay force-close
         if (el.loadingOverlay) {
             el.loadingOverlay.classList.add('hidden');
         }
 
-        // अगर user session नहीं है तो login पर भेजें
         if (!auth.currentUser) {
             window.location.href = 'login.html';
         }
@@ -2189,7 +2278,6 @@ const authTimeoutHandle = setTimeout(() => {
 // MAIN AUTH HANDLER
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
-    // Auth response आ गया — timeout cancel करें
     authResolved = true;
     clearTimeout(authTimeoutHandle);
 
@@ -2201,13 +2289,10 @@ onAuthStateChanged(auth, async (user) => {
 
     console.log('✅ User authenticated:', user.uid);
 
-    // Server time sync NON-BLOCKING (background में चलेगा)
     syncFirebaseServerTime();
 
-    // User data load करें
     await loadUserData(user);
 
-    // Listeners attach करें
     setupListeners();
 });
 
@@ -2216,6 +2301,7 @@ console.log('📅 Campaign:', CAMPAIGN.campaignId);
 console.log('💰 $10 per qualified referral ($50+ package qualifies)');
 console.log('🔄 Every 5 referrals = $50 cycle (unlimited)');
 console.log('🔒 Withdrawal: Locked until Offer ENDED');
+console.log('⛔ Withdrawal Minimum: ' + CAMPAIGN.minReferralsForWithdrawal + ' qualified referrals required');
 console.log('⏱️ Server time sync: onValue() non-blocking');
 console.log('🛡️ Safety timeout: 10 seconds');
 console.log('🔥 Firebase: rnd2-70080');
