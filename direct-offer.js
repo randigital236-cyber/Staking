@@ -10,6 +10,7 @@
 //   FIX 1 (new) : Prevent duplicate Firebase onValue() listeners
 //   FIX 2 (new) : Correct isWithdrawalFinalized state
 //   FIX 3 (new) : Clean up Firebase listener on page unload
+//   FIX (amount) : $50-or-more packages now qualify (was: exact $50 only)
 // ============================================================
 
 // ============================================================
@@ -20,7 +21,7 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get, update, onValue, runTransaction } from "firebase/database";
 
 // ============================================================
-// FIREBASE CONFIG (UPDATED — NEW FIREBASE: rnd2-70080)
+// FIREBASE CONFIG (UNCHANGED — rnd2-70080)
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -39,6 +40,7 @@ const db = getDatabase(app);
 
 // ============================================================
 // CAMPAIGN CONFIGURATION (UNCHANGED)
+// requiredPackageAmount: 50 now acts as MINIMUM qualifying amount
 // ============================================================
 const CAMPAIGN = {
     campaignId: 'direct_offer_50pack_oct2026',
@@ -134,10 +136,7 @@ let isProcessingWithdrawal = false;
 let referralRefreshInterval = null;
 let firebaseServerOffset = 0;
 
-// NEW FIX 1 — Firebase listener unsubscribe handle
 let withdrawalListenerUnsubscribe = null;
-
-// FIX 19 — DOM LISTENER DUPLICATION PROTECTION
 let listenersInitialized = false;
 
 // ============================================================
@@ -220,7 +219,9 @@ function getPackageActivationTime(pkg) {
 }
 
 // ============================================================
-// CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK — $50 ONLY
+// ✅ UPDATED — CAMPAIGN ELIGIBLE ACTIVE PACKAGE CHECK
+// Now: $50 OR MORE qualifies (was: exact $50 only)
+// All other rules unchanged: status === active, activation time within campaign
 // ============================================================
 function hasCampaignActivePackage(userData) {
     if (!isUserActive(userData)) {
@@ -236,7 +237,11 @@ function hasCampaignActivePackage(userData) {
         if (String(pkg.status || '').toLowerCase() !== 'active') continue;
 
         const pkgAmount = Number(pkg.usdtAmount || 0);
-        if (pkgAmount !== CAMPAIGN.requiredPackageAmount) continue;
+
+        // $50 या उससे अधिक का सक्रिय पैकेज योग्य होगा।
+        if (!Number.isFinite(pkgAmount) || pkgAmount < CAMPAIGN.requiredPackageAmount) {
+            continue;
+        }
 
         const activationTime = getPackageActivationTime(pkg);
         if (!activationTime) continue;
@@ -250,7 +255,8 @@ function hasCampaignActivePackage(userData) {
 }
 
 // ============================================================
-// GET CAMPAIGN DIRECT REFERRALS — $50 PACKAGE ONLY
+// GET CAMPAIGN DIRECT REFERRALS
+// (Unchanged — calls hasCampaignActivePackage which now accepts $50+)
 // ============================================================
 async function getCampaignDirectReferrals(userId) {
     try {
@@ -315,6 +321,7 @@ async function getCampaignDirectReferrals(userId) {
 
 // ============================================================
 // FIX 4 — REWARD CALCULATION NORMALIZED
+// (Unchanged — $10 per qualified direct referral regardless of package amount)
 // ============================================================
 function calculateReward(directCount) {
     const count = Math.max(0, Number(directCount) || 0);
@@ -400,7 +407,7 @@ function formatTimeRemaining(time) {
 }
 
 // ============================================================
-// FIX 7 — GET CAMPAIGN REWARD SNAPSHOT (DOUBLE-CALL SAFE)
+// FIX 7 — GET CAMPAIGN REWARD SNAPSHOT
 // ============================================================
 async function getCampaignRewardSnapshot(userId) {
     try {
@@ -570,10 +577,9 @@ async function checkWithdrawalStatus(userId) {
 }
 
 // ============================================================
-// NEW FIX 1 — SETUP WITHDRAWAL LISTENER (DUPLICATE-SAFE)
+// NEW FIX 1 — SETUP WITHDRAWAL LISTENER
 // ============================================================
 function setupWithdrawalListener(userId) {
-    // Prevent duplicate Firebase listeners.
     if (withdrawalListenerUnsubscribe) {
         withdrawalListenerUnsubscribe();
         withdrawalListenerUnsubscribe = null;
@@ -618,7 +624,7 @@ function generateTxId() {
 }
 
 // ============================================================
-// FIX 20 — WALLET VALIDATION (TRIM-SAFE)
+// FIX 20 — WALLET VALIDATION
 // ============================================================
 function validateBEP20Wallet(address) {
     if (typeof address !== 'string') {
@@ -807,10 +813,6 @@ async function createAtomicWithdrawal(
                 }
             );
         } catch (writeError) {
-
-            // ============================================================
-            // FIX A — CRITICAL SAFETY
-            // ============================================================
 
             console.error(
                 'Withdrawal write error — verifying Firebase state:',
@@ -1125,7 +1127,6 @@ function updateWithdrawalUI(reward, status) {
         return;
     }
 
-    // No withdrawal request yet
     if (campaignStatus === 'UPCOMING') {
         el.withdrawBtn.disabled = true;
         el.withdrawBtn.innerHTML = '⏳ Withdrawal Opens After Offer Ends';
@@ -1136,7 +1137,6 @@ function updateWithdrawalUI(reward, status) {
         el.withdrawalDetails.classList.remove('visible');
         el.withdrawalSubtitle.textContent = 'Withdrawal not available yet';
     } else if (campaignStatus === 'ACTIVE') {
-        // FIX B — Button truly disabled during active campaign.
         el.withdrawBtn.disabled = true;
         el.withdrawBtn.innerHTML = '🔒 Withdrawal Locked — Offer Active';
         el.withdrawBtn.className = 'btn-withdraw withdrawal-locked';
@@ -1275,7 +1275,7 @@ function updateUI() {
             : `💰 $${displayReward} earned (${displayDirectCount} refs)${cycleInfo ? ' • ' + cycleInfo : ''}`;
         el.statRewardNote.style.color = '#fbbf24';
     } else {
-        el.statRewardNote.textContent = 'Earn $10 per qualified $50 package referral';
+        el.statRewardNote.textContent = 'Earn $10 per qualified $50+ package referral';
         el.statRewardNote.style.color = '#64748b';
     }
 
@@ -1316,7 +1316,7 @@ function updateUI() {
 
         el.nextMilestoneText.innerHTML =
             '<i class="bi bi-trophy" style="color:#fbbf24;"></i> ' +
-            '🎉 Cycle complete! Start the next cycle by referring more $50 package users.';
+            '🎉 Cycle complete! Start the next cycle by referring more $50+ package users.';
     } else {
         el.needMore.textContent = String(neededForCycle);
 
@@ -1347,7 +1347,7 @@ function updateUI() {
         el.finalBadge.style.display = 'none';
         el.walletLabel.textContent = 'Estimated Offer Earnings';
         if (displayReward === 0) {
-            el.walletStatusText.textContent = '💡 Refer users who activate the $50 package to earn $10 each!';
+            el.walletStatusText.textContent = '💡 Refer users who activate the $50+ package to earn $10 each!';
         } else {
             const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
             const remainder = displayDirectCount % CAMPAIGN.cycleSize;
@@ -1374,7 +1374,7 @@ function showDaysPopup() {
         el.popupIcon.textContent = '📅';
         el.popupTitle.textContent = 'Offer Not Started Yet';
         el.popupText.innerHTML = `
-            The $50 Package Direct Referral Offer has not started yet.
+            The $50+ Package Direct Referral Offer has not started yet.
             <br><br>
             <strong>Starts:</strong> 10 October 2026
             <br>
@@ -1418,7 +1418,7 @@ function showDaysPopup() {
             el.popupText.innerHTML = `
                 You are not eligible for withdrawal because you have 0 qualified referrals.
                 <br><br>
-                <strong>Minimum required:</strong> 1 Qualified Direct Referral ($50 package)
+                <strong>Minimum required:</strong> 1 Qualified Direct Referral ($50+ package)
                 <br>
                 <strong>Your qualified referrals:</strong> ${directReferrals}
             `;
@@ -1527,7 +1527,6 @@ function showConfirmationModal(
 // ============================================================
 async function processWithdrawal() {
 
-    // FIX C — Entry-level guard.
     if (isProcessingWithdrawal) {
         return;
     }
@@ -1535,7 +1534,6 @@ async function processWithdrawal() {
     const originalSubmitHTML =
         '<i class="bi bi-check-circle me-1"></i>Confirm Withdrawal';
 
-    // FIX C — UI को तुरंत lock करो — कोई async call करने से पहले।
     el.confirmSubmit.disabled = true;
     el.confirmSubmit.innerHTML =
         '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
@@ -1635,7 +1633,6 @@ async function processWithdrawal() {
         );
 
     } finally {
-        // FIX C — हमेशा button restore करो।
         isProcessingWithdrawal = false;
         el.confirmSubmit.disabled = false;
         el.confirmSubmit.innerHTML = originalSubmitHTML;
@@ -1644,8 +1641,6 @@ async function processWithdrawal() {
 
 // ============================================================
 // LOAD USER DATA
-// (FIX 2 (new) — isWithdrawalFinalized state corrected)
-// (FIX 18 — visibilitychange listener removed from here)
 // ============================================================
 async function loadUserData(user) {
     try {
@@ -1662,9 +1657,6 @@ async function loadUserData(user) {
         el.userName.textContent = name;
         el.userAvatar.textContent = name.charAt(0).toUpperCase();
 
-        // ============================================================
-        // FIX 2 (new) — correct isWithdrawalFinalized state
-        // ============================================================
         campaignRewardSnapshot =
             await getCampaignRewardSnapshot(user.uid);
 
@@ -1705,19 +1697,19 @@ async function loadUserData(user) {
 
         const status = getCampaignStatus();
         if (status === 'UPCOMING') {
-            showToast('📢 $50 Package Direct Referral Offer starts on 10 October 2026!', 'warning');
+            showToast('📢 $50+ Package Direct Referral Offer starts on 10 October 2026!', 'warning');
         } else if (status === 'ACTIVE') {
             if (userIsActive) {
-                showToast('🎯 Offer is ACTIVE! Refer $50 package users and earn $10 each!', 'success');
+                showToast('🎯 Offer is ACTIVE! Refer $50+ package users and earn $10 each!', 'success');
                 startReferralRefresh();
             } else {
-                showToast('ℹ️ Activate your ID with a $50 package to participate in this offer.', 'info');
+                showToast('ℹ️ Activate your ID with a $50+ package to participate in this offer.', 'info');
             }
         } else if (status === 'ENDED') {
             if (directReferrals > 0) {
                 showToast('🏆 Offer ended! You are eligible for reward withdrawal.', 'success');
             } else {
-                showToast('⏰ Offer ended. You need at least 1 qualified referral ($50 package) to qualify.', 'warning');
+                showToast('⏰ Offer ended. You need at least 1 qualified referral ($50+ package) to qualify.', 'warning');
             }
         }
 
@@ -1864,7 +1856,7 @@ async function handleLogout() {
 }
 
 // ============================================================
-// FIX 19 — SETUP LISTENERS (DUPLICATION PROTECTION)
+// FIX 19 — SETUP LISTENERS
 // ============================================================
 function setupListeners() {
     if (listenersInitialized) {
@@ -1898,7 +1890,7 @@ function setupListeners() {
 }
 
 // ============================================================
-// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER (ONCE)
+// FIX 18 — GLOBAL VISIBILITY CHANGE LISTENER
 // ============================================================
 document.addEventListener(
     'visibilitychange',
@@ -1948,10 +1940,10 @@ onAuthStateChanged(auth, async (user) => {
     setupListeners();
 });
 
-console.log('✅ $50 Package Direct Offer — FINAL PRODUCTION VERSION');
+console.log('✅ $50+ Package Direct Offer — FINAL PRODUCTION VERSION');
 console.log('📅 Campaign:', CAMPAIGN.campaignId);
-console.log('💰 $10 per qualified referral ($50 package only)');
+console.log('💰 $10 per qualified referral ($50+ package now qualifies)');
 console.log('🔄 Every 5 referrals = $50 cycle (unlimited)');
 console.log('🔒 Withdrawal: Locked until Offer ENDED');
-console.log('✅ FIX 1–21 + FIX A + FIX B + FIX C + NEW FIX 1/2/3 applied');
-console.log('🔥 Firebase: rnd2-70080 (NEW)');
+console.log('✅ FIX 1–21 + FIX A + FIX B + FIX C + NEW FIX 1/2/3 + AMOUNT FIX applied');
+console.log('🔥 Firebase: rnd2-70080');
