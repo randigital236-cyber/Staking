@@ -1,9 +1,10 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v3 Safe)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v3.1 Fix)
 // ============================================================
 // - Reads rules from Firebase `direct_offer_campaigns/{campaignId}`
-// - Validates config strictly (prevents default values if missing)
+// - Validates config strictly
 // - Backward compatible with existing user data & withdrawals
+// - FIXED: authTimeoutHandle reference error
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -248,7 +249,7 @@ function getCampaignStatus() {
     const cfgStatus = String(CAMPAIGN.status).toLowerCase();
 
     if (cfgStatus === 'inactive' || cfgStatus === 'paused') {
-        return now > end ? 'ENDED' : 'UPCOMING'; // Treat as inactive
+        return now > end ? 'ENDED' : 'UPCOMING';
     }
     if (now < start) return 'UPCOMING';
     if (now <= end) return 'ACTIVE';
@@ -369,7 +370,6 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
                 [`transactions/${txId}`]: globalTxData
             });
         } catch (writeError) {
-            // Fallback verification logic remains identical to v2 (safe rollback)
             let adminExists = false, userTxExists = false, globalTxExists = false;
             try {
                 const [a, u, g] = await Promise.all([ get(ref(db, `admin/withdrawals/${withdrawalId}`)), get(ref(db, `users/${userId}/transactions/${txId}`)), get(ref(db, `transactions/${txId}`)) ]);
@@ -819,8 +819,16 @@ window.addEventListener('beforeunload', () => {
     if (serverTimeListenerUnsubscribe) { try { serverTimeListenerUnsubscribe(); } catch (e) {} }
 });
 
-const AUTH_TIMEOUT_MS = 10000; let authResolved = false;
-setTimeout(() => { if (!authResolved) { if (el.loadingOverlay) el.loadingOverlay.classList.add('hidden'); if (!auth.currentUser) window.location.href = 'login.html'; } }, AUTH_TIMEOUT_MS);
+const AUTH_TIMEOUT_MS = 10000; 
+let authResolved = false;
+
+// ✅ FIX: Declared authTimeoutHandle properly here
+const authTimeoutHandle = setTimeout(() => { 
+    if (!authResolved) { 
+        if (el.loadingOverlay) el.loadingOverlay.classList.add('hidden'); 
+        if (!auth.currentUser) window.location.href = 'login.html'; 
+    } 
+}, AUTH_TIMEOUT_MS);
 
 onAuthStateChanged(auth, async (user) => {
     authResolved = true; clearTimeout(authTimeoutHandle);
