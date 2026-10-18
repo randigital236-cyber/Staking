@@ -1,15 +1,14 @@
 // ============================================================
-// DIRECT OFFER ADMIN — JavaScript (Dynamic Campaign Final v9)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v3 Safe)
 // ============================================================
-// - Strict compatibility for missing campaignId
-// - Strict atomicSync with read verification
-// - Accurate deduplication and metrics
-// - Reject shows "Refund Pending"
+// - Reads rules from Firebase `direct_offer_campaigns/{campaignId}`
+// - Validates config strictly (prevents default values if missing)
+// - Backward compatible with existing user data & withdrawals
 // ============================================================
 
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update, runTransaction, onValue } from "firebase/database";
+import { getDatabase, ref, get, update, onValue, runTransaction } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -26,505 +25,807 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-let allUsers = {};
-let allCampaignRewards = {};
-let allAdminWithdrawals = {};
-let allCampaignConfigs = {}; 
+// ============================================================
+// 🆕 DYNAMIC CAMPAIGN CONFIGURATION
+// ============================================================
+let CAMPAIGN = null;
+let CAMPAIGN_LOADED = false;
+let CAMPAIGN_ERROR = null;
 
-let availableCampaigns = [];
-let selectedCampaignId = '';
-let currentCampaignConfig = null;
-
-let allWithdrawalRecords = [];
-let allUnassignedRecords = [];
-let pendingWithdrawals = [];
-let allOverviewRecords = [];
-
-let activeTab = 'withdrawals';
-let searchQuery = '';
-let isProcessingAction = new Set();
-
-let usersOff = null, rewardsOff = null, adminWdsOff = null, configsOff = null;
-let dataReady = false;
-
-// UTILS
-function escapeHtml(text) { if (!text) return ''; const d = document.createElement('div'); d.textContent = String(text); return d.innerHTML; }
-function formatCurrency(amount) { const v = Number(amount); return '$' + (Number.isFinite(v) ? v : 0).toFixed(2); }
-function formatDateTime(timestamp) {
-    if (!timestamp) return { date: '—', time: '' };
-    try {
-        const d = new Date(Number(timestamp));
-        if (isNaN(d.getTime())) return { date: '—', time: '' };
-        return { date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) };
-    } catch (e) { return { date: '—', time: '' }; }
-}
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toastContainer'); if (!container) return;
-    const toast = document.createElement('div'); toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' ? 'bi-check-circle-fill' : type === 'error' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill';
-    toast.innerHTML = `<i class="bi ${icon}"></i><span>${escapeHtml(message)}</span>`;
-    container.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(100%)'; setTimeout(() => toast.remove(), 300); }, 4500);
-}
-
-window.copyWalletAddress = async function(address, btnEl) {
-    if (!address || !address.trim()) { showToast('❌ No address', 'error'); return; }
-    const full = String(address).trim();
-    const doCopy = async () => {
-        try {
-            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(full);
-            else { const ta = document.createElement('textarea'); ta.value = full; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
-            if (btnEl) { const orig = btnEl.innerHTML; btnEl.classList.add('copied'); btnEl.innerHTML = '<i class="bi bi-check-lg"></i> Copied!'; setTimeout(() => { btnEl.classList.remove('copied'); btnEl.innerHTML = orig; }, 2000); }
-            showToast('✅ Copied', 'success');
-        } catch (e) { showToast('❌ Failed to copy', 'error'); }
-    };
-    doCopy();
+// Strict Fallback (Only used to protect existing live data if Firebase completely fails)
+const LIVE_CAMPAIGN_ID = 'direct_offer_50pack_oct2026';
+const FALLBACK_CAMPAIGN = {
+    campaignId: LIVE_CAMPAIGN_ID,
+    campaignName: 'RND $50+ Package Direct Referral Offer',
+    startDate: new Date('2026-10-10T00:00:00+05:30'),
+    endDate: new Date('2026-10-24T23:59:59+05:30'),
+    requiredPackageAmount: 50,
+    rewardPerReferral: 10,
+    cycleSize: 5,
+    cycleReward: 50,
+    maxQualifying: Infinity,
+    minReferralsForWithdrawal: 5,
+    status: 'active'
 };
 
-function extractCampaigns() {
-    const campaignsSet = new Set();
-    for (const cid in allCampaignConfigs) campaignsSet.add(cid);
-    for (const uid in allCampaignRewards) { for (const cid in (allCampaignRewards[uid] || {})) campaignsSet.add(cid); }
-    availableCampaigns = Array.from(campaignsSet).sort().reverse();
+async function loadDynamicCampaign() {
+    try {
+        const activeIdSnap = await get(ref(db, 'settings/active_direct_offer_campaign'));
+        const activeId = activeIdSnap.val();
 
-    const selector = document.getElementById('campaignSelector');
-    if (!selector) return;
+        // Fallback Safety: If no active ID exists in settings, protect the live campaign data
+        if (!activeId) {
+            console.warn('⚠️ No active campaign in settings. Using fallback to protect live data.');
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+            CAMPAIGN_LOADED = true;
+            return { success: true, isFallback: true };
+        }
 
-    let currentVal = selectedCampaignId;
-    if (!availableCampaigns.includes(currentVal)) currentVal = availableCampaigns[0] || '';
+        const configSnap = await get(ref(db, `direct_offer_campaigns/${activeId}`));
+        if (!configSnap.exists()) {
+            console.warn(`⚠️ Config for ${activeId} missing. Using fallback.`);
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+            CAMPAIGN_LOADED = true;
+            return { success: true, isFallback: true };
+        }
 
-    if (availableCampaigns.length === 0) {
-        selector.innerHTML = `<option value="">No Campaigns Found</option>`;
-        document.getElementById('contentContainer').style.display = 'none';
-        document.getElementById('loadingContainer').style.display = 'block';
-        document.querySelector('.loading-text').innerHTML = '<i class="bi bi-exclamation-triangle text-warning"></i> No campaigns found.';
+        const cfg = configSnap.val();
         
-        // Show unassigned legacy withdrawals even if no campaigns exist
-        if (allAdminWithdrawals && Object.keys(allAdminWithdrawals).length > 0) {
-            document.getElementById('loadingContainer').style.display = 'none';
-            document.getElementById('contentContainer').style.display = 'block';
-            renderWithdrawalsTab();
+        // STRICT VALIDATION: Do not silently accept missing/bad data
+        if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
+            throw new Error('Invalid Campaign Config: Missing required fields.');
+        }
+
+        CAMPAIGN = {
+            campaignId: activeId,
+            campaignName: cfg.campaignName || 'Direct Referral Offer',
+            startDate: new Date(cfg.startAt),
+            endDate: new Date(cfg.endAt),
+            requiredPackageAmount: Number(cfg.requiredPackageAmount),
+            rewardPerReferral: Number(cfg.rewardPerReferral),
+            cycleSize: Number(cfg.cycleSize) || 5,
+            cycleReward: Number(cfg.cycleReward) || (Number(cfg.rewardPerReferral) * 5),
+            maxQualifying: cfg.maxQualifying ? Number(cfg.maxQualifying) : Infinity,
+            minReferralsForWithdrawal: Number(cfg.minReferralsForWithdrawal),
+            status: cfg.status || 'active'
+        };
+
+        CAMPAIGN_LOADED = true;
+        return { success: true, isFallback: false };
+
+    } catch (err) {
+        console.error('❌ Failed to load campaign config:', err);
+        CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+        CAMPAIGN_LOADED = true;
+        CAMPAIGN_ERROR = err.message;
+        return { success: false, error: err.message };
+    }
+}
+
+// DOM REFS
+const $ = id => document.getElementById(id);
+const el = {
+    loadingOverlay: $('loadingOverlay'), toastContainer: $('toastContainer'),
+    userAvatar: $('userAvatar'), userName: $('userName'), logoutBtn: $('logoutBtn'),
+    countdownDays: $('countdownDays'), countdownHours: $('countdownHours'),
+    countdownMinutes: $('countdownMinutes'), countdownSeconds: $('countdownSeconds'),
+    countdownWrapper: $('countdownWrapper'), campaignEndedMessage: $('campaignEndedMessage'),
+    campaignStatusBadge: $('campaignStatusBadge'), statDirectRefs: $('statDirectRefs'),
+    statReferralPeriod: $('statReferralPeriod'), statEligibleReward: $('statEligibleReward'),
+    statRewardNote: $('statRewardNote'), statNextMilestone: $('statNextMilestone'),
+    statNextMilestoneSub: $('statNextMilestoneSub'), statMaxReward: $('statMaxReward'),
+    progressCurrent: $('progressCurrent'), progressTarget: $('progressTarget'),
+    progressFill: $('progressFill'), needMore: $('needMore'),
+    nextMilestoneText: $('nextMilestoneText'), cycleProgressGrid: $('cycleProgressGrid'),
+    referralLinkDisplay: $('referralLinkDisplay'), copyReferralBtn: $('copyReferralBtn'),
+    totalReferralsDisplay: $('totalReferralsDisplay'), referralCodeDisplay: $('referralCodeDisplay'),
+    withdrawalSection: $('withdrawalSection'), withdrawAmount: $('withdrawAmount'),
+    walletAddressInput: $('walletAddressInput'), walletValidationMsg: $('walletValidationMsg'),
+    walletFormGroup: $('walletFormGroup'), withdrawBtn: $('withdrawBtn'),
+    withdrawalStatus: $('withdrawalStatus'), withdrawalInfoBox: $('withdrawalInfoBox'),
+    withdrawalInfoText: $('withdrawalInfoText'), withdrawalDetails: $('withdrawalDetails'),
+    detailAmount: $('detailAmount'), detailWallet: $('detailWallet'),
+    detailPaidDate: $('detailPaidDate'), detailTxHash: $('detailTxHash'),
+    withdrawalSubtitle: $('withdrawalSubtitle'), notEligibleBox: $('notEligibleBox'),
+    walletAmount: $('walletAmount'), walletLabel: $('walletLabel'),
+    walletStatusText: $('walletStatusText'), finalBadge: $('finalBadge'),
+    rewardWalletCard: $('rewardWalletCard'), daysPopup: $('daysPopup'),
+    popupIcon: $('popupIcon'), popupTitle: $('popupTitle'), popupText: $('popupText'),
+    popupRewardAmount: $('popupRewardAmount'), popupDaysRemaining: $('popupDaysRemaining'),
+    popupCloseBtn: $('popupCloseBtn'), confirmationModal: $('confirmationModal'),
+    confirmAmount: $('confirmAmount'), confirmWallet: $('confirmWallet'),
+    confirmCancel: $('confirmCancel'), confirmSubmit: $('confirmSubmit')
+};
+
+let currentUserId = null;
+let currentUserData = null;
+let directReferrals = 0;
+let countdownInterval = null;
+let withdrawalData = null;
+let campaignRewardSnapshot = null;
+let isWithdrawalFinalized = false;
+let isProcessingWithdrawal = false;
+let referralRefreshInterval = null;
+let firebaseServerOffset = 0;
+let withdrawalListenerUnsubscribe = null;
+let serverTimeListenerUnsubscribe = null;
+let listenersInitialized = false;
+
+// UTILS
+function syncFirebaseServerTime() {
+    if (serverTimeListenerUnsubscribe) { try { serverTimeListenerUnsubscribe(); } catch (e) {} serverTimeListenerUnsubscribe = null; }
+    try {
+        serverTimeListenerUnsubscribe = onValue(ref(db, '.info/serverTimeOffset'), (snapshot) => {
+            const offset = Number(snapshot.val() || 0);
+            firebaseServerOffset = Number.isFinite(offset) ? offset : 0;
+            if (typeof updateUI === 'function' && CAMPAIGN_LOADED) { try { updateUI(); } catch (e) {} }
+        }, () => { firebaseServerOffset = 0; });
+    } catch (error) { firebaseServerOffset = 0; }
+}
+function getCampaignNow() { return new Date(Date.now() + firebaseServerOffset); }
+function isUserActive(userData) {
+    if (!userData || typeof userData !== 'object') return false;
+    const packages = userData.packages || {};
+    for (const packageId of Object.keys(packages)) {
+        const pkg = packages[packageId];
+        if (pkg && String(pkg.status || '').toLowerCase() === 'active' && Number(pkg.usdtAmount || 0) > 0) return true;
+    }
+    return false;
+}
+function normalizeTimestamp(value) {
+    if (!value) return null;
+    if (typeof value === 'number') return value > 0 ? value : null;
+    if (/^\d+$/.test(String(value))) return Number(value) > 0 ? Number(value) : null;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+function getPackageActivationTime(pkg) {
+    if (!pkg) return null;
+    for (const v of [pkg.activationAt, pkg.activatedAt, pkg.activeAt]) {
+        const ts = normalizeTimestamp(v); if (ts) return ts;
+    }
+    if (String(pkg.status || '').toLowerCase() === 'active') {
+        return normalizeTimestamp(pkg.purchaseDate) || normalizeTimestamp(pkg.createdAt);
+    }
+    return null;
+}
+function hasCampaignActivePackage(userData) {
+    if (!isUserActive(userData) || !CAMPAIGN) return false;
+    const packages = userData.packages || {};
+    for (const packageId of Object.keys(packages)) {
+        const pkg = packages[packageId];
+        if (!pkg || String(pkg.status || '').toLowerCase() !== 'active') continue;
+        if (Number(pkg.usdtAmount || 0) < CAMPAIGN.requiredPackageAmount) continue;
+        const activationTime = getPackageActivationTime(pkg);
+        if (activationTime >= CAMPAIGN.startDate.getTime() && activationTime <= CAMPAIGN.endDate.getTime()) return true;
+    }
+    return false;
+}
+async function getCampaignDirectReferrals(userId) {
+    try {
+        if (!db || !userId || !CAMPAIGN) return 0;
+        const ownerSnap = await get(ref(db, 'users/' + userId));
+        if (!ownerSnap.exists()) return 0;
+        const owner = ownerSnap.val();
+        if (!isUserActive(owner)) return 0;
+        const usersSnap = await get(ref(db, 'users'));
+        if (!usersSnap.exists()) return 0;
+        const users = usersSnap.val() || {};
+        const counted = new Set();
+        for (const [candidateUid, candidate] of Object.entries(users)) {
+            if (!candidate || candidateUid === userId) continue;
+            let isDirect = (candidate.sponsorUid === userId || candidate.referredByUid === userId);
+            if (!isDirect) {
+                const legacy = candidate.referredBy || candidate.sponsor;
+                if (legacy && (String(legacy) === String(userId) || String(legacy) === String(owner.referralCode) || String(legacy) === String(owner.username))) isDirect = true;
+            }
+            if (!isDirect || !isUserActive(candidate) || !hasCampaignActivePackage(candidate)) continue;
+            counted.add(candidateUid);
+        }
+        return Math.max(0, Math.min(Number(counted.size) || 0, CAMPAIGN.maxQualifying));
+    } catch (error) { return 0; }
+}
+function calculateReward(directCount) {
+    const count = Math.max(0, Number(directCount) || 0);
+    return (count <= 0 || !CAMPAIGN) ? 0 : Number((count * CAMPAIGN.rewardPerReferral).toFixed(2));
+}
+function getCurrentCycleProgress(directCount) {
+    if (!CAMPAIGN) return 0;
+    const count = Math.max(0, Number(directCount) || 0);
+    if (count === 0) return 0;
+    const remainder = count % CAMPAIGN.cycleSize;
+    return remainder === 0 ? CAMPAIGN.cycleSize : remainder;
+}
+function isWithdrawalEligible(finalDirectCount) {
+    if (!CAMPAIGN) return false;
+    return Math.max(0, Number(finalDirectCount) || 0) >= CAMPAIGN.minReferralsForWithdrawal;
+}
+function getCampaignStatus() {
+    if (!CAMPAIGN) return 'NOT_LOADED';
+    const now = getCampaignNow().getTime();
+    const start = CAMPAIGN.startDate.getTime();
+    const end = CAMPAIGN.endDate.getTime();
+    const cfgStatus = String(CAMPAIGN.status).toLowerCase();
+
+    if (cfgStatus === 'inactive' || cfgStatus === 'paused') {
+        return now > end ? 'ENDED' : 'UPCOMING'; // Treat as inactive
+    }
+    if (now < start) return 'UPCOMING';
+    if (now <= end) return 'ACTIVE';
+    return 'ENDED';
+}
+function getTimeRemaining() {
+    if (!CAMPAIGN) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const now = getCampaignNow(); const status = getCampaignStatus();
+    if (status === 'UPCOMING') {
+        const diff = CAMPAIGN.startDate - now;
+        if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+        return { days: Math.floor(diff / 86400000), hours: Math.floor((diff % 86400000) / 3600000), minutes: Math.floor((diff % 3600000) / 60000), seconds: Math.floor((diff % 60000) / 1000) };
+    } else if (status === 'ACTIVE') {
+        const diff = CAMPAIGN.endDate - now;
+        if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+        return { days: Math.floor(diff / 86400000), hours: Math.floor((diff % 86400000) / 3600000), minutes: Math.floor((diff % 3600000) / 60000), seconds: Math.floor((diff % 60000) / 1000) };
+    }
+    return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+}
+function formatTimeRemaining(time) {
+    if (time.days === 0 && time.hours === 0 && time.minutes === 0 && time.seconds === 0) return 'Offer has ended';
+    return `${time.days}d ${time.hours}h ${time.minutes}m ${time.seconds}s`;
+}
+async function getCampaignRewardSnapshot(userId) {
+    if (!db || !userId || !CAMPAIGN) return null;
+    try {
+        const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+        if (!snap.exists()) return null;
+        const data = snap.val();
+        if (data && data.isFinalized === true) isWithdrawalFinalized = true;
+        return data;
+    } catch (e) { return null; }
+}
+async function finalizeCampaignReward(userId) {
+    if (!db || !userId || !CAMPAIGN || getCampaignStatus() !== 'ENDED') return null;
+    try {
+        const existing = await getCampaignRewardSnapshot(userId);
+        if (existing && existing.isFinalized === true) { campaignRewardSnapshot = existing; return existing; }
+
+        const finalCount = await getCampaignDirectReferrals(userId);
+        const finalReward = calculateReward(finalCount);
+
+        const snapshotData = {
+            campaignId: CAMPAIGN.campaignId, campaignName: CAMPAIGN.campaignName, userId: userId,
+            finalDirectCount: finalCount, finalReward: finalReward, snapshotAt: Date.now(),
+            status: 'available', isFinalized: true, walletAddress: null, withdrawalId: null,
+            transactionId: null, txHash: null, paidAt: null
+        };
+
+        const result = await runTransaction(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`), currentData => {
+            if (currentData && currentData.isFinalized === true) return currentData;
+            return snapshotData;
+        });
+
+        if (result.committed && result.snapshot.exists()) {
+            campaignRewardSnapshot = result.snapshot.val(); isWithdrawalFinalized = true; return campaignRewardSnapshot;
+        }
+        return await getCampaignRewardSnapshot(userId);
+    } catch (error) { return null; }
+}
+async function checkWithdrawalStatus(userId) {
+    if (!db || !userId || !CAMPAIGN) return null;
+    const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+    return snap.exists() ? snap.val() : null;
+}
+function setupWithdrawalListener(userId) {
+    if (withdrawalListenerUnsubscribe) { withdrawalListenerUnsubscribe(); withdrawalListenerUnsubscribe = null; }
+    if (!userId || !CAMPAIGN) { withdrawalData = null; return; }
+    withdrawalListenerUnsubscribe = onValue(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`), (snapshot) => {
+        withdrawalData = snapshot.exists() ? snapshot.val() : null; updateUI();
+    }, (error) => {});
+}
+function generateWithdrawalId() { return 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
+function generateTxId() { return 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8); }
+function validateBEP20Wallet(address) { return typeof address === 'string' && /^0x[a-fA-F0-9]{40}$/.test(address.trim()); }
+
+async function createAtomicWithdrawal(userId, userData, walletAddress) {
+    if (isProcessingWithdrawal) throw new Error('Withdrawal already in progress');
+    isProcessingWithdrawal = true;
+    let withdrawalId = null; let txId = null;
+
+    try {
+        if (getCampaignStatus() !== 'ENDED') throw new Error('Campaign has not ended yet');
+        if (!isUserActive(userData)) throw new Error('Your ID is not active');
+        if (!validateBEP20Wallet(walletAddress)) throw new Error('Invalid BEP-20 wallet address');
+        if (!CAMPAIGN) throw new Error('Campaign configuration not loaded');
+
+        const campaignRef = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
+        withdrawalId = generateWithdrawalId(); txId = generateTxId(); const timestamp = Date.now();
+
+        const lockResult = await runTransaction(campaignRef, current => {
+            if (!current || current.isFinalized !== true) return;
+            if (!isWithdrawalEligible(Number(current.finalDirectCount || 0))) return;
+            const reward = Number(current.finalReward || 0);
+            if (!Number.isFinite(reward) || reward <= 0 || ['pending', 'approved', 'paid'].includes(current.status)) return;
+
+            return { ...current, status: 'pending', walletAddress: walletAddress, withdrawalId: withdrawalId, transactionId: txId, requestedAt: timestamp, updatedAt: timestamp };
+        });
+
+        if (!lockResult.committed) throw new Error('Withdrawal already submitted, reward unavailable, or minimum referrals not met');
+        const lockedCampaign = lockResult.snapshot.val();
+        if (!lockedCampaign || lockedCampaign.withdrawalId !== withdrawalId) throw new Error('Withdrawal request could not be locked');
+
+        const finalReward = Number(lockedCampaign.finalReward || 0);
+        if (!Number.isFinite(finalReward) || finalReward <= 0) throw new Error('No eligible reward');
+
+        const date = new Date(timestamp).toISOString().split('T')[0];
+        const dynamicName = CAMPAIGN.campaignName || 'Direct Referral Offer';
+
+        const adminData = { ...lockedCampaign, campaignName: dynamicName, campaignId: CAMPAIGN.campaignId, type: 'direct_offer_50pack_withdrawal', asset: 'USDT', network: 'BEP-20 / BNB Smart Chain', amount: finalReward, status: 'pending' };
+        const transactionData = { type: 'direct_offer_50pack_withdrawal', subtype: `${dynamicName} Withdrawal`, amount: finalReward, currency: 'USDT', network: 'BEP-20 / BNB Smart Chain', status: 'pending', walletAddress: walletAddress, withdrawalId: withdrawalId, timestamp: timestamp, date: date, description: `${dynamicName} Withdrawal of $${finalReward} USDT (BEP-20)`, txId: txId, txHash: null };
+        const globalTxData = { ...transactionData, userId: userId, username: userData.username || userData.referralCode || userId };
+
+        try {
+            await update(ref(db), {
+                [`admin/withdrawals/${withdrawalId}`]: adminData,
+                [`users/${userId}/transactions/${txId}`]: transactionData,
+                [`transactions/${txId}`]: globalTxData
+            });
+        } catch (writeError) {
+            // Fallback verification logic remains identical to v2 (safe rollback)
+            let adminExists = false, userTxExists = false, globalTxExists = false;
+            try {
+                const [a, u, g] = await Promise.all([ get(ref(db, `admin/withdrawals/${withdrawalId}`)), get(ref(db, `users/${userId}/transactions/${txId}`)), get(ref(db, `transactions/${txId}`)) ]);
+                adminExists = a.exists(); userTxExists = u.exists(); globalTxExists = g.exists();
+            } catch (vErr) { throw new Error('Network error. Check history in a few minutes.'); }
+
+            if (adminExists && userTxExists && globalTxExists) return { success: true, withdrawalId, txId };
+            if (adminExists || userTxExists || globalTxExists) throw new Error('Your withdrawal is in an uncertain state. Contact support. Do NOT retry.');
+            
+            await runTransaction(campaignRef, current => {
+                if (current && current.status === 'pending' && current.withdrawalId === withdrawalId) {
+                    return { ...current, status: 'available', walletAddress: null, withdrawalId: null, transactionId: null, requestedAt: null, updatedAt: Date.now() };
+                }
+                return current;
+            });
+            throw new Error(writeError.message || 'Withdrawal submission failed. Please try again.');
+        }
+        return { success: true, withdrawalId, txId };
+    } finally { isProcessingWithdrawal = false; }
+}
+
+function showToast(message, type = 'success') {
+    const container = el.toastContainer; if (!container) return;
+    const toast = document.createElement('div'); toast.className = `toast-custom ${type}`;
+    const iconMap = { success: 'bi-check-circle-fill text-success', error: 'bi-exclamation-triangle-fill text-danger', warning: 'bi-exclamation-triangle-fill text-warning', info: 'bi-info-circle-fill text-info' };
+    toast.innerHTML = `<i class="bi ${iconMap[type] || iconMap.success}"></i><span class="toast-msg">${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(100%)'; setTimeout(() => toast.remove(), 300); }, 5000);
+}
+
+function renderCycleProgress(directCount) {
+    const grid = el.cycleProgressGrid; if (!grid || !CAMPAIGN) return;
+    grid.innerHTML = '';
+    const count = Math.max(0, Number(directCount) || 0);
+    const totalCycles = Math.max(1, Math.ceil(count / CAMPAIGN.cycleSize) + 1);
+    let foundNext = false;
+
+    for (let i = 1; i <= totalCycles; i++) {
+        const cycleEnd = i * CAMPAIGN.cycleSize; const cycleReward = i * CAMPAIGN.cycleReward;
+        const achieved = count >= cycleEnd; const isNext = !achieved && !foundNext; if (isNext) foundNext = true;
+        let statusClass = achieved ? 'achieved' : (isNext ? 'next' : 'locked');
+        let statusText = achieved ? '✓ Complete' : (isNext ? 'Current' : 'Locked');
+        const card = document.createElement('div'); card.className = `cycle-card ${statusClass}`;
+        card.innerHTML = `<div class="cycle-label">Cycle ${i}</div><div class="cycle-refs">${cycleEnd}<small>refs</small></div><div class="cycle-reward">$${cycleReward}</div><span class="cycle-status ${statusClass}">${statusText}</span>`;
+        grid.appendChild(card);
+    }
+}
+
+function updateWithdrawalUI(reward, status) {
+    if (!CAMPAIGN) return;
+    const campaignStatus = getCampaignStatus();
+    let effectiveCount = Number(directReferrals) || 0;
+    if (campaignStatus === 'ENDED' && campaignRewardSnapshot) effectiveCount = Number(campaignRewardSnapshot.finalDirectCount || 0);
+
+    const meetsMin = isWithdrawalEligible(effectiveCount);
+    const hasReward = Number(reward) > 0;
+    const isEligible = meetsMin && hasReward;
+    const isWithdrawn = !!status && ['pending', 'approved', 'paid'].includes(String(status.status || '').toLowerCase());
+    
+    let displayReward = reward;
+    if (campaignStatus === 'ENDED' && campaignRewardSnapshot) displayReward = Number(campaignRewardSnapshot.finalReward ?? 0);
+    
+    if (el.withdrawAmount) el.withdrawAmount.textContent = '$' + displayReward.toFixed(2) + ' USDT';
+    if (el.walletFormGroup) el.walletFormGroup.style.display = (campaignStatus === 'ENDED' && isEligible && !isWithdrawn) ? 'block' : 'none';
+    if (el.withdrawalInfoBox) el.withdrawalInfoBox.style.display = 'block';
+
+    if (status) {
+        const norm = String(status.status || '').toLowerCase();
+        if (el.withdrawBtn) el.withdrawBtn.disabled = true;
+        if (norm === 'pending') {
+            if (el.withdrawBtn) { el.withdrawBtn.innerHTML = '<i class="bi bi-clock me-2"></i>Pending Approval'; el.withdrawBtn.className = 'btn-withdraw btn-pending'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = '⏳ Your withdrawal request is pending admin approval.';
+            if (el.withdrawalStatus) { el.withdrawalStatus.className = 'withdrawal-status visible pending'; el.withdrawalStatus.textContent = 'Your withdrawal request is under admin review.'; }
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Withdrawal pending approval';
+        } else if (norm === 'approved') {
+            if (el.withdrawBtn) { el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Approved'; el.withdrawBtn.className = 'btn-withdraw btn-approved'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = '✅ Your withdrawal has been approved and is being processed.';
+            if (el.withdrawalStatus) { el.withdrawalStatus.className = 'withdrawal-status visible approved'; el.withdrawalStatus.textContent = 'Your withdrawal has been approved and is being processed.'; }
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Withdrawal approved - processing payment';
+        } else if (norm === 'paid') {
+            if (el.withdrawBtn) { el.withdrawBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Paid ✓'; el.withdrawBtn.className = 'btn-withdraw btn-paid'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = '✅ Payment completed successfully!';
+            if (el.withdrawalStatus) { el.withdrawalStatus.className = 'withdrawal-status visible paid'; el.withdrawalStatus.textContent = 'Payment has been sent to your wallet.'; }
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.add('visible');
+            if (el.detailAmount) el.detailAmount.textContent = '$' + (status.finalReward || displayReward).toFixed(2) + ' USDT';
+            if (el.detailWallet) el.detailWallet.textContent = status.walletAddress || '---';
+            if (el.detailPaidDate) el.detailPaidDate.textContent = status.paidAt ? new Date(status.paidAt).toLocaleString() : '---';
+            if (el.detailTxHash) el.detailTxHash.textContent = status.txHash || 'Pending';
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = '✅ Payment Completed';
+        } else if (norm === 'rejected') {
+            if (el.withdrawBtn) { el.withdrawBtn.disabled = false; el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward'; el.withdrawBtn.className = 'btn-withdraw btn-rejected'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = '⚠️ Your previous request was rejected. You can try again.';
+            if (el.withdrawalStatus) { el.withdrawalStatus.className = 'withdrawal-status visible rejected'; el.withdrawalStatus.textContent = 'Your request was rejected. Please check your wallet address and try again.'; }
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Request rejected - try again';
         }
         return;
     }
 
-    selector.innerHTML = availableCampaigns.map(cid => {
-        const cfg = allCampaignConfigs[cid] || {};
-        const isActive = cfg.status === 'active';
-        const label = cfg.campaignName ? `${cfg.campaignName} (${cid})` : cid;
-        return `<option value="${escapeHtml(cid)}" ${cid === currentVal ? 'selected' : ''}>${escapeHtml(label)} ${isActive ? '🟢' : ''}</option>`;
-    }).join('');
-
-    if (selectedCampaignId !== currentVal) { selectedCampaignId = currentVal; rebuildData(); }
-}
-
-window.changeCampaign = function(cid) { selectedCampaignId = cid; rebuildData(); };
-
-function rebuildData() {
-    if (!selectedCampaignId) return;
-    currentCampaignConfig = allCampaignConfigs[selectedCampaignId] || null;
-
-    const withdrawalsMap = new Map();
-    const overview = [];
-
-    for (const uid in allCampaignRewards) {
-        const campaigns = allCampaignRewards[uid] || {};
-        if (!campaigns[selectedCampaignId]) continue;
-        const r = campaigns[selectedCampaignId];
-        if (!r || typeof r !== 'object') continue;
-
-        const user = allUsers[uid] || { name: 'Unknown', username: 'N/A' };
-        const status = String(r.status || 'available').toLowerCase();
-        const amount = Number(r.finalReward ?? r.currentReward ?? 0);
-        const refs = Number(r.finalDirectCount ?? r.currentDirectCount ?? 0);
-        const isCompleted = (r.isFinalized === true);
-
-        if (r.isFinalized === true || amount > 0 || refs > 0) {
-            overview.push({ uid, campaignId: selectedCampaignId, userName: user.name, userUsername: user.username, refs, amount, status, isCompleted, updatedAt: r.updatedAt || r.snapshotAt || 0 });
-        }
-
-        const hasWithdrawal = r.withdrawalId || ['pending', 'approved', 'paid', 'rejected'].includes(status);
-        if (hasWithdrawal) {
-            const wid = r.withdrawalId || `__no_wid_${uid}`;
-            withdrawalsMap.set(wid, {
-                uid, campaignId: selectedCampaignId, withdrawalId: r.withdrawalId || '', status, amount,
-                walletAddress: r.walletAddress || '', userName: user.name, userUsername: user.username,
-                requestedAt: r.requestedAt || r.updatedAt || 0, approvedAt: r.approvedAt || 0, paidAt: r.paidAt || 0,
-                rejectedAt: r.rejectedAt || 0, updatedAt: r.updatedAt || r.snapshotAt || 0, rejectReason: r.rejectReason || '',
-                txHash: r.txHash || '', network: r.network || 'BEP-20', source: 'campaign_rewards', refundPending: r.refundPending || false
-            });
-        }
-    }
-
-    for (const wid in allAdminWithdrawals) {
-        const w = allAdminWithdrawals[wid];
-        if (!w || w.campaignId !== selectedCampaignId) continue;
-        const realWid = w.withdrawalId || wid;
-        if (!withdrawalsMap.has(realWid)) {
-            const status = String(w.status || 'pending').toLowerCase();
-            if (!['pending', 'approved', 'paid', 'rejected'].includes(status)) continue;
-            const user = allUsers[w.userId || w.uid] || { name: 'Unknown', username: 'N/A' };
-            withdrawalsMap.set(realWid, {
-                uid: w.userId || w.uid, campaignId: selectedCampaignId, withdrawalId: realWid, status, amount: Number(w.amount || 0),
-                walletAddress: w.walletAddress || w.wallet || '', userName: user.name || w.username || 'Unknown', userUsername: user.username || 'N/A',
-                requestedAt: w.requestedAt || w.timestamp || 0, approvedAt: w.approvedAt || 0, paidAt: w.paidAt || 0, rejectedAt: w.rejectedAt || 0,
-                updatedAt: w.updatedAt || w.requestedAt || 0, rejectReason: w.rejectReason || '', txHash: w.txHash || '', network: w.network || 'BEP-20', source: 'admin/withdrawals', refundPending: w.refundPending || false
-            });
-        }
-    }
-
-    const withdrawals = Array.from(withdrawalsMap.values());
-    overview.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    const priority = { pending: 0, approved: 1, paid: 2, rejected: 3 };
-    withdrawals.sort((a, b) => { const pA = priority[a.status] ?? 9, pB = priority[b.status] ?? 9; return pA !== pB ? pA - pB : (b.requestedAt || 0) - (a.requestedAt || 0); });
-
-    const unassigned = [];
-    for (const wid in allAdminWithdrawals) {
-        const w = allAdminWithdrawals[wid];
-        // Accept both old and new withdrawal types
-        if (w.type !== 'direct_offer_50pack_withdrawal' && w.type !== 'direct_offer_withdrawal') continue;
-        if (!w.campaignId) {
-            const user = allUsers[w.userId || w.uid] || { name: 'Unknown', username: 'N/A' };
-            unassigned.push({
-                uid: w.userId || w.uid, campaignId: 'UNASSIGNED', withdrawalId: w.withdrawalId || wid,
-                status: String(w.status || 'pending').toLowerCase(), amount: Number(w.amount || 0),
-                walletAddress: w.walletAddress || w.wallet || '', userName: user.name || w.username || 'Unknown', userUsername: user.username || 'N/A',
-                requestedAt: w.requestedAt || w.timestamp || 0, updatedAt: w.updatedAt || 0, network: w.network || 'BEP-20'
-            });
-        }
-    }
-
-    allOverviewRecords = overview; allWithdrawalRecords = withdrawals; allUnassignedRecords = unassigned;
-    updateSummary(); renderAll();
-}
-
-function updateSummary() {
-    document.getElementById('totalParticipants').textContent = new Set(allOverviewRecords.map(r => r.uid)).size;
-    document.getElementById('totalCompleted').textContent = allOverviewRecords.filter(r => r.isCompleted === true).length;
-    document.getElementById('totalEarned').textContent = formatCurrency(allOverviewRecords.reduce((sum, r) => sum + (r.amount || 0), 0));
-
-    const pending = allWithdrawalRecords.filter(r => r.status === 'pending').length;
-    document.getElementById('totalPending').textContent = pending;
-    document.getElementById('totalRejected').textContent = allWithdrawalRecords.filter(r => r.status === 'rejected').length;
-
-    // ONLY 'paid' counts as total withdrawn
-    const totalPaid = allWithdrawalRecords.filter(r => r.status === 'paid').reduce((sum, r) => sum + (r.amount || 0), 0);
-    document.getElementById('totalWithdrawn').textContent = formatCurrency(totalPaid);
-
-    document.getElementById('tabPendingCount').textContent = pending;
-    document.getElementById('allTabCount').textContent = allOverviewRecords.length;
-}
-
-function renderAll() { renderWithdrawalsTab(); renderAllRecordsTab(); }
-
-function renderWithdrawalsTab() {
-    pendingWithdrawals = allWithdrawalRecords.filter(r => r.status === 'pending');
-    let filteredPending = pendingWithdrawals;
-    const q = searchQuery.trim().toLowerCase();
-    if (q) filteredPending = filteredPending.filter(r => [r.userName, r.userUsername, r.walletAddress, r.withdrawalId].join(' ').toLowerCase().includes(q));
-
-    const pendingContainer = document.getElementById('pendingCardsContainer');
-    const pendingEmpty = document.getElementById('pendingEmptyState');
-
-    if (filteredPending.length === 0) { pendingContainer.innerHTML = ''; pendingEmpty.style.display = 'block'; }
-    else { pendingEmpty.style.display = 'none'; pendingContainer.innerHTML = filteredPending.map(r => renderPendingCard(r)).join(''); }
-
-    if (allUnassignedRecords.length > 0) {
-        pendingContainer.insertAdjacentHTML('afterbegin', `
-            <div style="margin-top: 20px; margin-bottom: 20px; padding: 15px; background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2); border-radius: 12px;">
-                <h6 style="color: #f87171; margin-bottom: 10px;"><i class="bi bi-exclamation-triangle"></i> Needs Review / Unassigned (${allUnassignedRecords.length})</h6>
-                <div class="table-responsive">
-                    <table class="table table-custom">
-                        <thead><tr><th>Date</th><th>User</th><th>Amount</th><th>Wallet</th><th>Status</th></tr></thead>
-                        <tbody>
-                            ${allUnassignedRecords.map(u => `
-                                <tr>
-                                    <td style="font-size:0.75rem;">${escapeHtml(formatDateTime(u.requestedAt).date)}</td>
-                                    <td>${escapeHtml(u.userName)} (@${escapeHtml(u.userUsername)})</td>
-                                    <td style="color:#fbbf24; font-weight:700;">${formatCurrency(u.amount)}</td>
-                                    <td style="font-family:monospace; font-size:0.72rem;">${escapeHtml(u.walletAddress.substring(0,10))}...</td>
-                                    <td><span class="status-badge ${u.status}">${u.status.toUpperCase()}</span></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `);
-    }
-
-    const historyList = allWithdrawalRecords.filter(r => r.status !== 'pending');
-    let filteredHistory = historyList;
-    if (q) filteredHistory = filteredHistory.filter(r => [r.userName, r.userUsername, r.walletAddress, r.withdrawalId].join(' ').toLowerCase().includes(q));
-
-    const historyTbody = document.getElementById('historyTableBody');
-    if (filteredHistory.length === 0) historyTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #556688;">No history found.</td></tr>`;
-    else {
-        historyTbody.innerHTML = filteredHistory.map(r => {
-            const reqDate = formatDateTime(r.requestedAt);
-            let statusDateStr = r.status === 'paid' && r.paidAt ? formatDateTime(r.paidAt).date : (r.status === 'rejected' && r.rejectedAt ? formatDateTime(r.rejectedAt).date : '—');
-            const statusClass = r.status === 'paid' ? 'paid' : r.status === 'approved' ? 'approved' : 'rejected';
-            let statusText = r.status.toUpperCase();
-            if (r.status === 'rejected' && r.refundPending) statusText = 'Rejected (Refund Pending)';
-
-            return `
-                <tr>
-                    <td style="font-size: 0.78rem; color: #8899bb;"><div style="font-weight:600; color:#fff;">${escapeHtml(reqDate.date)}</div><div style="font-size:0.68rem;">Req: ${escapeHtml(reqDate.time)}</div></td>
-                    <td><div style="font-weight: 600; color: #fff;">${escapeHtml(r.userName)}</div><div style="font-size: 0.72rem; color: #a78bfa;">@${escapeHtml(r.userUsername)}</div></td>
-                    <td style="font-weight: 700; color: #fbbf24;">${formatCurrency(r.amount)}</td>
-                    <td><span style="font-family: monospace; font-size: 0.72rem; color: #60a5fa;">${escapeHtml(r.walletAddress ? r.walletAddress.substring(0, 10) + '...' + r.walletAddress.substring(r.walletAddress.length - 6) : 'N/A')}</span></td>
-                    <td><span class="status-badge ${statusClass}">${statusText}</span><div style="font-size:0.65rem; color:#8899bb; margin-top:4px;">${escapeHtml(statusDateStr)}</div></td>
-                </tr>`;
-        }).join('');
-    }
-}
-
-function renderPendingCard(r) {
-    const date = formatDateTime(r.requestedAt);
-    const initial = (r.userName || 'U').charAt(0).toUpperCase();
-    const processing = isProcessingAction.has(r.uid + '::' + r.withdrawalId);
-    const walletHtml = r.walletAddress ? `
-        <div class="wallet-box">
-            <div class="wallet-label"><i class="bi bi-wallet2"></i> BEP-20 Wallet Address</div>
-            <div class="wallet-address-row">
-                <div class="wallet-address">${escapeHtml(r.walletAddress)}</div>
-                <button class="btn-copy-wallet" onclick="copyWalletAddress('${escapeHtml(r.walletAddress)}', this)"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-        </div>` : `<div class="wallet-box" style="border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.05);"><div class="wallet-label" style="color: #f87171;"><i class="bi bi-exclamation-triangle"></i> No Wallet Address</div></div>`;
-
-    return `
-        <div class="withdrawal-card pending">
-            <div class="wc-header">
-                <div class="wc-user">
-                    <div class="wc-avatar">${escapeHtml(initial)}</div>
-                    <div class="wc-user-info"><div class="wc-name">${escapeHtml(r.userName)}</div><div class="wc-username">@${escapeHtml(r.userUsername)}</div><div class="wc-user-id">UID: ${escapeHtml(String(r.uid).substring(0, 14))}...</div></div>
-                </div>
-                <div class="wc-amount-wrap"><div class="wc-amount">${formatCurrency(r.amount)}<span class="currency">USDT</span></div><div class="wc-date">${escapeHtml(date.date)} · ${escapeHtml(date.time)}</div><div style="margin-top: 6px;"><span class="status-badge pending"><i class="bi bi-hourglass-split"></i> Pending</span></div></div>
-            </div>
-            ${walletHtml}
-            <div style="display: flex; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(167,139,250,0.1); font-size: 0.75rem; color: #8899bb;"><span><i class="bi bi-receipt"></i> ID: <span style="font-family: monospace; color: #a78bfa;">${escapeHtml(r.withdrawalId || 'N/A')}</span></span><span><i class="bi bi-diagram-3"></i> ${escapeHtml(r.network)}</span></div>
-            <div class="wc-actions">
-                <button class="btn-reject" onclick="handleReject('${escapeHtml(r.uid)}', '${escapeHtml(r.withdrawalId)}', '${escapeHtml(r.campaignId)}')" ${processing ? 'disabled' : ''}><i class="bi bi-x-lg"></i> Reject</button>
-                <button class="btn-approve" onclick="handleApprove('${escapeHtml(r.uid)}', '${escapeHtml(r.withdrawalId)}', '${escapeHtml(r.campaignId)}', ${r.amount})" ${processing ? 'disabled' : ''}>${processing ? 'Processing...' : '<i class="bi bi-check-lg"></i> Approve (Payment Sent)'}</button>
-            </div>
-        </div>`;
-}
-
-function renderAllRecordsTab() {
-    const tbody = document.getElementById('allRecordsTableBody');
-    let filtered = allOverviewRecords;
-    const q = searchQuery.trim().toLowerCase();
-    if (q) filtered = filtered.filter(r => [r.userName, r.userUsername].join(' ').toLowerCase().includes(q));
-    if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px;">No records.</td></tr>`; return; }
-    tbody.innerHTML = filtered.map(r => {
-        let statusClass = r.isCompleted ? 'approved' : 'available';
-        let statusText = r.isCompleted ? 'Offer Completed' : 'In Progress';
-        if (r.status === 'paid') { statusClass = 'paid'; statusText = 'Paid'; }
-        else if (r.status === 'approved') { statusClass = 'approved'; statusText = 'Approved'; }
-        else if (r.status === 'pending') { statusClass = 'pending'; statusText = 'Pending'; }
-        else if (r.status === 'rejected') { statusClass = 'rejected'; statusText = 'Rejected'; }
-        return `<tr><td><div style="display: flex; align-items: center; gap: 10px;"><div class="wc-avatar" style="width: 34px; height: 34px; font-size: 0.8rem;">${escapeHtml((r.userName||'U').charAt(0).toUpperCase())}</div><div><div style="font-weight: 600; color: #fff;">${escapeHtml(r.userName)}</div><div style="font-size: 0.72rem; color: #a78bfa;">@${escapeHtml(r.userUsername)}</div></div></div></td><td style="font-weight: 700; color: #2ecc71;">${r.refs}</td><td style="font-weight: 800; color: #fbbf24;">${formatCurrency(r.amount)}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td><td style="font-size: 0.75rem; color: #8899bb;">${escapeHtml(formatDateTime(r.updatedAt).date)}</td></tr>`;
-    }).join('');
-}
-
-async function atomicSync(uid, withdrawalId, campaignId, updates) {
-    const rootUpdates = {};
-    let adminFound = false, userFound = false, globalFound = false;
-
-    try {
-        const adminSnap = await get(ref(db, 'admin/withdrawals'));
-        if (adminSnap.exists()) {
-            const adminData = adminSnap.val();
-            for (let key in adminData) {
-                if (adminData[key].withdrawalId === withdrawalId) {
-                    const path = `admin/withdrawals/${key}`;
-                    rootUpdates[`${path}/status`] = updates.status; rootUpdates[`${path}/updatedAt`] = updates.updatedAt;
-                    if (updates.approvedAt) rootUpdates[`${path}/approvedAt`] = updates.approvedAt;
-                    if (updates.paidAt) rootUpdates[`${path}/paidAt`] = updates.paidAt;
-                    if (updates.txHash !== undefined) rootUpdates[`${path}/txHash`] = updates.txHash;
-                    if (updates.rejectReason !== undefined) rootUpdates[`${path}/rejectReason`] = updates.rejectReason;
-                    if (updates.rejectedAt) rootUpdates[`${path}/rejectedAt`] = updates.rejectedAt;
-                    adminFound = true; break;
-                }
-            }
-        }
-    } catch (err) { console.warn('admin sync warning:', err); }
-
-    try {
-        const userSnap = await get(ref(db, `users/${uid}/transactions`));
-        if (userSnap.exists()) {
-            const txs = userSnap.val();
-            for (let txKey in txs) {
-                if (txs[txKey].withdrawalId === withdrawalId) {
-                    const path = `users/${uid}/transactions/${txKey}`;
-                    rootUpdates[`${path}/status`] = updates.status; rootUpdates[`${path}/updatedAt`] = updates.updatedAt;
-                    if (updates.approvedAt) rootUpdates[`${path}/approvedAt`] = updates.approvedAt;
-                    if (updates.paidAt) rootUpdates[`${path}/paidAt`] = updates.paidAt;
-                    if (updates.txHash !== undefined) rootUpdates[`${path}/txHash`] = updates.txHash;
-                    if (updates.rejectReason !== undefined) rootUpdates[`${path}/rejectReason`] = updates.rejectReason;
-                    if (updates.rejectedAt) rootUpdates[`${path}/rejectedAt`] = updates.rejectedAt;
-                    userFound = true; break;
-                }
-            }
-        }
-    } catch (err) { console.warn('user sync warning:', err); }
-
-    try {
-        const globalSnap = await get(ref(db, 'transactions'));
-        if (globalSnap.exists()) {
-            const globalData = globalSnap.val();
-            for (let key in globalData) {
-                if (globalData[key].withdrawalId === withdrawalId) {
-                    const path = `transactions/${key}`;
-                    rootUpdates[`${path}/status`] = updates.status; rootUpdates[`${path}/updatedAt`] = updates.updatedAt;
-                    if (updates.approvedAt) rootUpdates[`${path}/approvedAt`] = updates.approvedAt;
-                    if (updates.paidAt) rootUpdates[`${path}/paidAt`] = updates.paidAt;
-                    if (updates.txHash !== undefined) rootUpdates[`${path}/txHash`] = updates.txHash;
-                    if (updates.rejectReason !== undefined) rootUpdates[`${path}/rejectReason`] = updates.rejectReason;
-                    if (updates.rejectedAt) rootUpdates[`${path}/rejectedAt`] = updates.rejectedAt;
-                    globalFound = true; break;
-                }
-            }
-        }
-    } catch (err) { console.warn('global sync warning:', err); }
-
-    if (Object.keys(rootUpdates).length > 0) await update(ref(db), rootUpdates);
-    return { adminFound, userFound, globalFound, totalUpdated: Object.keys(rootUpdates).length };
-}
-
-window.handleApprove = async function(uid, withdrawalId, campaignId, amount) {
-    const key = uid + '::' + withdrawalId;
-    if (isProcessingAction.has(key)) return;
-    if (!confirm(`✅ CONFIRM APPROVAL\n\nAmount: $${Number(amount).toFixed(2)} USDT\nWithdrawal ID: ${withdrawalId}\n\n⚠️ क्या आपने इस यूजर के wallet address पर $${Number(amount).toFixed(2)} USDT (BEP-20) भेज दिया है?\n\nOK = हाँ, Approved कर दो\nCancel = रुको`)) return;
-
-    isProcessingAction.add(key); renderWithdrawalsTab();
-
-    try {
-        let realCampaignId = campaignId || selectedCampaignId;
-        if (!realCampaignId) throw new Error('Campaign ID not found');
-        const campaignRef = ref(db, `campaign_rewards/${uid}/${realCampaignId}`);
-
-        const lockResult = await runTransaction(campaignRef, (current) => {
-            if (!current || String(current.status || '').toLowerCase() !== 'pending') return current;
-            const now = Date.now();
-            return { ...current, status: 'paid', approvedAt: now, paidAt: now, updatedAt: now, isProcessed: true, isPaidFinal: true };
-        });
-
-        if (!lockResult.committed) throw new Error('Not pending — may have been processed');
-        const now = Date.now();
-
-        let syncResult = { adminFound: false, userFound: false, globalFound: false, totalUpdated: 0 };
-        try { syncResult = await atomicSync(uid, withdrawalId, realCampaignId, { status: 'paid', approvedAt: now, paidAt: now, updatedAt: now }); }
-        catch (syncErr) {
-            await runTransaction(campaignRef, (current) => {
-                if (current && current.status === 'paid' && current.paidAt === now) return { ...current, status: 'pending', approvedAt: null, paidAt: null, updatedAt: Date.now(), isProcessed: false, isPaidFinal: false };
-                return current;
-            });
-            throw new Error('Sync failed — rolled back');
-        }
-
-        if (!syncResult.adminFound || (!syncResult.userFound && !syncResult.globalFound)) {
-            showToast(`⚠️ Partial Sync: Some records missing. Please review.`, 'warning');
+    if (campaignStatus === 'UPCOMING') {
+        if (el.withdrawBtn) { el.withdrawBtn.disabled = true; el.withdrawBtn.innerHTML = '⏳ Withdrawal Opens After Offer Ends'; el.withdrawBtn.className = 'btn-withdraw withdrawal-locked'; }
+        if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = `📅 Campaign starts on ${CAMPAIGN.startDate.toLocaleDateString()}. Withdrawal will be available after ${CAMPAIGN.endDate.toLocaleDateString()}. Time until start: ${formatTimeRemaining(getTimeRemaining())}`;
+        if (el.withdrawalStatus) el.withdrawalStatus.classList.remove('visible');
+        if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+        if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Withdrawal not available yet';
+    } else if (campaignStatus === 'ACTIVE') {
+        if (el.withdrawBtn) { el.withdrawBtn.disabled = true; el.withdrawBtn.innerHTML = '🔒 Withdrawal Locked — Offer Active'; el.withdrawBtn.className = 'btn-withdraw withdrawal-locked'; }
+        if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = `🔒 Withdrawal is locked while the offer is active. It will open after ${CAMPAIGN.endDate.toLocaleDateString()}. Time remaining: ${formatTimeRemaining(getTimeRemaining())}`;
+        if (el.withdrawalStatus) el.withdrawalStatus.classList.remove('visible');
+        if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+        if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Withdrawal locked - offer active';
+    } else if (campaignStatus === 'ENDED') {
+        if (isEligible) {
+            if (el.withdrawBtn) { el.withdrawBtn.disabled = false; el.withdrawBtn.innerHTML = '<i class="bi bi-arrow-up-right me-2"></i>Withdraw Reward'; el.withdrawBtn.className = 'btn-withdraw'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = '🎉 Offer ended! You are eligible to withdraw your reward.';
+            if (el.withdrawalStatus) el.withdrawalStatus.classList.remove('visible');
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Withdrawal available - claim your reward!';
+        } else if (hasReward && !meetsMin) {
+            const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - effectiveCount);
+            if (el.withdrawBtn) { el.withdrawBtn.disabled = true; el.withdrawBtn.innerHTML = `⛔ Minimum ${CAMPAIGN.minReferralsForWithdrawal} Referrals Required`; el.withdrawBtn.className = 'btn-withdraw withdrawal-locked'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = `⛔ Minimum ${CAMPAIGN.minReferralsForWithdrawal} qualified direct referrals required. You have ${effectiveCount}. Need ${needed} more.`;
+            if (el.withdrawalStatus) el.withdrawalStatus.classList.remove('visible');
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = `Need ${needed} more referral${needed === 1 ? '' : 's'} to withdraw`;
         } else {
-            showToast(`✅ Approved & Fully Verified!`, 'success');
+            if (el.withdrawBtn) { el.withdrawBtn.disabled = true; el.withdrawBtn.innerHTML = '⛔ Not Eligible'; el.withdrawBtn.className = 'btn-withdraw withdrawal-locked'; }
+            if (el.withdrawalInfoText) el.withdrawalInfoText.textContent = `Complete at least ${CAMPAIGN.minReferralsForWithdrawal} qualified referrals ($${CAMPAIGN.minReferralsForWithdrawal * CAMPAIGN.rewardPerReferral}) to be eligible.`;
+            if (el.withdrawalStatus) el.withdrawalStatus.classList.remove('visible');
+            if (el.withdrawalDetails) el.withdrawalDetails.classList.remove('visible');
+            if (el.withdrawalSubtitle) el.withdrawalSubtitle.textContent = 'Not eligible for withdrawal';
         }
-    } catch (err) {
-        showToast('❌ ' + (err.message || 'Failed to approve'), 'error');
-    } finally { isProcessingAction.delete(key); renderWithdrawalsTab(); }
-};
+    }
+}
 
-window.handleReject = async function(uid, withdrawalId, campaignId) {
-    const key = uid + '::' + withdrawalId;
-    if (isProcessingAction.has(key)) return;
-    const reason = prompt(`❌ REJECT WITHDRAWAL\n\nWithdrawal ID: ${withdrawalId}\n\nRejection reason (optional):`, '');
-    if (reason === null) return;
+async function refreshCampaignDirectCount() {
+    if (!currentUserId || getCampaignStatus() !== 'ACTIVE' || isWithdrawalFinalized || !CAMPAIGN) return;
+    try {
+        const latest = Math.max(0, Number(await getCampaignDirectReferrals(currentUserId)) || 0);
+        if (latest !== directReferrals) { directReferrals = latest; if (el.totalReferralsDisplay) el.totalReferralsDisplay.textContent = String(latest); updateUI(); }
+    } catch (e) {}
+}
+function startReferralRefresh() {
+    if (referralRefreshInterval) clearInterval(referralRefreshInterval);
+    if (!currentUserId || getCampaignStatus() !== 'ACTIVE' || isWithdrawalFinalized) return;
+    referralRefreshInterval = setInterval(() => {
+        if (!currentUserId || getCampaignStatus() !== 'ACTIVE' || isWithdrawalFinalized) { clearInterval(referralRefreshInterval); referralRefreshInterval = null; return; }
+        refreshCampaignDirectCount();
+    }, 60000);
+}
 
-    isProcessingAction.add(key); renderWithdrawalsTab();
+function updateUI() {
+    if (!CAMPAIGN_LOADED || !CAMPAIGN) return;
+    const campaignStatus = getCampaignStatus();
+    const startStr = CAMPAIGN.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const endStr = CAMPAIGN.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const statusBadge = {
+        'UPCOMING': { class: 'upcoming', text: `⏳ Upcoming - Starts ${startStr}` },
+        'ACTIVE': { class: 'active', text: `🔥 ACTIVE - Refer & Earn $${CAMPAIGN.rewardPerReferral} per Referral!` },
+        'ENDED': { class: 'ended', text: '🏁 Offer Ended - Withdrawal Available' }
+    }[campaignStatus] || { class: 'upcoming', text: '⏳ Loading...' };
+
+    if (el.campaignStatusBadge) el.campaignStatusBadge.innerHTML = `<span class="campaign-status-badge ${statusBadge.class}">${statusBadge.text}</span>`;
+
+    let displayReward = calculateReward(directReferrals);
+    let displayDirectCount = directReferrals;
+    let isFinal = false;
+
+    if (campaignStatus === 'ENDED' && campaignRewardSnapshot) {
+        displayReward = Number(campaignRewardSnapshot.finalReward ?? 0);
+        displayDirectCount = Number(campaignRewardSnapshot.finalDirectCount ?? 0);
+        isFinal = true; isWithdrawalFinalized = true;
+    }
+
+    if (el.statDirectRefs) el.statDirectRefs.textContent = displayDirectCount;
+    if (el.statEligibleReward) el.statEligibleReward.textContent = '$' + displayReward;
+    if (el.statReferralPeriod) el.statReferralPeriod.textContent = campaignStatus === 'ENDED' ? 'Final Count' : 'Campaign Period';
+
+    if (el.statRewardNote) {
+        if (displayDirectCount > 0) {
+            const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
+            el.statRewardNote.textContent = isFinal ? `🏆 Final: $${displayReward} (${displayDirectCount} refs)` : `💰 $${displayReward} earned (${displayDirectCount} refs)${cycles > 0 ? ' • ' + cycles + ' cycle(s)' : ''}`;
+            el.statRewardNote.style.color = '#fbbf24';
+        } else {
+            el.statRewardNote.textContent = `Earn $${CAMPAIGN.rewardPerReferral} per qualified $${CAMPAIGN.requiredPackageAmount}+ package referral`;
+            el.statRewardNote.style.color = '#64748b';
+        }
+    }
+
+    const completedCycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize);
+    const nextCycleEnd = (completedCycles + 1) * CAMPAIGN.cycleSize;
+    const nextMilestoneReward = (completedCycles + 1) * CAMPAIGN.cycleReward;
+    if (el.statNextMilestone) el.statNextMilestone.textContent = `${nextCycleEnd} → $${nextMilestoneReward}`;
+    if (el.statNextMilestoneSub) el.statNextMilestoneSub.textContent = `${Math.max(0, nextCycleEnd - displayDirectCount)} more needed`;
+    if (el.statMaxReward) { el.statMaxReward.textContent = '∞'; el.statMaxReward.style.color = '#a78bfa'; }
+
+    const cycleProgress = getCurrentCycleProgress(displayDirectCount);
+    if (el.progressCurrent) el.progressCurrent.textContent = String(cycleProgress);
+    if (el.progressTarget) el.progressTarget.textContent = String(CAMPAIGN.cycleSize);
+    if (el.progressFill) el.progressFill.style.width = Math.min(100, Math.max(0, (cycleProgress / CAMPAIGN.cycleSize) * 100)) + '%';
+
+    const neededForCycle = Math.max(0, CAMPAIGN.cycleSize - cycleProgress);
+    if (cycleProgress === CAMPAIGN.cycleSize) {
+        if (el.needMore) el.needMore.textContent = '0';
+        if (el.nextMilestoneText) el.nextMilestoneText.innerHTML = '<i class="bi bi-trophy" style="color:#fbbf24;"></i> 🎉 Cycle complete! Start next by referring more.';
+    } else {
+        if (el.needMore) el.needMore.textContent = String(neededForCycle);
+        if (el.nextMilestoneText) el.nextMilestoneText.innerHTML = `<i class="bi bi-bullseye" style="color:#fbbf24;"></i> Need <strong>${neededForCycle}</strong> more to complete this $${CAMPAIGN.cycleReward} cycle.`;
+    }
+
+    renderCycleProgress(displayDirectCount);
+
+    if (el.notEligibleBox) { if (displayDirectCount === 0) el.notEligibleBox.classList.add('visible'); else el.notEligibleBox.classList.remove('visible'); }
+    if (el.walletAmount) el.walletAmount.textContent = displayReward.toFixed(2);
+
+    if (isFinal) {
+        if (el.finalBadge) el.finalBadge.style.display = 'inline';
+        if (el.walletLabel) el.walletLabel.textContent = 'Final Offer Earnings';
+        if (el.walletStatusText) el.walletStatusText.textContent = displayReward > 0 ? `🏆 Final earnings locked! $${displayReward} from ${displayDirectCount} refs.` : 'No reward earned.';
+    } else {
+        if (el.finalBadge) el.finalBadge.style.display = 'none';
+        if (el.walletLabel) el.walletLabel.textContent = 'Estimated Offer Earnings';
+        if (el.walletStatusText) {
+            if (displayReward === 0) el.walletStatusText.textContent = `💡 Refer users who activate $${CAMPAIGN.requiredPackageAmount}+ package to earn $${CAMPAIGN.rewardPerReferral} each!`;
+            else {
+                const cycles = Math.floor(displayDirectCount / CAMPAIGN.cycleSize); const rem = displayDirectCount % CAMPAIGN.cycleSize;
+                if (rem === 0 && cycles > 0) el.walletStatusText.textContent = `💰 $${displayReward} earned! ${cycles} cycle(s) completed.`;
+                else el.walletStatusText.textContent = `💰 $${displayReward} estimated! ${CAMPAIGN.cycleSize - rem} more to complete cycle.`;
+            }
+        }
+    }
+    updateWithdrawalUI(displayReward, withdrawalData);
+}
+
+function showDaysPopup() {
+    if (!CAMPAIGN) return;
+    const campaignStatus = getCampaignStatus();
+    const reward = calculateReward(directReferrals);
+    const time = getTimeRemaining();
+    const startStr = CAMPAIGN.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    const endStr = CAMPAIGN.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (campaignStatus === 'UPCOMING') {
+        if (el.popupIcon) el.popupIcon.textContent = '📅';
+        if (el.popupTitle) el.popupTitle.textContent = 'Offer Not Started Yet';
+        if (el.popupText) el.popupText.innerHTML = `The ${CAMPAIGN.campaignName} has not started yet.<br><br><strong>Starts:</strong> ${startStr}<br><strong>Ends:</strong> ${endStr}<br><strong>Your Est. Reward:</strong> $${reward.toFixed(2)} USDT<br><br><span style="color:#94a3b8;font-size:0.9rem;">Time until start:</span><div class="popup-days">${time.days}d ${time.hours}h ${time.minutes}m</div>`;
+    } else if (campaignStatus === 'ACTIVE') {
+        if (el.popupIcon) el.popupIcon.textContent = '🔒';
+        if (el.popupTitle) el.popupTitle.textContent = 'Withdrawal Locked — Offer Active';
+        if (el.popupText) el.popupText.innerHTML = `🔒 Your reward is locked.<br><br><strong>Est. Reward:</strong> $${reward.toFixed(2)} USDT<br><strong>Ends:</strong> ${endStr} at 23:59:59 IST<br><strong>Opens:</strong> After end time<br><br><span style="color:#94a3b8;font-size:0.9rem;">Time Remaining:</span><div class="popup-days">${formatTimeRemaining(time)}</div>`;
+    } else if (campaignStatus === 'ENDED') {
+        const finalReward = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalReward ?? 0) : reward;
+        const finalCount = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalDirectCount ?? 0) : Number(directReferrals) || 0;
+        if (finalReward > 0 && isWithdrawalEligible(finalCount)) {
+            if (el.popupIcon) el.popupIcon.textContent = '🎉';
+            if (el.popupTitle) el.popupTitle.textContent = 'Offer Ended!';
+            if (el.popupText) el.popupText.innerHTML = `Withdrawal is now available.<br><br><strong>Eligible Reward:</strong> $${finalReward.toFixed(2)} USDT<br><strong>Qualified Ref:</strong> ${finalCount}<br><br>Click <strong>"Withdraw Reward"</strong>.`;
+        } else if (finalReward > 0 && !isWithdrawalEligible(finalCount)) {
+            const needed = Math.max(0, CAMPAIGN.minReferralsForWithdrawal - finalCount);
+            if (el.popupIcon) el.popupIcon.textContent = '⛔';
+            if (el.popupTitle) el.popupTitle.textContent = `Minimum ${CAMPAIGN.minReferralsForWithdrawal} Referrals Required`;
+            if (el.popupText) el.popupText.innerHTML = `आपके पास अभी <strong>${finalCount}</strong> qualified referral हैं।<br><br>Withdrawal के लिए <strong>${CAMPAIGN.minReferralsForWithdrawal}</strong> ज़रूरी हैं।<br>और <strong>${needed}</strong> चाहिए।<br><br><span style="color:#94a3b8;font-size:0.85rem;">आपका reward ($${finalReward.toFixed(2)}) safe है, लेकिन referrals पूरे होने तक unlock नहीं होगा।</span>`;
+        } else {
+            if (el.popupIcon) el.popupIcon.textContent = '⛔';
+            if (el.popupTitle) el.popupTitle.textContent = 'Not Eligible';
+            if (el.popupText) el.popupText.innerHTML = `You have 0 qualified referrals.<br><br><strong>Minimum required:</strong> ${CAMPAIGN.minReferralsForWithdrawal} Qualified Referrals ($${CAMPAIGN.requiredPackageAmount}+ package)<br><strong>Yours:</strong> ${finalCount}`;
+        }
+    }
+    if (el.daysPopup) el.daysPopup.classList.add('visible');
+}
+
+function handleWithdrawClick() {
+    if (!CAMPAIGN) return;
+    if (getCampaignStatus() !== 'ENDED') { showDaysPopup(); return; }
+    let reward = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalReward || 0) : calculateReward(directReferrals);
+    let finalCount = campaignRewardSnapshot ? Number(campaignRewardSnapshot.finalDirectCount || 0) : Number(directReferrals) || 0;
+
+    if (!isWithdrawalEligible(finalCount)) { showToast(`Minimum ${CAMPAIGN.minReferralsForWithdrawal} required. You have ${finalCount}.`, 'warning'); showDaysPopup(); return; }
+    if (!Number.isFinite(reward) || reward <= 0) { showDaysPopup(); return; }
+    if (withdrawalData && ['pending', 'approved', 'paid'].includes(String(withdrawalData.status || '').toLowerCase())) { showToast('Already submitted.', 'warning'); return; }
+
+    const addr = el.walletAddressInput ? el.walletAddressInput.value.trim() : '';
+    if (!validateBEP20Wallet(addr)) { showToast('Enter valid BEP-20 address (0x...).', 'error'); if (el.walletAddressInput) el.walletAddressInput.classList.add('error'); return; }
+
+    if (el.confirmAmount) el.confirmAmount.textContent = '$' + Number(reward).toFixed(2) + ' USDT';
+    if (el.confirmWallet) el.confirmWallet.textContent = addr;
+    if (el.confirmationModal) el.confirmationModal.classList.add('visible');
+}
+
+async function processWithdrawal() {
+    if (isProcessingWithdrawal || !CAMPAIGN) return;
+    const origHTML = '<i class="bi bi-check-circle me-1"></i>Confirm Withdrawal';
+    if (el.confirmSubmit) { el.confirmSubmit.disabled = true; el.confirmSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...'; }
 
     try {
-        let realCampaignId = campaignId || selectedCampaignId;
-        if (!realCampaignId) throw new Error('Campaign ID not found');
-        const campaignRef = ref(db, `campaign_rewards/${uid}/${realCampaignId}`);
+        const addr = el.walletAddressInput ? el.walletAddressInput.value.trim() : '';
+        if (!validateBEP20Wallet(addr)) { showToast('Invalid wallet.', 'error'); return; }
+        if (getCampaignStatus() !== 'ENDED') { showToast('Offer active.', 'error'); return; }
 
-        const lockResult = await runTransaction(campaignRef, (current) => {
-            if (!current || String(current.status || '').toLowerCase() !== 'pending') return current;
-            const now = Date.now();
-            const updateObj = { ...current, status: 'rejected', rejectReason: reason || '', rejectedAt: now, updatedAt: now, isProcessed: true };
-            const wasDeducted = current.deducted === true;
-            const deductedAmount = Number(current.deductedAmount || 0);
-            if (wasDeducted && deductedAmount > 0 && isFinite(deductedAmount)) { updateObj.refundPending = true; updateObj.refundAmount = deductedAmount; }
-            else { updateObj.refundPending = false; updateObj.refundAmount = 0; }
-            return updateObj;
-        });
+        const userSnap = await get(ref(db, 'users/' + currentUserId));
+        if (!userSnap.exists()) { showToast('User not found.', 'error'); return; }
+        const latestData = userSnap.val();
+        if (!isUserActive(latestData)) { showToast('ID not active.', 'error'); return; }
 
-        if (!lockResult.committed) throw new Error('Not pending — may have been processed');
-        const rejectedData = lockResult.snapshot.val();
-        const now = Date.now();
+        let snapshot = await getCampaignRewardSnapshot(currentUserId);
+        if (!snapshot) snapshot = await finalizeCampaignReward(currentUserId);
+        if (!snapshot || !snapshot.isFinalized) { showToast('No finalized reward.', 'error'); return; }
 
-        let syncResult = { adminFound: false, userFound: false, globalFound: false, totalUpdated: 0 };
-        try { syncResult = await atomicSync(uid, withdrawalId, realCampaignId, { status: 'rejected', rejectedAt: now, updatedAt: now, rejectReason: reason || '' }); }
-        catch (syncErr) {
-            await runTransaction(campaignRef, (current) => {
-                if (current && current.status === 'rejected' && current.rejectedAt === now) return { ...current, status: 'pending', updatedAt: Date.now(), isProcessed: false, refundPending: false };
-                return current;
-            });
-            throw new Error('Sync failed — rolled back');
-        }
+        const finalCount = Number(snapshot.finalDirectCount || 0);
+        if (!isWithdrawalEligible(finalCount)) { showToast(`Need ${CAMPAIGN.minReferralsForWithdrawal} refs.`, 'warning'); return; }
+        if (Number(snapshot.finalReward ?? 0) <= 0) { showToast('Not eligible.', 'error'); return; }
+        if (withdrawalData && ['pending', 'approved', 'paid'].includes(String(withdrawalData.status || '').toLowerCase())) { showToast('Already submitted.', 'warning'); return; }
 
-        const refundMsg = rejectedData.refundPending ? ' (Refund Pending)' : '';
-        if (!syncResult.adminFound || (!syncResult.userFound && !syncResult.globalFound)) {
-            showToast(`⚠️ Partial Sync: Some records missing.${refundMsg}`, 'warning');
-        } else {
-            showToast(`✅ Rejected & Fully Verified!${refundMsg}`, 'success');
-        }
-    } catch (err) {
-        showToast('❌ ' + (err.message || 'Failed to reject'), 'error');
-    } finally { isProcessingAction.delete(key); renderWithdrawalsTab(); }
-};
-
-function setupTabs() {
-    document.querySelectorAll('.custom-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.custom-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active'); activeTab = tab.getAttribute('data-tab');
-            document.getElementById('withdrawalsSection').style.display = activeTab === 'withdrawals' ? 'block' : 'none';
-            document.getElementById('allRecordsSection').style.display = activeTab === 'all' ? 'block' : 'none';
-            if (activeTab === 'withdrawals') renderWithdrawalsTab(); else renderAllRecordsTab();
-        });
-    });
+        const result = await createAtomicWithdrawal(currentUserId, latestData, addr);
+        if (result.success) {
+            showToast('✅ Withdrawal submitted.', 'success');
+            withdrawalData = await checkWithdrawalStatus(currentUserId);
+            if (el.walletAddressInput) el.walletAddressInput.value = '';
+            if (el.confirmationModal) el.confirmationModal.classList.remove('visible');
+            updateUI();
+        } else { showToast('❌ Failed to submit.', 'error'); }
+    } catch (e) { showToast('❌ ' + (e.message || 'Error.'), 'error'); }
+    finally {
+        isProcessingWithdrawal = false;
+        if (el.confirmSubmit) { el.confirmSubmit.disabled = false; el.confirmSubmit.innerHTML = origHTML; }
+    }
 }
-function setupSearch() {
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        searchQuery = e.target.value;
-        if (activeTab === 'withdrawals') renderWithdrawalsTab(); else renderAllRecordsTab();
+
+async function loadUserData(user) {
+    try {
+        if (!user || !user.uid) { showToast('Session error.', 'error'); return; }
+        currentUserId = user.uid;
+        const snap = await get(ref(db, 'users/' + user.uid));
+        if (!snap.exists()) { showToast('Complete registration.', 'error'); return; }
+        currentUserData = snap.val();
+        const name = currentUserData.name || currentUserData.username || 'User';
+        if (el.userName) el.userName.textContent = name;
+        if (el.userAvatar) el.userAvatar.textContent = name.charAt(0).toUpperCase();
+
+        campaignRewardSnapshot = await getCampaignRewardSnapshot(user.uid);
+        isWithdrawalFinalized = campaignRewardSnapshot?.isFinalized === true;
+
+        if (!isUserActive(currentUserData)) directReferrals = 0;
+        else directReferrals = await getCampaignDirectReferrals(user.uid);
+
+        if (getCampaignStatus() === 'ENDED' && !campaignRewardSnapshot) {
+            campaignRewardSnapshot = await finalizeCampaignReward(user.uid);
+            if (campaignRewardSnapshot) { isWithdrawalFinalized = true; directReferrals = Number(campaignRewardSnapshot.finalDirectCount ?? 0); }
+        }
+
+        setupWithdrawalListener(user.uid);
+        withdrawalData = await checkWithdrawalStatus(user.uid);
+
+        const refCode = currentUserData.referralCode || user.uid.substring(0, 8).toUpperCase();
+        if (el.referralLinkDisplay) el.referralLinkDisplay.textContent = `https://staking.randigital.in/register.html?ref=${refCode}`;
+        if (el.referralCodeDisplay) el.referralCodeDisplay.textContent = refCode;
+        if (el.totalReferralsDisplay) el.totalReferralsDisplay.textContent = directReferrals;
+
+        startCountdown(); updateUI();
+
+        const status = getCampaignStatus();
+        if (status === 'UPCOMING') showToast(`📢 Starts on ${CAMPAIGN.startDate.toLocaleDateString()}!`, 'warning');
+        else if (status === 'ACTIVE') {
+            if (isUserActive(currentUserData)) { showToast(`🎯 ACTIVE! Earn $${CAMPAIGN.rewardPerReferral}/ref!`, 'success'); startReferralRefresh(); }
+            else showToast(`ℹ️ Activate $${CAMPAIGN.requiredPackageAmount}+ package to join.`, 'info');
+        } else if (status === 'ENDED') {
+            if (directReferrals > 0) showToast('🏆 Eligible for withdrawal.', 'success');
+            else showToast(`⏰ Need at least 1 ref.`, 'warning');
+        }
+    } catch (e) { showToast('Error: ' + (e.message || 'Unknown'), 'error'); }
+    finally { if (el.loadingOverlay) el.loadingOverlay.classList.add('hidden'); }
+}
+
+function startCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    function update() {
+        if (!CAMPAIGN) return;
+        const time = getTimeRemaining(); const status = getCampaignStatus();
+        if (status === 'ENDED') {
+            if (el.countdownWrapper) el.countdownWrapper.style.display = 'none';
+            if (el.campaignEndedMessage) el.campaignEndedMessage.style.display = 'block';
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+            if (referralRefreshInterval) { clearInterval(referralRefreshInterval); referralRefreshInterval = null; }
+            if (!isWithdrawalFinalized && currentUserId) {
+                finalizeCampaignReward(currentUserId).then(s => { if (s) { campaignRewardSnapshot = s; directReferrals = Number(s.finalDirectCount || 0); isWithdrawalFinalized = true; } updateUI(); });
+            }
+            updateUI(); return;
+        }
+        if (el.countdownDays) el.countdownDays.textContent = String(time.days).padStart(2, '0');
+        if (el.countdownHours) el.countdownHours.textContent = String(time.hours).padStart(2, '0');
+        if (el.countdownMinutes) el.countdownMinutes.textContent = String(time.minutes).padStart(2, '0');
+        if (el.countdownSeconds) el.countdownSeconds.textContent = String(time.seconds).padStart(2, '0');
+    }
+    update(); countdownInterval = setInterval(update, 1000);
+}
+
+function setupWalletValidation() {
+    if (!el.walletAddressInput) return;
+    el.walletAddressInput.addEventListener('input', () => {
+        const val = el.walletAddressInput.value.trim(); const msg = el.walletValidationMsg;
+        if (!msg) return;
+        if (!val) { el.walletAddressInput.className = 'form-control-custom'; msg.className = 'wallet-validation-msg'; msg.textContent = ''; return; }
+        if (validateBEP20Wallet(val)) { el.walletAddressInput.className = 'form-control-custom valid'; msg.className = 'wallet-validation-msg valid'; msg.textContent = '✅ Valid BEP-20 wallet'; }
+        else { el.walletAddressInput.className = 'form-control-custom error'; msg.className = 'wallet-validation-msg error'; msg.textContent = '❌ Invalid BEP-20 wallet'; }
     });
 }
 
-function loadData() {
-    let usersLoaded = false, rewardsLoaded = false, adminWdsLoaded = false, configsLoaded = false;
-    const checkReady = () => {
-        if (usersLoaded && rewardsLoaded && adminWdsLoaded && configsLoaded) {
-            dataReady = true; extractCampaigns();
-            if (availableCampaigns.length > 0) {
-                document.getElementById('loadingContainer').style.display = 'none';
-                document.getElementById('contentContainer').style.display = 'block';
-                setupTabs(); setupSearch(); rebuildData();
-            }
-        }
-    };
-    const refresh = () => { if (!dataReady) return; const sel = document.getElementById('campaignSelector'); if (sel && sel.value) selectedCampaignId = sel.value; extractCampaigns(); rebuildData(); };
-    usersOff = onValue(ref(db, 'users'), (s) => { allUsers = s.exists() ? s.val() : {}; usersLoaded = true; dataReady ? refresh() : checkReady(); });
-    rewardsOff = onValue(ref(db, 'campaign_rewards'), (s) => { allCampaignRewards = s.exists() ? s.val() : {}; rewardsLoaded = true; dataReady ? refresh() : checkReady(); });
-    adminWdsOff = onValue(ref(db, 'admin/withdrawals'), (s) => { allAdminWithdrawals = s.exists() ? s.val() : {}; adminWdsLoaded = true; dataReady ? refresh() : checkReady(); });
-    configsOff = onValue(ref(db, 'direct_offer_campaigns'), (s) => { allCampaignConfigs = s.exists() ? s.val() : {}; configsLoaded = true; dataReady ? refresh() : checkReady(); });
+async function copyReferralLink() {
+    const link = el.referralLinkDisplay ? el.referralLinkDisplay.textContent : '';
+    if (!link || link === 'Loading...') { showToast('Wait...', 'warning'); return; }
+    try {
+        await navigator.clipboard.writeText(link);
+        if (el.copyReferralBtn) el.copyReferralBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Copied!';
+        showToast('✅ Copied!', 'success');
+        setTimeout(() => { if (el.copyReferralBtn) el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link'; }, 3000);
+    } catch {
+        const ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        showToast('✅ Copied!', 'success');
+        setTimeout(() => { if (el.copyReferralBtn) el.copyReferralBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Referral Link'; }, 3000);
+    }
 }
 
-onAuthStateChanged(auth, (user) => {
-    if (!user) { showToast('Redirecting...', 'warning'); setTimeout(() => { window.location.href = 'index.html'; }, 1500); return; }
-    if (user.email && !user.email.includes('admin')) { showToast('Access denied.', 'error'); setTimeout(() => { signOut(auth); window.location.href = 'index.html'; }, 2000); return; }
-    loadData();
-});
+async function handleLogout() { try { await signOut(auth); window.location.href = 'login.html'; } catch (e) { showToast('Logout error', 'error'); } }
+
+function setupListeners() {
+    if (listenersInitialized) return; listenersInitialized = true;
+    if (el.copyReferralBtn) el.copyReferralBtn.addEventListener('click', copyReferralLink);
+    if (el.logoutBtn) el.logoutBtn.addEventListener('click', handleLogout);
+    if (el.withdrawBtn) el.withdrawBtn.addEventListener('click', handleWithdrawClick);
+    if (el.popupCloseBtn) el.popupCloseBtn.addEventListener('click', () => { if (el.daysPopup) el.daysPopup.classList.remove('visible'); });
+    if (el.daysPopup) el.daysPopup.addEventListener('click', (e) => { if (e.target === el.daysPopup) el.daysPopup.classList.remove('visible'); });
+    if (el.confirmCancel) el.confirmCancel.addEventListener('click', () => { if (el.confirmationModal) el.confirmationModal.classList.remove('visible'); });
+    if (el.confirmationModal) el.confirmationModal.addEventListener('click', (e) => { if (e.target === el.confirmationModal) el.confirmationModal.classList.remove('visible'); });
+    if (el.confirmSubmit) el.confirmSubmit.addEventListener('click', processWithdrawal);
+    setupWalletValidation();
+}
+
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && currentUserId && getCampaignStatus() === 'ACTIVE' && !isWithdrawalFinalized) refreshCampaignDirectCount(); });
 
 window.addEventListener('beforeunload', () => {
-    if (usersOff) usersOff(); if (rewardsOff) rewardsOff(); if (adminWdsOff) adminWdsOff(); if (configsOff) configsOff();
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (referralRefreshInterval) clearInterval(referralRefreshInterval);
+    if (withdrawalListenerUnsubscribe) { try { withdrawalListenerUnsubscribe(); } catch (e) {} }
+    if (serverTimeListenerUnsubscribe) { try { serverTimeListenerUnsubscribe(); } catch (e) {} }
+});
+
+const AUTH_TIMEOUT_MS = 10000; let authResolved = false;
+setTimeout(() => { if (!authResolved) { if (el.loadingOverlay) el.loadingOverlay.classList.add('hidden'); if (!auth.currentUser) window.location.href = 'login.html'; } }, AUTH_TIMEOUT_MS);
+
+onAuthStateChanged(auth, async (user) => {
+    authResolved = true; clearTimeout(authTimeoutHandle);
+    if (!user) { window.location.href = 'login.html'; return; }
+    const res = await loadDynamicCampaign();
+    if (!res.success) showToast('⚠️ Config error. Fallback applied.', 'warning');
+    syncFirebaseServerTime(); await loadUserData(user); setupListeners();
 });
