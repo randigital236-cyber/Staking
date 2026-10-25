@@ -1,8 +1,8 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v8.0)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v9.0 SMART)
 // ============================================================
-// - Fixes: Multi-campaign data fetching.
-// - Scans all campaign IDs if direct match fails.
+// - Fixed: Exact active campaign ID (direct_offer_50pack_oct2026)
+// - Added: Smart fallback to scan all user campaigns if config missing
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -31,7 +31,9 @@ let CAMPAIGN = null;
 let CAMPAIGN_LOADED = false;
 let CAMPAIGN_ERROR = null;
 
+// 🆕 EXACT ACTIVE ID FROM DB
 const LIVE_CAMPAIGN_ID = 'direct_offer_50pack_oct2026';
+
 const FALLBACK_CAMPAIGN = {
     campaignId: LIVE_CAMPAIGN_ID,
     campaignName: 'RND $50+ Package Direct Referral Offer',
@@ -48,18 +50,12 @@ const FALLBACK_CAMPAIGN = {
 
 async function loadDynamicCampaign() {
     try {
-        const activeIdSnap = await get(ref(db, 'settings/active_direct_offer_campaign'));
-        let activeId = activeIdSnap.val();
-
-        if (!activeId) {
-            console.warn('⚠️ No active campaign in settings. Using LIVE_CAMPAIGN_ID.');
-            activeId = LIVE_CAMPAIGN_ID; 
-        }
-
-        const configSnap = await get(ref(db, `direct_offer_campaigns/${activeId}`));
+        // 1. Try fetching exact live ID config
+        const configSnap = await get(ref(db, `direct_offer_campaigns/${LIVE_CAMPAIGN_ID}`));
+        
         if (!configSnap.exists()) {
-            console.warn(`⚠️ Config for ${activeId} missing. Using fallback rules.`);
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
+            console.warn(`⚠️ Config for ${LIVE_CAMPAIGN_ID} missing. Using fallback hardcoded rules.`);
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
@@ -68,13 +64,13 @@ async function loadDynamicCampaign() {
         
         if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
             console.warn('Invalid Campaign Config: Missing required fields. Using fallback.');
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
 
         CAMPAIGN = {
-            campaignId: activeId,
+            campaignId: LIVE_CAMPAIGN_ID, // Force exact ID
             campaignName: cfg.campaignName || 'Direct Referral Offer',
             startDate: new Date(cfg.startAt),
             endDate: new Date(cfg.endAt),
@@ -92,7 +88,7 @@ async function loadDynamicCampaign() {
 
     } catch (err) {
         console.error('❌ Failed to load campaign config:', err);
-        CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
+        CAMPAIGN = { ...FALLBACK_CAMPAIGN };
         CAMPAIGN_LOADED = true;
         CAMPAIGN_ERROR = err.message;
         return { success: false, error: err.message };
@@ -271,37 +267,43 @@ function formatTimeRemaining(time) {
 }
 
 // ============================================================
-// 🆕 SMART FALLBACK: Checks all campaigns for snapshot
+// 🆕 SMART FALLBACK: Scans all user campaigns if direct fails
 // ============================================================
 async function getCampaignRewardSnapshot(userId) {
-    if (!db || !userId || !CAMPAIGN) return null;
+    if (!db || !userId) return null;
     try {
-        // 1. Try current active campaign
-        let snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+        // 1. Force check the LIVE ID first
+        let snap = await get(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`));
         if (snap.exists()) {
             const data = snap.val();
-            if (data && data.isFinalized === true) isWithdrawalFinalized = true;
-            return data;
+            if (data && data.isFinalized === true) {
+                isWithdrawalFinalized = true;
+                CAMPAIGN.campaignId = LIVE_CAMPAIGN_ID;
+                return data;
+            }
         }
 
-        // 2. Fallback: Look for the exact DB ID
-        snap = await get(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`));
-        if (snap.exists()) {
-            const data = snap.val();
-            CAMPAIGN.campaignId = LIVE_CAMPAIGN_ID;
-            if (data && data.isFinalized === true) isWithdrawalFinalized = true;
-            return data;
+        // 2. Check current active ID if different
+        if (CAMPAIGN && CAMPAIGN.campaignId !== LIVE_CAMPAIGN_ID) {
+            snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+            if (snap.exists()) {
+                const data = snap.val();
+                if (data && data.isFinalized === true) {
+                    isWithdrawalFinalized = true;
+                    return data;
+                }
+            }
         }
 
-        // 3. Deep Scan: If still not found, check ALL campaigns for this user
+        // 3. Deep Scan: Check ALL campaigns for this user
         const allCampaignsSnap = await get(ref(db, `campaign_rewards/${userId}`));
         if (allCampaignsSnap.exists()) {
             const allData = allCampaignsSnap.val();
             for (const cid in allData) {
                 const data = allData[cid];
                 if (data && data.isFinalized === true && Number(data.finalReward) > 0) {
-                    // Found a valid finalized record! Switch campaign context.
-                    CAMPAIGN.campaignId = cid;
+                    // Force switch to this campaign ID
+                    if (CAMPAIGN) CAMPAIGN.campaignId = cid;
                     isWithdrawalFinalized = true;
                     return data;
                 }
@@ -372,7 +374,6 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         if (!validateBEP20Wallet(walletAddress)) throw new Error('Invalid BEP-20 wallet address.');
         if (!CAMPAIGN) throw new Error('Campaign configuration not loaded.');
 
-        // Uses the campaignId determined in snapshot scan
         const campaignRef = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
         withdrawalId = generateWithdrawalId(); 
         txId = generateTxId(); 
@@ -840,6 +841,7 @@ async function loadUserData(user) {
         if (el.userName) el.userName.textContent = name;
         if (el.userAvatar) el.userAvatar.textContent = name.charAt(0).toUpperCase();
 
+        // 🆕 SMART DETECTION: Picks exact campaign data
         campaignRewardSnapshot = await getCampaignRewardSnapshot(user.uid);
         isWithdrawalFinalized = campaignRewardSnapshot?.isFinalized === true;
 
