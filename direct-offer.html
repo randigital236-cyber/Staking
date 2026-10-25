@@ -3,28 +3,21 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>RND Direct Referral Offer — $50 Package</title>
+    <title>RND Direct Referral Offer</title>
 
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="direct-offer.css"/>
 </head>
 <body>
 
-    <!-- ===== LOADING ===== -->
     <div id="loadingOverlay">
         <div class="loader-spinner"></div>
     </div>
 
-    <!-- ===== TOAST ===== -->
     <div id="toastContainer"></div>
 
-    <!-- ===== DAYS REMAINING POPUP ===== -->
     <div class="days-remaining-popup" id="daysPopup">
         <div class="popup-content">
             <span class="popup-icon" id="popupIcon">📅</span>
@@ -42,7 +35,6 @@
         </div>
     </div>
 
-    <!-- ===== CONFIRMATION MODAL ===== -->
     <div class="confirmation-overlay" id="confirmationModal">
         <div class="modal-content">
             <span class="modal-icon">⚠️</span>
@@ -74,7 +66,6 @@
         </div>
     </div>
 
-    <!-- ===== NAVBAR ===== -->
     <nav class="navbar-custom">
         <div class="container">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -95,17 +86,14 @@
         </div>
     </nav>
 
-    <!-- ===== MAIN CONTENT ===== -->
     <div class="main-content">
 
-        <!-- ===== HERO ===== -->
         <div class="hero-section">
             <div class="badge-campaign"><i class="bi bi-fire"></i> Limited Time Offer</div>
             <h1>RND <span>Direct Referral</span> Offer</h1>
-            <p class="subtitle">Refer $50 Package. Earn $10 Per Qualified Referral.</p>
-            <p class="date-range">
-                <i class="bi bi-calendar-event"></i> 10 October 2026 – 24 October 2026
-                <span style="color:#64748b;margin-left:8px;">(14 Days Only)</span>
+            <p class="subtitle" id="heroSubtitle">Refer Package. Earn Per Referral.</p>
+            <p class="date-range" id="heroDateRange">
+                <i class="bi bi-calendar-event"></i> Loading...
             </p>
             <div id="campaignStatusBadge"></div>
             <div id="countdownContainer">
@@ -133,7 +121,6 @@
             </div>
         </div>
 
-        <!-- ===== REWARD WALLET ===== -->
         <div class="reward-wallet-card" id="rewardWalletCard">
             <span class="wallet-icon-big">💰</span>
             <div class="wallet-label" id="walletLabel">Your Offer Earnings</div>
@@ -142,11 +129,10 @@
                 <span class="final-badge" id="finalBadge" style="display:none;">✓ FINAL</span>
             </div>
             <div class="wallet-sub" id="walletStatusText">
-                Start referring $50 package users to earn $10 each!
+                Start referring package users to earn!
             </div>
         </div>
 
-        <!-- ===== STATS ===== -->
         <div class="stats-grid" id="statsGrid">
             <div class="stat-card">
                 <div class="number green" id="statDirectRefs">0</div>
@@ -156,7 +142,7 @@
             <div class="stat-card">
                 <div class="number gold" id="statEligibleReward">$0</div>
                 <div class="label">Total Offer Earnings</div>
-                <div class="sub" id="statRewardNote">Earn $10 per qualified referral</div>
+                <div class="sub" id="statRewardNote">Earn per qualified referral</div>
             </div>
             <div class="stat-card">
                 <div class="number blue" id="statNextMilestone">5 → $50</div>
@@ -166,11 +152,10 @@
             <div class="stat-card">
                 <div class="number purple" id="statMaxReward">∞</div>
                 <div class="label">Unlimited Potential</div>
-                <div class="sub">Every 5 referrals = $50</div>
+                <div class="sub">Every cycle completes a milestone</div>
             </div>
         </div>
 
-        <!-- ===== PROGRESS ===== -->
         <div class="progress-section" id="progressSection">
             <div class="label-row">
                 <span class="title"><i class="bi bi-graph-up-arrow" style="color:#fbbf24;margin-right:8px;"></i>Current Cycle Progress</span>
@@ -181,21 +166,18 @@
             </div>
             <div class="next-milestone" id="nextMilestoneText">
                 <i class="bi bi-bullseye" style="color:#fbbf24;"></i>
-                Need <strong id="needMore">5</strong> more qualified referrals to complete this $50 cycle.
+                Need <strong id="needMore">5</strong> more qualified referrals to complete this cycle.
             </div>
 
-            <!-- Cycle Progress Cards -->
             <div class="cycle-progress-grid" id="cycleProgressGrid"></div>
         </div>
 
-        <!-- ===== NOT ELIGIBLE ===== -->
         <div class="not-eligible-box" id="notEligibleBox">
             <i class="bi bi-person-x"></i>
             <h5>Not Eligible Yet</h5>
-            <p>Complete at least <strong>1 Qualified Direct Referral</strong> to start earning. Each qualified referral = $10.</p>
+            <p>Complete at least <strong>1 Qualified Direct Referral</strong> to start earning.</p>
         </div>
 
-        <!-- ===== REFERRAL ===== -->
         <div class="referral-section" id="referralSection">
             <div class="title"><i class="bi bi-link-45deg"></i> Your Referral Link</div>
             <div class="referral-box">
@@ -208,7 +190,6 @@
             </div>
         </div>
 
-        <!-- ===== WITHDRAWAL SECTION ===== -->
         <div class="withdrawal-section" id="withdrawalSection">
             <div class="title"><i class="bi bi-credit-card"></i> 🎁 Offer Reward Withdrawal</div>
             <div class="subtitle" id="withdrawalSubtitle">Withdraw your eligible reward in USDT (BEP-20)</div>
@@ -218,12 +199,10 @@
                 <span class="amount" id="withdrawAmount">$0.00 USDT</span>
             </div>
 
-            <!-- Withdrawal Status Message -->
             <div id="withdrawalInfoBox" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.1);display:none;">
                 <span id="withdrawalInfoText" style="color:#fbbf24;font-size:0.9rem;"></span>
             </div>
 
-            <!-- Withdrawal Details (for paid status) -->
             <div class="withdrawal-details" id="withdrawalDetails">
                 <div class="detail-row">
                     <span class="key">Amount</span>
@@ -269,7 +248,6 @@
 
     </div>
 
-    <!-- ===== IMPORT MAP ===== -->
     <script type="importmap">
         {
             "imports": {
@@ -280,7 +258,6 @@
         }
     </script>
 
-    <!-- ===== CUSTOM JAVASCRIPT ===== -->
     <script type="module" src="direct-offer.js"></script>
 </body>
 </html>
