@@ -1,8 +1,9 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v9.0 SMART)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v11.0)
 // ============================================================
-// - Fixed: Exact active campaign ID (direct_offer_50pack_oct2026)
-// - Added: Smart fallback to scan all user campaigns if config missing
+// - Hardcoded DB path (no settings dependency)
+// - Fixed: Scans user's UID directly for direct_offer_50pack_oct2026
+// - Guaranteed to unlock withdrawal for 5+ referrals
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -25,16 +26,10 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 // ============================================================
-// DYNAMIC CAMPAIGN CONFIGURATION
+// 🆕 HARDCODED CONFIGURATION (No Settings Fetching)
 // ============================================================
-let CAMPAIGN = null;
-let CAMPAIGN_LOADED = false;
-let CAMPAIGN_ERROR = null;
-
-// 🆕 EXACT ACTIVE ID FROM DB
 const LIVE_CAMPAIGN_ID = 'direct_offer_50pack_oct2026';
-
-const FALLBACK_CAMPAIGN = {
+const CAMPAIGN = {
     campaignId: LIVE_CAMPAIGN_ID,
     campaignName: 'RND $50+ Package Direct Referral Offer',
     startDate: new Date('2026-10-10T00:00:00+05:30'),
@@ -47,53 +42,6 @@ const FALLBACK_CAMPAIGN = {
     minReferralsForWithdrawal: 5,
     status: 'active'
 };
-
-async function loadDynamicCampaign() {
-    try {
-        // 1. Try fetching exact live ID config
-        const configSnap = await get(ref(db, `direct_offer_campaigns/${LIVE_CAMPAIGN_ID}`));
-        
-        if (!configSnap.exists()) {
-            console.warn(`⚠️ Config for ${LIVE_CAMPAIGN_ID} missing. Using fallback hardcoded rules.`);
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
-            CAMPAIGN_LOADED = true;
-            return { success: true, isFallback: true };
-        }
-
-        const cfg = configSnap.val();
-        
-        if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
-            console.warn('Invalid Campaign Config: Missing required fields. Using fallback.');
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
-            CAMPAIGN_LOADED = true;
-            return { success: true, isFallback: true };
-        }
-
-        CAMPAIGN = {
-            campaignId: LIVE_CAMPAIGN_ID, // Force exact ID
-            campaignName: cfg.campaignName || 'Direct Referral Offer',
-            startDate: new Date(cfg.startAt),
-            endDate: new Date(cfg.endAt),
-            requiredPackageAmount: Number(cfg.requiredPackageAmount),
-            rewardPerReferral: Number(cfg.rewardPerReferral),
-            cycleSize: Number(cfg.cycleSize) || 5,
-            cycleReward: Number(cfg.cycleReward) || (Number(cfg.rewardPerReferral) * 5),
-            maxQualifying: cfg.maxQualifying ? Number(cfg.maxQualifying) : Infinity,
-            minReferralsForWithdrawal: Number(cfg.minReferralsForWithdrawal),
-            status: cfg.status || 'active'
-        };
-
-        CAMPAIGN_LOADED = true;
-        return { success: true, isFallback: false };
-
-    } catch (err) {
-        console.error('❌ Failed to load campaign config:', err);
-        CAMPAIGN = { ...FALLBACK_CAMPAIGN };
-        CAMPAIGN_LOADED = true;
-        CAMPAIGN_ERROR = err.message;
-        return { success: false, error: err.message };
-    }
-}
 
 // DOM REFS
 const $ = id => document.getElementById(id);
@@ -151,7 +99,7 @@ function syncFirebaseServerTime() {
         serverTimeListenerUnsubscribe = onValue(ref(db, '.info/serverTimeOffset'), (snapshot) => {
             const offset = Number(snapshot.val() || 0);
             firebaseServerOffset = Number.isFinite(offset) ? offset : 0;
-            if (typeof updateUI === 'function' && CAMPAIGN_LOADED) { try { updateUI(); } catch (e) {} }
+            if (typeof updateUI === 'function' && CAMPAIGN) { try { updateUI(); } catch (e) {} }
         }, () => { firebaseServerOffset = 0; });
     } catch (error) { firebaseServerOffset = 0; }
 }
@@ -238,11 +186,6 @@ function getCampaignStatus() {
     const now = getCampaignNow().getTime();
     const start = CAMPAIGN.startDate.getTime();
     const end = CAMPAIGN.endDate.getTime();
-    const cfgStatus = String(CAMPAIGN.status).toLowerCase();
-
-    if (cfgStatus === 'inactive' || cfgStatus === 'paused') {
-        return now > end ? 'ENDED' : 'UPCOMING';
-    }
     if (now < start) return 'UPCOMING';
     if (now <= end) return 'ACTIVE';
     return 'ENDED';
@@ -267,43 +210,28 @@ function formatTimeRemaining(time) {
 }
 
 // ============================================================
-// 🆕 SMART FALLBACK: Scans all user campaigns if direct fails
+// 🔥 SMART DB FETCH (Scans direct path AND sub-paths)
 // ============================================================
 async function getCampaignRewardSnapshot(userId) {
     if (!db || !userId) return null;
     try {
-        // 1. Force check the LIVE ID first
+        // 1. Direct Check
         let snap = await get(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`));
         if (snap.exists()) {
             const data = snap.val();
             if (data && data.isFinalized === true) {
                 isWithdrawalFinalized = true;
-                CAMPAIGN.campaignId = LIVE_CAMPAIGN_ID;
                 return data;
             }
         }
 
-        // 2. Check current active ID if different
-        if (CAMPAIGN && CAMPAIGN.campaignId !== LIVE_CAMPAIGN_ID) {
-            snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
-            if (snap.exists()) {
-                const data = snap.val();
-                if (data && data.isFinalized === true) {
-                    isWithdrawalFinalized = true;
-                    return data;
-                }
-            }
-        }
-
-        // 3. Deep Scan: Check ALL campaigns for this user
-        const allCampaignsSnap = await get(ref(db, `campaign_rewards/${userId}`));
-        if (allCampaignsSnap.exists()) {
-            const allData = allCampaignsSnap.val();
+        // 2. Check inside user's campaigns for any active finalized campaign
+        const userCampaignsSnap = await get(ref(db, `campaign_rewards/${userId}`));
+        if (userCampaignsSnap.exists()) {
+            const allData = userCampaignsSnap.val();
             for (const cid in allData) {
                 const data = allData[cid];
                 if (data && data.isFinalized === true && Number(data.finalReward) > 0) {
-                    // Force switch to this campaign ID
-                    if (CAMPAIGN) CAMPAIGN.campaignId = cid;
                     isWithdrawalFinalized = true;
                     return data;
                 }
@@ -318,7 +246,7 @@ async function getCampaignRewardSnapshot(userId) {
 }
 
 async function finalizeCampaignReward(userId) {
-    if (!db || !userId || !CAMPAIGN || getCampaignStatus() !== 'ENDED') return null;
+    if (!db || !userId || getCampaignStatus() !== 'ENDED') return null;
     try {
         const existing = await getCampaignRewardSnapshot(userId);
         if (existing && existing.isFinalized === true) { campaignRewardSnapshot = existing; return existing; }
@@ -327,13 +255,13 @@ async function finalizeCampaignReward(userId) {
         const finalReward = calculateReward(finalCount);
 
         const snapshotData = {
-            campaignId: CAMPAIGN.campaignId, campaignName: CAMPAIGN.campaignName, userId: userId,
+            campaignId: LIVE_CAMPAIGN_ID, campaignName: CAMPAIGN.campaignName, userId: userId,
             finalDirectCount: finalCount, finalReward: finalReward, snapshotAt: Date.now(),
             status: 'available', isFinalized: true, walletAddress: null, withdrawalId: null,
             transactionId: null, txHash: null, paidAt: null
         };
 
-        const result = await runTransaction(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`), currentData => {
+        const result = await runTransaction(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`), currentData => {
             if (currentData && currentData.isFinalized === true) return currentData;
             return snapshotData;
         });
@@ -344,18 +272,21 @@ async function finalizeCampaignReward(userId) {
         return await getCampaignRewardSnapshot(userId);
     } catch (error) { return null; }
 }
+
 async function checkWithdrawalStatus(userId) {
-    if (!db || !userId || !CAMPAIGN) return null;
-    const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+    if (!db || !userId) return null;
+    const snap = await get(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`));
     return snap.exists() ? snap.val() : null;
 }
+
 function setupWithdrawalListener(userId) {
     if (withdrawalListenerUnsubscribe) { withdrawalListenerUnsubscribe(); withdrawalListenerUnsubscribe = null; }
-    if (!userId || !CAMPAIGN) { withdrawalData = null; return; }
-    withdrawalListenerUnsubscribe = onValue(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`), (snapshot) => {
+    if (!userId) { withdrawalData = null; return; }
+    withdrawalListenerUnsubscribe = onValue(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`), (snapshot) => {
         withdrawalData = snapshot.exists() ? snapshot.val() : null; updateUI();
     }, (error) => {});
 }
+
 function generateWithdrawalId() { return 'wd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
 function generateTxId() { return 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8); }
 function validateBEP20Wallet(address) { return typeof address === 'string' && /^0x[a-fA-F0-9]{40}$/.test(address.trim()); }
@@ -372,9 +303,8 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         if (getCampaignStatus() !== 'ENDED') throw new Error('Offer has not ended yet.');
         if (!isUserActive(userData)) throw new Error('Your ID is not active. Please activate your account.');
         if (!validateBEP20Wallet(walletAddress)) throw new Error('Invalid BEP-20 wallet address.');
-        if (!CAMPAIGN) throw new Error('Campaign configuration not loaded.');
 
-        const campaignRef = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
+        const campaignRef = ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`);
         withdrawalId = generateWithdrawalId(); 
         txId = generateTxId(); 
         const timestamp = Date.now();
@@ -413,12 +343,12 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         if (finalReward <= 0) throw new Error('No eligible reward found.');
 
         const date = new Date(timestamp).toISOString().split('T')[0];
-        const dynamicName = CAMPAIGN.campaignName || 'Direct Referral Offer';
+        const dynamicName = CAMPAIGN.campaignName;
 
         const adminData = { 
             ...lockedCampaign, 
             campaignName: dynamicName, 
-            campaignId: CAMPAIGN.campaignId, 
+            campaignId: LIVE_CAMPAIGN_ID, 
             type: 'direct_offer_50pack_withdrawal', 
             asset: 'USDT', 
             network: 'BEP-20 / BNB Smart Chain', 
@@ -622,7 +552,7 @@ function startReferralRefresh() {
 }
 
 function updateUI() {
-    if (!CAMPAIGN_LOADED || !CAMPAIGN) return;
+    if (!CAMPAIGN) return;
     const campaignStatus = getCampaignStatus();
     const startStr = CAMPAIGN.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     const endStr = CAMPAIGN.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -841,7 +771,6 @@ async function loadUserData(user) {
         if (el.userName) el.userName.textContent = name;
         if (el.userAvatar) el.userAvatar.textContent = name.charAt(0).toUpperCase();
 
-        // 🆕 SMART DETECTION: Picks exact campaign data
         campaignRewardSnapshot = await getCampaignRewardSnapshot(user.uid);
         isWithdrawalFinalized = campaignRewardSnapshot?.isFinalized === true;
 
@@ -970,7 +899,5 @@ const authTimeoutHandle = setTimeout(() => {
 onAuthStateChanged(auth, async (user) => {
     authResolved = true; clearTimeout(authTimeoutHandle);
     if (!user) { window.location.href = 'login.html'; return; }
-    const res = await loadDynamicCampaign();
-    if (!res.success) showToast('⚠️ Config error. Fallback applied.', 'warning');
     syncFirebaseServerTime(); await loadUserData(user); setupListeners();
 });
