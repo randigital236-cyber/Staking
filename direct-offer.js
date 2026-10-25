@@ -1,9 +1,8 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v6.0 ABSOLUTE)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v8.0)
 // ============================================================
-// - Fixes: Fallback bug where count was showing 0.
-// - Fixes: Withdrawal button showing "Not Eligible" for completed users.
-// - Guarantees: If DB has finalDirectCount=5 & finalReward=50, it WILL open.
+// - Fixes: Multi-campaign data fetching.
+// - Scans all campaign IDs if direct match fails.
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -53,14 +52,14 @@ async function loadDynamicCampaign() {
         let activeId = activeIdSnap.val();
 
         if (!activeId) {
-            console.warn('⚠️ No active campaign in settings. Using default LIVE_CAMPAIGN_ID.');
+            console.warn('⚠️ No active campaign in settings. Using LIVE_CAMPAIGN_ID.');
             activeId = LIVE_CAMPAIGN_ID; 
         }
 
         const configSnap = await get(ref(db, `direct_offer_campaigns/${activeId}`));
         if (!configSnap.exists()) {
-            console.warn(`⚠️ Config for ${activeId} missing. Using fallback hardcoded rules.`);
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: activeId };
+            console.warn(`⚠️ Config for ${activeId} missing. Using fallback rules.`);
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
@@ -69,7 +68,7 @@ async function loadDynamicCampaign() {
         
         if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
             console.warn('Invalid Campaign Config: Missing required fields. Using fallback.');
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: activeId };
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
@@ -270,16 +269,52 @@ function formatTimeRemaining(time) {
     if (time.days === 0 && time.hours === 0 && time.minutes === 0 && time.seconds === 0) return 'Offer has ended';
     return `${time.days}d ${time.hours}h ${time.minutes}m ${time.seconds}s`;
 }
+
+// ============================================================
+// 🆕 SMART FALLBACK: Checks all campaigns for snapshot
+// ============================================================
 async function getCampaignRewardSnapshot(userId) {
     if (!db || !userId || !CAMPAIGN) return null;
     try {
-        const snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
-        if (!snap.exists()) return null;
-        const data = snap.val();
-        if (data && data.isFinalized === true) isWithdrawalFinalized = true;
-        return data;
-    } catch (e) { return null; }
+        // 1. Try current active campaign
+        let snap = await get(ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`));
+        if (snap.exists()) {
+            const data = snap.val();
+            if (data && data.isFinalized === true) isWithdrawalFinalized = true;
+            return data;
+        }
+
+        // 2. Fallback: Look for the exact DB ID
+        snap = await get(ref(db, `campaign_rewards/${userId}/${LIVE_CAMPAIGN_ID}`));
+        if (snap.exists()) {
+            const data = snap.val();
+            CAMPAIGN.campaignId = LIVE_CAMPAIGN_ID;
+            if (data && data.isFinalized === true) isWithdrawalFinalized = true;
+            return data;
+        }
+
+        // 3. Deep Scan: If still not found, check ALL campaigns for this user
+        const allCampaignsSnap = await get(ref(db, `campaign_rewards/${userId}`));
+        if (allCampaignsSnap.exists()) {
+            const allData = allCampaignsSnap.val();
+            for (const cid in allData) {
+                const data = allData[cid];
+                if (data && data.isFinalized === true && Number(data.finalReward) > 0) {
+                    // Found a valid finalized record! Switch campaign context.
+                    CAMPAIGN.campaignId = cid;
+                    isWithdrawalFinalized = true;
+                    return data;
+                }
+            }
+        }
+
+        return null;
+    } catch (e) { 
+        console.error("Error fetching snapshot:", e);
+        return null; 
+    }
 }
+
 async function finalizeCampaignReward(userId) {
     if (!db || !userId || !CAMPAIGN || getCampaignStatus() !== 'ENDED') return null;
     try {
@@ -337,6 +372,7 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         if (!validateBEP20Wallet(walletAddress)) throw new Error('Invalid BEP-20 wallet address.');
         if (!CAMPAIGN) throw new Error('Campaign configuration not loaded.');
 
+        // Uses the campaignId determined in snapshot scan
         const campaignRef = ref(db, `campaign_rewards/${userId}/${CAMPAIGN.campaignId}`);
         withdrawalId = generateWithdrawalId(); 
         txId = generateTxId(); 
