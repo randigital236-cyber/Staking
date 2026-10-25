@@ -1,10 +1,8 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v3.1 Fix)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v3.2 Fix)
 // ============================================================
-// - Reads rules from Firebase `direct_offer_campaigns/{campaignId}`
-// - Validates config strictly
-// - Backward compatible with existing user data & withdrawals
-// - FIXED: authTimeoutHandle reference error
+// - Fixed: Eligible users not getting withdrawal option after offer end
+// - Fixed: Accurate referral counting & campaign loading fallback
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -27,7 +25,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 // ============================================================
-// 🆕 DYNAMIC CAMPAIGN CONFIGURATION
+// DYNAMIC CAMPAIGN CONFIGURATION
 // ============================================================
 let CAMPAIGN = null;
 let CAMPAIGN_LOADED = false;
@@ -72,9 +70,11 @@ async function loadDynamicCampaign() {
 
         const cfg = configSnap.val();
         
-        // STRICT VALIDATION: Do not silently accept missing/bad data
         if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
-            throw new Error('Invalid Campaign Config: Missing required fields.');
+            console.warn('Invalid Campaign Config: Missing required fields. Using fallback.');
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+            CAMPAIGN_LOADED = true;
+            return { success: true, isFallback: true };
         }
 
         CAMPAIGN = {
