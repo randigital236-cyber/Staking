@@ -1,9 +1,9 @@
 // ============================================================
-// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v4.0 Fixed)
+// RND DIRECT REFERRAL OFFER — FINAL PRODUCTION SCRIPT (v5.0 ULTIMATE)
 // ============================================================
-// - Fixed: Withdrawal not submitting for eligible users (5 refs, $50)
-// - Added: Detailed error messages for Firebase Permissions & Sync failures
-// - Added: Bulletproof transaction locking & rollback mechanism
+// - Fixed: Count showing 0 after offer ended
+// - Fixed: Withdrawal transaction failing for eligible users
+// - Fixed: Auto-fallback to active campaign if settings missing
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -32,7 +32,6 @@ let CAMPAIGN = null;
 let CAMPAIGN_LOADED = false;
 let CAMPAIGN_ERROR = null;
 
-// Strict Fallback (Used to protect existing live data if Firebase completely fails)
 const LIVE_CAMPAIGN_ID = 'direct_offer_50pack_oct2026';
 const FALLBACK_CAMPAIGN = {
     campaignId: LIVE_CAMPAIGN_ID,
@@ -51,19 +50,17 @@ const FALLBACK_CAMPAIGN = {
 async function loadDynamicCampaign() {
     try {
         const activeIdSnap = await get(ref(db, 'settings/active_direct_offer_campaign'));
-        const activeId = activeIdSnap.val();
+        let activeId = activeIdSnap.val();
 
         if (!activeId) {
-            console.warn('⚠️ No active campaign in settings. Using fallback to protect live data.');
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
-            CAMPAIGN_LOADED = true;
-            return { success: true, isFallback: true };
+            console.warn('⚠️ No active campaign in settings. Using default LIVE_CAMPAIGN_ID.');
+            activeId = LIVE_CAMPAIGN_ID; 
         }
 
         const configSnap = await get(ref(db, `direct_offer_campaigns/${activeId}`));
         if (!configSnap.exists()) {
             console.warn(`⚠️ Config for ${activeId} missing. Using fallback.`);
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: activeId };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
@@ -72,7 +69,7 @@ async function loadDynamicCampaign() {
         
         if (!cfg.startAt || !cfg.endAt || !cfg.requiredPackageAmount || !cfg.rewardPerReferral || !cfg.minReferralsForWithdrawal) {
             console.warn('Invalid Campaign Config: Missing required fields. Using fallback.');
-            CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+            CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: activeId };
             CAMPAIGN_LOADED = true;
             return { success: true, isFallback: true };
         }
@@ -96,7 +93,7 @@ async function loadDynamicCampaign() {
 
     } catch (err) {
         console.error('❌ Failed to load campaign config:', err);
-        CAMPAIGN = { ...FALLBACK_CAMPAIGN };
+        CAMPAIGN = { ...FALLBACK_CAMPAIGN, campaignId: LIVE_CAMPAIGN_ID };
         CAMPAIGN_LOADED = true;
         CAMPAIGN_ERROR = err.message;
         return { success: false, error: err.message };
@@ -327,7 +324,7 @@ function generateTxId() { return 'tx_' + Date.now() + '_' + Math.random().toStri
 function validateBEP20Wallet(address) { return typeof address === 'string' && /^0x[a-fA-F0-9]{40}$/.test(address.trim()); }
 
 // ============================================================
-// 🔥 UPDATED: ATOMIC WITHDRAWAL CREATION (Bulletproof)
+// 🔥 ATOMIC WITHDRAWAL CREATION (Bulletproof)
 // ============================================================
 async function createAtomicWithdrawal(userId, userData, walletAddress) {
     if (isProcessingWithdrawal) throw new Error('Withdrawal already in progress');
@@ -345,35 +342,15 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         txId = generateTxId(); 
         const timestamp = Date.now();
 
-        // 1. Strict Transaction Lock with Detailed Debugging
         const lockResult = await runTransaction(campaignRef, current => {
-            if (!current) {
-                console.error("Tx Aborted: No record found.");
-                return;
-            }
-            
+            if (!current) return;
             const currentStatus = String(current.status || '').toLowerCase();
-            if (currentStatus !== 'available' && currentStatus !== 'rejected') {
-                console.warn(`Tx Aborted: Invalid status "${currentStatus}". Must be "available" or "rejected".`);
-                return;
-            }
-
-            if (current.isFinalized !== true) {
-                console.error("Tx Aborted: Reward is not finalized.");
-                return;
-            }
-
-            const finalCount = Number(current.finalDirectCount || 0);
-            if (!isWithdrawalEligible(finalCount)) {
-                console.warn(`Tx Aborted: Referral count ${finalCount} < required ${CAMPAIGN.minReferralsForWithdrawal}.`);
-                return;
-            }
-
+            if (currentStatus !== 'available' && currentStatus !== 'rejected') return;
+            if (current.isFinalized !== true) return;
+            if (!isWithdrawalEligible(Number(current.finalDirectCount || 0))) return;
+            
             const reward = Number(current.finalReward || 0);
-            if (!Number.isFinite(reward) || reward <= 0) {
-                console.error("Tx Aborted: Invalid reward amount.");
-                return;
-            }
+            if (!Number.isFinite(reward) || reward <= 0) return;
 
             return { 
                 ...current, 
@@ -401,7 +378,6 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         const date = new Date(timestamp).toISOString().split('T')[0];
         const dynamicName = CAMPAIGN.campaignName || 'Direct Referral Offer';
 
-        // 2. Multi-Path Data Preparation
         const adminData = { 
             ...lockedCampaign, 
             campaignName: dynamicName, 
@@ -435,7 +411,6 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
             username: userData.username || userData.referralCode || userId 
         };
 
-        // 3. Execute Multi-Path Update with Error Handling
         try {
             await update(ref(db), {
                 [`admin/withdrawals/${withdrawalId}`]: adminData,
@@ -445,7 +420,6 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
         } catch (writeError) {
             console.error("Firebase Write Error:", writeError);
             
-            // Verify if data actually saved despite error
             let adminExists = false, userTxExists = false, globalTxExists = false;
             try {
                 const [a, u, g] = await Promise.all([ 
@@ -459,10 +433,9 @@ async function createAtomicWithdrawal(userId, userData, walletAddress) {
             }
 
             if (adminExists && userTxExists && globalTxExists) {
-                return { success: true, withdrawalId, txId }; // Succeeded but threw error
+                return { success: true, withdrawalId, txId };
             }
             
-            // Safe rollback if partial write happened
             await runTransaction(campaignRef, current => {
                 if (current && current.status === 'pending' && current.withdrawalId === withdrawalId) {
                     return { ...current, status: 'available', walletAddress: null, withdrawalId: null, transactionId: null, requestedAt: null, updatedAt: Date.now() };
@@ -750,9 +723,6 @@ function handleWithdrawClick() {
     if (el.confirmationModal) el.confirmationModal.classList.add('visible');
 }
 
-// ============================================================
-// 🔥 UPDATED: PROCESS WITHDRAWAL (With Error Handling)
-// ============================================================
 async function processWithdrawal() {
     if (isProcessingWithdrawal || !CAMPAIGN) return;
     const origHTML = '<i class="bi bi-check-circle me-1"></i>Confirm Withdrawal';
@@ -837,12 +807,20 @@ async function loadUserData(user) {
         campaignRewardSnapshot = await getCampaignRewardSnapshot(user.uid);
         isWithdrawalFinalized = campaignRewardSnapshot?.isFinalized === true;
 
-        if (!isUserActive(currentUserData)) directReferrals = 0;
-        else directReferrals = await getCampaignDirectReferrals(user.uid);
+        if (isUserActive(currentUserData)) {
+            directReferrals = await getCampaignDirectReferrals(user.uid);
+        } else {
+            directReferrals = 0;
+        }
 
-        if (getCampaignStatus() === 'ENDED' && !campaignRewardSnapshot) {
-            campaignRewardSnapshot = await finalizeCampaignReward(user.uid);
-            if (campaignRewardSnapshot) { isWithdrawalFinalized = true; directReferrals = Number(campaignRewardSnapshot.finalDirectCount ?? 0); }
+        if (getCampaignStatus() === 'ENDED') {
+            if (!campaignRewardSnapshot) {
+                campaignRewardSnapshot = await finalizeCampaignReward(user.uid);
+            }
+            if (campaignRewardSnapshot) {
+                isWithdrawalFinalized = true;
+                directReferrals = Number(campaignRewardSnapshot.finalDirectCount || 0);
+            }
         }
 
         setupWithdrawalListener(user.uid);
