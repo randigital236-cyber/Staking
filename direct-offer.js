@@ -4,7 +4,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { getDatabase, ref, get, update, onValue, runTransaction } from "firebase/database";
+import { getDatabase, ref, get, update, runTransaction } from "firebase/database";
 
 // ============================================================
 // 🔥 LIVE FIREBASE CONFIG (RND2)
@@ -173,157 +173,221 @@ function injectWithdrawalInput() {
 }
 
 // ============================================================
-// 🔥 AUTO-SYNC FUNCTION (STRICT DIRECT REFERRAL & DATE CHECK)
+// 🔥 AUTO-SYNC — DIRECT REFERRALS, OLD + NEW IDS, CAMPAIGN DATES
 // ============================================================
+function normaliseText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function toMillis(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 0 && value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return numeric > 0 && numeric < 1e12 ? numeric * 1000 : numeric;
+    const parsed = Date.parse(trimmed);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (typeof value === "object") {
+    // Handles common Firestore-like timestamp shapes if they were copied into RTDB.
+    if (Number.isFinite(Number(value.seconds))) return Number(value.seconds) * 1000;
+    if (Number.isFinite(Number(value._seconds))) return Number(value._seconds) * 1000;
+  }
+  return 0;
+}
+
+function getPackageAmount(pkg) {
+  const candidates = [
+    pkg?.usdtAmount, pkg?.packageAmount, pkg?.amount, pkg?.price,
+    pkg?.packagePrice, pkg?.investmentAmount, pkg?.usdAmount
+  ];
+  for (const candidate of candidates) {
+    const amount = Number(candidate);
+    if (Number.isFinite(amount) && CAMPAIGN.rewards[amount]) return amount;
+  }
+  return 0;
+}
+
+function getPackagePurchaseTime(pkg) {
+  const candidates = [
+    pkg?.purchaseDate, pkg?.purchaseTimestamp, pkg?.purchasedAt,
+    pkg?.purchaseTime, pkg?.timestamp, pkg?.createdAt, pkg?.created_at,
+    pkg?.activatedAt, pkg?.activationDate, pkg?.date
+  ];
+  for (const candidate of candidates) {
+    const millis = toMillis(candidate);
+    if (millis > 0) return millis;
+  }
+  return 0;
+}
+
+function isSuccessfulPurchase(pkg) {
+  const status = normaliseText(pkg?.status || pkg?.paymentStatus || pkg?.purchaseStatus || pkg?.state);
+  const rejected = new Set(["pending", "failed", "rejected", "cancelled", "canceled", "inactive", "expired", "refunded", "deleted"]);
+  const accepted = new Set(["active", "completed", "paid", "approved", "success", "successful", "confirmed", "complete"]);
+  if (rejected.has(status)) return false;
+  // If the source record has a status, accept only known successful states.
+  if (status) return accepted.has(status);
+  // Some older records have no status field. Count only if they have a timestamp
+  // and a known package amount; the campaign date check is applied separately.
+  return Boolean(getPackagePurchaseTime(pkg));
+}
+
+function isDirectReferral(buyer, buyerUid, uid, refCode) {
+  if (!buyer || buyerUid === uid) return false;
+  const uidFields = [
+    buyer.referredByUid, buyer.sponsorUid, buyer.referrerUid,
+    buyer.directReferrerUid, buyer.parentUid, buyer.sponsorId, buyer.referrerId
+  ];
+  if (uidFields.some(value => normaliseText(value) === normaliseText(uid))) return true;
+
+  const codeFields = [
+    buyer.referredBy, buyer.referralBy, buyer.referralCodeUsed,
+    buyer.sponsorCode, buyer.referrerCode, buyer.parentReferralCode
+  ];
+  const wanted = new Set([normaliseText(uid), normaliseText(refCode)].filter(Boolean));
+  return codeFields.some(value => wanted.has(normaliseText(value)));
+}
+
 async function syncDiwaliData(uid) {
   if (isSyncing) return;
   isSyncing = true;
 
   try {
-    const userSnap = await get(ref(db, `users/${uid}`));
-    if (!userSnap.exists()) return;
-    currentUserData = userSnap.val();
-    
+    const [userSnap, usersSnap, diwaliSnap] = await Promise.all([
+      get(ref(db, `users/${uid}`)),
+      get(ref(db, "users")),
+      get(ref(db, CAMPAIGN.id))
+    ]);
+    if (!userSnap.exists()) {
+      console.error("Diwali sync: logged-in user's record was not found.");
+      return;
+    }
+
+    currentUserData = userSnap.val() || {};
     const name = currentUserData.name || currentUserData.username || "User";
     if (el.userName) el.userName.textContent = name;
-    if (el.userAvatar) el.userAvatar.textContent = name.charAt(0).toUpperCase();
-    
-    const refCode = currentUserData.referralCode || uid.substring(0, 8);
+    if (el.userAvatar) el.userAvatar.textContent = String(name).charAt(0).toUpperCase();
+
+    const refCode = currentUserData.referralCode || currentUserData.referral_code || uid.substring(0, 8);
     if (el.referralCodeDisplay) el.referralCodeDisplay.textContent = refCode;
     if (el.referralLinkDisplay) el.referralLinkDisplay.textContent = `https://staking.randigital.in/register.html?ref=${refCode}`;
 
-    // 1. Fetch all users
-    const usersSnap = await get(ref(db, "users"));
     const allUsers = usersSnap.val() || {};
-    const referredUsers = new Set();
-
-    // 🟢 STRICT DIRECT REFERRAL CHECK
-    for (const [uId, uData] of Object.entries(allUsers)) {
-      if (uId === uid) continue;
-      
-      // सिर्फ वही यूजर जिनका referredBy आपके code/uid से मैच करता है
-      let isDirect = false;
-      if (uData.referredByUid === uid || uData.sponsorUid === uid || uData.referrerUid === uid) {
-        isDirect = true;
-      } else if (uData.referredBy === refCode || uData.referredBy === uid) {
-        isDirect = true;
-      }
-
-      if (isDirect) {
-        referredUsers.add(uId); 
-      }
-    }
-
-    // 2. Fetch existing Diwali data
-    const diwaliSnap = await get(ref(db, CAMPAIGN.id));
     const diwaliData = diwaliSnap.val() || {};
     const existingPurchases = diwaliData.purchases || {};
     const userWithdrawals = diwaliData.withdrawals || {};
-    
+
     const counts = { 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0 };
     const breakdown = { 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0 };
     let totalEarned = 0;
     const updates = {};
+    const campaignStart = CAMPAIGN.startDate.getTime();
+    const campaignEnd = CAMPAIGN.endDate.getTime();
 
-    // 3. Calculate Total Earned (सिर्फ सही तारीख और डायरेक्ट रेफरल)
-    for (const [refUserUid, refUserData] of Object.entries(allUsers)) {
-      if (!referredUsers.has(refUserUid)) continue; // 🔥 डायरेक्ट रेफरल चेक
-      
-      const packages = refUserData.packages || {};
-      
-      for (const [pkgId, pkg] of Object.entries(packages)) {
-        if (pkg.status !== "active" && pkg.status !== "completed") continue;
+    // IMPORTANT: eligibility is based on the buyer's direct sponsor relation,
+    // not the date the buyer account was created. Old and new IDs are both allowed.
+    for (const [buyerUid, buyerDataRaw] of Object.entries(allUsers)) {
+      const buyerData = buyerDataRaw || {};
+      if (!isDirectReferral(buyerData, buyerUid, uid, refCode)) continue;
 
-        const amt = Number(pkg.usdtAmount || 0);
-        if (!CAMPAIGN.rewards[amt]) continue; 
+      const packages = buyerData.packages || buyerData.purchases || buyerData.packageHistory || {};
+      if (!packages || typeof packages !== "object") continue;
 
-        // 🔥 तारीख का सख्त चेक (26 Oct से 7 Nov के बीच)
-        const purchaseTime = pkg.purchaseDate || pkg.timestamp || 0;
-        if (purchaseTime < CAMPAIGN.startDate.getTime()) continue; 
-        if (purchaseTime > CAMPAIGN.endDate.getTime()) continue; 
+      for (const [pkgKey, pkgRaw] of Object.entries(packages)) {
+        const pkg = pkgRaw || {};
+        if (typeof pkg !== "object") continue;
 
-        const rewardAmt = CAMPAIGN.rewards[amt];
-        
-        // हर पैकेज के लिए स्थायी यूनिक ID
-        const purchaseId = `${refUserUid}_${pkgId}`; 
+        const amount = getPackageAmount(pkg);
+        if (!amount || !isSuccessfulPurchase(pkg)) continue;
 
-        // डुप्लीकेट रोकने के लिए चेक
-        if (!existingPurchases[purchaseId]) {
-          updates[`purchases/${purchaseId}`] = {
-            purchaseId: purchaseId,
-            buyerUid: refUserUid,
-            directReferrerUid: uid,
-            packageAmount: amt,
-            rewardAmount: rewardAmt,
-            status: "completed",
-            timestamp: purchaseTime,
-            campaignId: CAMPAIGN.id
-          };
-          
-          updates[`user_claims/${uid}/${purchaseId}`] = {
-            purchaseId: purchaseId,
-            amount: amt,
-            reward: rewardAmt,
-            claimedAt: Date.now()
-          };
-        }
+        const purchaseTime = getPackagePurchaseTime(pkg);
+        // A missing/invalid timestamp cannot be safely classified as a campaign purchase.
+        if (!purchaseTime || purchaseTime < campaignStart || purchaseTime > campaignEnd) continue;
 
-        counts[amt]++;
-        breakdown[amt] += rewardAmt;
-        totalEarned += rewardAmt; 
+        const reward = CAMPAIGN.rewards[amount];
+        const purchaseId = `${buyerUid}_${String(pkgKey).replace(/[.#$\[\]/]/g, "_")}`;
+        const oldPurchase = existingPurchases[purchaseId] || {};
+
+        // Always repair/refresh the campaign record for an eligible direct purchase.
+        // The stable key prevents duplicate entries on repeated syncs.
+        updates[`purchases/${purchaseId}`] = {
+          ...oldPurchase,
+          purchaseId,
+          buyerUid,
+          directReferrerUid: uid,
+          packageAmount: amount,
+          rewardAmount: reward,
+          status: "completed",
+          timestamp: purchaseTime,
+          campaignId: CAMPAIGN.id
+        };
+        updates[`user_claims/${uid}/${purchaseId}`] = {
+          purchaseId,
+          buyerUid,
+          amount,
+          reward,
+          campaignId: CAMPAIGN.id,
+          claimedAt: Number(existingPurchases[purchaseId]?.timestamp) || Date.now()
+        };
+
+        counts[amount] += 1;
+        breakdown[amount] += reward;
+        totalEarned += reward;
       }
     }
 
-    if (Object.keys(updates).length > 0) {
+    if (Object.keys(updates).length) {
       await update(ref(db, CAMPAIGN.id), updates);
-      console.log("🔥 New Diwali data synced!");
     }
 
-    // 4. Calculate Pending & Paid
+    // Withdrawals: only paid amounts are deducted permanently; pending requests
+    // temporarily reserve the balance. 'approved' is not treated as paid.
     let latestWithdrawal = null;
     let totalPaid = 0;
     let totalPending = 0;
+    for (const [withdrawalId, withdrawalRaw] of Object.entries(userWithdrawals)) {
+      const withdrawal = withdrawalRaw || {};
+      if (String(withdrawal.userId || withdrawal.uid || "") !== uid) continue;
+      const amount = Number(withdrawal.amount || withdrawal.requestedAmount || 0);
+      const status = normaliseText(withdrawal.status);
+      if (status === "paid") totalPaid += Number.isFinite(amount) ? amount : 0;
+      else if (status === "pending" || status === "approved") totalPending += Number.isFinite(amount) ? amount : 0;
 
-    for (const [wId, w] of Object.entries(userWithdrawals)) {
-      if (w.userId !== uid) continue;
-      
-      const amt = Number(w.amount || 0);
-      if (w.status === 'paid' || w.status === 'approved') {
-        totalPaid += amt; 
-      } else if (w.status === 'pending') {
-        totalPending += amt;
-      }
-      
-      if (!latestWithdrawal || w.requestedAt > latestWithdrawal.requestedAt) {
-        latestWithdrawal = w;
+      const requestedAt = toMillis(withdrawal.requestedAt || withdrawal.timestamp || 0);
+      const latestAt = toMillis(latestWithdrawal?.requestedAt || latestWithdrawal?.timestamp || 0);
+      if (!latestWithdrawal || requestedAt >= latestAt) {
+        latestWithdrawal = { ...withdrawal, withdrawalId };
       }
     }
 
-    // 5. Final Withdrawable Balance Calculation
-    const actualWithdrawable = Math.max(0, totalEarned - totalPaid - totalPending);
-
+    const withdrawable = Math.max(0, totalEarned - totalPaid - totalPending);
     calculatedRewards = {
-      totalEarned: totalEarned,
+      totalEarned,
       paidAmount: totalPaid,
       pendingAmount: totalPending,
-      withdrawable: actualWithdrawable,
-      counts, breakdown,
-      currentStatus: latestWithdrawal ? latestWithdrawal.status : "available",
+      withdrawable,
+      counts,
+      breakdown,
+      currentStatus: latestWithdrawal ? normaliseText(latestWithdrawal.status) : "available",
       currentWithdrawal: latestWithdrawal
     };
-
     updateUI();
   } catch (err) {
-    console.error("Sync error:", err);
+    console.error("Diwali sync error:", err);
+    showToast("Offer data could not be refreshed. Please refresh the page.", "error");
   } finally {
     isSyncing = false;
   }
 }
-
 function startAutoSync(uid) {
   if (syncInterval) clearInterval(syncInterval);
   syncDiwaliData(uid); 
-  syncInterval = setInterval(() => syncDiwaliData(uid), 2000);
+  syncInterval = setInterval(() => syncDiwaliData(uid), 10000);
 }
 
 function stopAutoSync() {
