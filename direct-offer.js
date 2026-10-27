@@ -7,7 +7,7 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get, update, onValue, runTransaction } from "firebase/database";
 
 // ============================================================
-// 🔥 LIVE FIREBASE CONFIG (Updated to RND2)
+// 🔥 LIVE FIREBASE CONFIG (RND2)
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
@@ -173,7 +173,7 @@ function injectWithdrawalInput() {
 }
 
 // ============================================================
-// 🔥 AUTO-SYNC FUNCTION (Perfect Balance & Reward Logic)
+// 🔥 AUTO-SYNC FUNCTION (Fixed Time Check)
 // ============================================================
 async function syncDiwaliData(uid) {
   if (isSyncing) return;
@@ -216,7 +216,7 @@ async function syncDiwaliData(uid) {
     let totalEarned = 0;
     const updates = {};
 
-    // 3. Calculate Total Earned
+    // 3. Calculate Total Earned (🔥 यहाँ तारीख का चेक हटा दिया गया है)
     for (const [refUserUid, refUserData] of Object.entries(allUsers)) {
       if (!referredUsers.has(refUserUid)) continue;
       
@@ -228,12 +228,10 @@ async function syncDiwaliData(uid) {
         const amt = Number(pkg.usdtAmount || 0);
         if (!CAMPAIGN.rewards[amt]) continue; 
 
-        const purchaseTime = pkg.purchaseDate || pkg.timestamp || 0;
-        if (purchaseTime < CAMPAIGN.startDate.getTime()) continue;
-
+        // 🔥 यहाँ समय की जाँच हटा दी गई है ताकि आज के सभी पैकेज काउंट हों
         const rewardAmt = CAMPAIGN.rewards[amt];
         
-        // 🔥 हर पैकेज के लिए स्थायी यूनिक ID
+        // हर पैकेज के लिए स्थायी यूनिक ID
         const purchaseId = `${refUserUid}_${pkgId}`; 
 
         if (!existingPurchases[purchaseId]) {
@@ -244,7 +242,7 @@ async function syncDiwaliData(uid) {
             packageAmount: amt,
             rewardAmount: rewardAmt,
             status: "completed",
-            timestamp: purchaseTime,
+            timestamp: pkg.purchaseDate || pkg.timestamp || Date.now(),
             campaignId: CAMPAIGN.id
           };
           
