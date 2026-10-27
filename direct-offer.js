@@ -1,5 +1,5 @@
 // ============================================================
-// DIWALI BUMPER OFFER 2026 — FINAL STRICT FIX (Date & Referral)
+// DIWALI BUMPER OFFER 2026 — FINAL PERFECT FIX (Direct Referral Only)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -173,7 +173,7 @@ function injectWithdrawalInput() {
 }
 
 // ============================================================
-// 🔥 AUTO-SYNC FUNCTION (Fixed Date & Referral)
+// 🔥 AUTO-SYNC FUNCTION (STRICT DIRECT REFERRAL & DATE CHECK)
 // ============================================================
 async function syncDiwaliData(uid) {
   if (isSyncing) return;
@@ -197,11 +197,19 @@ async function syncDiwaliData(uid) {
     const allUsers = usersSnap.val() || {};
     const referredUsers = new Set();
 
+    // 🟢 STRICT DIRECT REFERRAL CHECK
     for (const [uId, uData] of Object.entries(allUsers)) {
       if (uId === uid) continue;
-      const referredBy = uData.referredBy || uData.referredByUid || uData.sponsorUid || uData.referrerUid || uData.referrer;
-      // 🔥 सिर्फ डायरेक्ट रेफरल यहाँ जुड़ेंगे
-      if (String(referredBy) === String(refCode) || String(referredBy) === String(uid)) {
+      
+      // सिर्फ वही यूजर जिनका referredBy आपके code/uid से मैच करता है
+      let isDirect = false;
+      if (uData.referredByUid === uid || uData.sponsorUid === uid || uData.referrerUid === uid) {
+        isDirect = true;
+      } else if (uData.referredBy === refCode || uData.referredBy === uid) {
+        isDirect = true;
+      }
+
+      if (isDirect) {
         referredUsers.add(uId); 
       }
     }
@@ -217,7 +225,7 @@ async function syncDiwaliData(uid) {
     let totalEarned = 0;
     const updates = {};
 
-    // 3. Calculate Total Earned (सिर्फ डायरेक्ट रेफरल और सही तारीख के पैकेज)
+    // 3. Calculate Total Earned (सिर्फ सही तारीख और डायरेक्ट रेफरल)
     for (const [refUserUid, refUserData] of Object.entries(allUsers)) {
       if (!referredUsers.has(refUserUid)) continue; // 🔥 डायरेक्ट रेफरल चेक
       
@@ -229,15 +237,17 @@ async function syncDiwaliData(uid) {
         const amt = Number(pkg.usdtAmount || 0);
         if (!CAMPAIGN.rewards[amt]) continue; 
 
-        // 🔥 तारीख का सख्त चेक (सिर्फ 26 Oct 2026 के बाद के पैकेज)
+        // 🔥 तारीख का सख्त चेक (26 Oct से 7 Nov के बीच)
         const purchaseTime = pkg.purchaseDate || pkg.timestamp || 0;
-        if (purchaseTime < CAMPAIGN.startDate.getTime()) continue;
+        if (purchaseTime < CAMPAIGN.startDate.getTime()) continue; 
+        if (purchaseTime > CAMPAIGN.endDate.getTime()) continue; 
 
         const rewardAmt = CAMPAIGN.rewards[amt];
         
         // हर पैकेज के लिए स्थायी यूनिक ID
         const purchaseId = `${refUserUid}_${pkgId}`; 
 
+        // डुप्लीकेट रोकने के लिए चेक
         if (!existingPurchases[purchaseId]) {
           updates[`purchases/${purchaseId}`] = {
             purchaseId: purchaseId,
