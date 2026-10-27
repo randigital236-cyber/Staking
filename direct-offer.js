@@ -1,5 +1,5 @@
 // ============================================================
-// DIWALI BUMPER OFFER 2026 — FINAL PERFECT LIVE SCRIPT
+// DIWALI BUMPER OFFER 2026 — FINAL STRICT FIX (Date & Referral)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -173,7 +173,7 @@ function injectWithdrawalInput() {
 }
 
 // ============================================================
-// 🔥 AUTO-SYNC FUNCTION (Fixed Time Check)
+// 🔥 AUTO-SYNC FUNCTION (Fixed Date & Referral)
 // ============================================================
 async function syncDiwaliData(uid) {
   if (isSyncing) return;
@@ -200,6 +200,7 @@ async function syncDiwaliData(uid) {
     for (const [uId, uData] of Object.entries(allUsers)) {
       if (uId === uid) continue;
       const referredBy = uData.referredBy || uData.referredByUid || uData.sponsorUid || uData.referrerUid || uData.referrer;
+      // 🔥 सिर्फ डायरेक्ट रेफरल यहाँ जुड़ेंगे
       if (String(referredBy) === String(refCode) || String(referredBy) === String(uid)) {
         referredUsers.add(uId); 
       }
@@ -216,9 +217,9 @@ async function syncDiwaliData(uid) {
     let totalEarned = 0;
     const updates = {};
 
-    // 3. Calculate Total Earned (🔥 यहाँ तारीख का चेक हटा दिया गया है)
+    // 3. Calculate Total Earned (सिर्फ डायरेक्ट रेफरल और सही तारीख के पैकेज)
     for (const [refUserUid, refUserData] of Object.entries(allUsers)) {
-      if (!referredUsers.has(refUserUid)) continue;
+      if (!referredUsers.has(refUserUid)) continue; // 🔥 डायरेक्ट रेफरल चेक
       
       const packages = refUserData.packages || {};
       
@@ -228,7 +229,10 @@ async function syncDiwaliData(uid) {
         const amt = Number(pkg.usdtAmount || 0);
         if (!CAMPAIGN.rewards[amt]) continue; 
 
-        // 🔥 यहाँ समय की जाँच हटा दी गई है ताकि आज के सभी पैकेज काउंट हों
+        // 🔥 तारीख का सख्त चेक (सिर्फ 26 Oct 2026 के बाद के पैकेज)
+        const purchaseTime = pkg.purchaseDate || pkg.timestamp || 0;
+        if (purchaseTime < CAMPAIGN.startDate.getTime()) continue;
+
         const rewardAmt = CAMPAIGN.rewards[amt];
         
         // हर पैकेज के लिए स्थायी यूनिक ID
@@ -242,7 +246,7 @@ async function syncDiwaliData(uid) {
             packageAmount: amt,
             rewardAmount: rewardAmt,
             status: "completed",
-            timestamp: pkg.purchaseDate || pkg.timestamp || Date.now(),
+            timestamp: purchaseTime,
             campaignId: CAMPAIGN.id
           };
           
