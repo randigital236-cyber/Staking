@@ -2,22 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transfer - RND Staking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
-    <!-- Bootstrap & Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Main CSS -->
+    <!-- Firebase Import Map (सिर्फ एक बार) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js",
+        "firebase/functions": "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js"
+      }
+    }
+    </script>
+
+    <!-- Main CSS (यहाँ से आपकी सारी स्टाइलिंग लोड होगी) -->
     <link rel="stylesheet" href="transfer.css">
 </head>
-<body>
+<body class="loading">
 
-<!-- ====== PAGE LOADER ====== -->
+<!-- ============================================ -->
+<!-- PAGE LOADING PROGRESS BAR -->
+<!-- ============================================ -->
 <div id="pageLoader">
     <div class="loader-brand">
         <div class="loader-brand-icon">
@@ -31,90 +40,80 @@
     <div class="loader-status" id="loaderStatus">Starting...</div>
 </div>
 
-<!-- ====== TOAST CONTAINER ====== -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ====== NAVBAR ====== -->
-<nav class="navbar navbar-custom">
-    <div class="container-fluid px-3">
-        <a class="navbar-brand" href="dashboard.html">
-            RND Staking
-        </a>
-        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Menu">
-            <i class="bi bi-list"></i>
+<!-- ============================================ -->
+<!-- SIDEBAR -->
+<!-- ============================================ -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<aside class="sidebar-panel" id="sidebarPanel">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-icon">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </div>
+            <span>Menu</span>
+        </div>
+        <button class="sidebar-close" id="sidebarCloseBtn">
+            <i class="bi bi-x-lg"></i>
         </button>
     </div>
-</nav>
 
-<!-- ====== SIDEBAR OVERLAY ====== -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<!-- ====== SIDEBAR PANEL ====== -->
-<div class="sidebar-panel" id="sidebarPanel">
-    <div class="sidebar-header">
-        <h5><i class="bi bi-grid-1x2-fill"></i> Menu</h5>
-        <button class="sidebar-close" id="sidebarClose"><i class="bi bi-x-lg"></i></button>
-    </div>
-
-    <div class="user-profile-sidebar">
-        <div class="d-flex align-items-center gap-3">
-            <div class="avatar" id="sidebarAvatar">U</div>
-            <div style="min-width:0;flex:1;">
-                <div class="user-name" id="sidebarName">User</div>
-                <div class="user-id" id="sidebarUserId">ID: ---</div>
-            </div>
+    <div class="sidebar-user-block">
+        <div class="sidebar-avatar" id="sidebarAvatar">U</div>
+        <div class="sidebar-user-info">
+            <div class="sidebar-name" id="sidebarName">User</div>
+            <div class="sidebar-uid" id="sidebarUid">ID: ...</div>
         </div>
     </div>
 
-    <a href="dashboard.html" class="nav-item">
-        <i class="bi bi-speedometer2"></i>
-        <span>Dashboard</span>
-    </a>
-    <a href="deposit.html" class="nav-item">
-        <i class="bi bi-arrow-down-circle"></i>
-        <span>Deposit</span>
-    </a>
-    <a href="withdrawal.html" class="nav-item">
-        <i class="bi bi-arrow-up-circle"></i>
-        <span>Withdraw</span>
-    </a>
-    <a href="buy-package.html" class="nav-item">
-        <i class="bi bi-box-seam"></i>
-        <span>Buy Package</span>
-    </a>
-    <a href="referrals.html" class="nav-item">
-        <i class="bi bi-people"></i>
-        <span>Referrals</span>
-        <span class="badge" id="referralBadge">0</span>
-    </a>
-    <a href="transfer.html" class="nav-item active">
-        <i class="bi bi-arrow-left-right"></i>
-        <span>Send Money</span>
-    </a>
-    <a href="rank-reward.html" class="nav-item">
-        <i class="bi bi-trophy"></i>
-        <span>Rank Reward</span>
-    </a>
-    <a href="direct-offer.html" class="nav-item direct-offer-nav" id="directOfferNav">
-        <i class="bi bi-gift"></i>
-        <span>Direct Offer</span>
-    </a>
-    <a href="transactions.html" class="nav-item">
-        <i class="bi bi-receipt"></i>
-        <span>Transactions</span>
-    </a>
-    <a href="invoice.html" class="nav-item">
-        <i class="bi bi-file-text"></i>
-        <span>Invoice</span>
-    </a>
-    <a href="profile.html" class="nav-item">
-        <i class="bi bi-person"></i>
-        <span>Profile</span>
-    </a>
-    <a href="#" onclick="window.open('support.html', '_blank'); return false;" class="nav-item">
-        <i class="bi bi-headset"></i>
-        <span>Support Center</span>
-    </a>
+    <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="deposit.html" class="nav-item">
+            <i class="bi bi-arrow-down-circle"></i>
+            <span>Deposit</span>
+        </a>
+        <a href="withdrawal.html" class="nav-item">
+            <i class="bi bi-arrow-up-circle"></i>
+            <span>Withdraw</span>
+        </a>
+        <a href="buy-package.html" class="nav-item">
+            <i class="bi bi-box-seam"></i>
+            <span>Buy Package</span>
+        </a>
+        <a href="referrals.html" class="nav-item">
+            <i class="bi bi-people"></i>
+            <span>Referrals</span>
+            <span class="badge" id="referralBadge">0</span>
+        </a>
+        <a href="transfer.html" class="nav-item active">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Send Money</span>
+        </a>
+        <a href="rank-reward.html" class="nav-item">
+            <i class="bi bi-trophy"></i>
+            <span>Rank Reward</span>
+        </a>
+        <a href="direct-offer.html" class="nav-item direct-offer-nav" id="directOfferNav">
+            <i class="bi bi-gift"></i>
+            <span>Direct Offer</span>
+        </a>
+        <a href="transactions.html" class="nav-item">
+            <i class="bi bi-receipt"></i>
+            <span>Transactions</span>
+        </a>
+        <a href="invoice.html" class="nav-item">
+            <i class="bi bi-file-text"></i>
+            <span>Invoice</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <i class="bi bi-person"></i>
+            <span>Profile</span>
+        </a>
+    </nav>
 
     <div class="sidebar-footer">
         <a href="#" class="nav-item" id="logoutBtnSidebar">
@@ -122,107 +121,137 @@
             <span>Logout</span>
         </a>
     </div>
+</aside>
+
+<!-- ============================================ -->
+<!-- TOP BAR -->
+<!-- ============================================ -->
+<div class="top-bar">
+    <div class="top-bar-title">
+        <i class="bi bi-arrow-left-right"></i>
+        Send Money
+    </div>
+    <button class="menu-toggle-btn" id="menuToggleBtn" title="Menu">
+        <i class="bi bi-list"></i>
+    </button>
 </div>
 
-<!-- ====== MAIN CONTENT ====== -->
-<div class="dashboard-container">
-    
-    <!-- Page Header -->
-    <div class="page-header-section">
-        <h4><i class="bi bi-send"></i> Send Money</h4>
-        <span class="rnd-price-badge"><i class="bi bi-shield-check"></i> Secure Transfer</span>
+<!-- ============================================ -->
+<!-- MAIN CONTENT -->
+<!-- ============================================ -->
+<div class="page-wrapper">
+
+    <div class="page-header">
+        <div>
+            <h1>
+                <i class="bi bi-send"></i> Send Money
+            </h1>
+            <p>Instantly transfer USDT or RND to any user on the platform.</p>
+        </div>
+        <span class="secure-badge">
+            <i class="bi bi-shield-check"></i> Secure Transfer
+        </span>
     </div>
 
     <!-- WALLET CARDS -->
     <div class="wallet-grid">
-        <div class="wallet-card">
-            <div class="wallet-icon deposit"><i class="bi bi-wallet2"></i></div>
-            <div class="wallet-number green" id="balanceDeposit">$0.00</div>
-            <div class="wallet-label">Deposit Wallet</div>
-            <div class="wallet-sub">USDT Balance</div>
+        <div class="wallet-card-new deposit">
+            <div class="wallet-icon-new deposit">
+                <i class="bi bi-wallet2"></i>
+            </div>
+            <div class="wallet-amount deposit" id="balanceDeposit">$0.00</div>
+            <div class="wallet-label-new">Deposit Wallet</div>
+            <div class="wallet-sub-new">USDT Balance</div>
         </div>
 
-        <div class="wallet-card">
-            <div class="wallet-icon referral"><i class="bi bi-coin"></i></div>
-            <div class="wallet-number gold" id="balanceReferral">$0.00</div>
-            <div class="wallet-label">Referral Wallet</div>
-            <div class="wallet-sub">USDT Balance</div>
+        <div class="wallet-card-new referral">
+            <div class="wallet-icon-new referral">
+                <i class="bi bi-coin"></i>
+            </div>
+            <div class="wallet-amount referral" id="balanceReferral">$0.00</div>
+            <div class="wallet-label-new">💰 Referral Wallet</div>
+            <div class="wallet-sub-new">USDT Balance</div>
         </div>
 
-        <div class="wallet-card">
-            <div class="wallet-icon rnd"><i class="bi bi-database"></i></div>
-            <div class="wallet-number blue" id="balanceRND">0.0000</div>
-            <div class="wallet-label">RND Wallet</div>
-            <div class="wallet-sub">RND Balance</div>
+        <div class="wallet-card-new rnd">
+            <div class="wallet-icon-new rnd">
+                <i class="bi bi-database"></i>
+            </div>
+            <div class="wallet-amount rnd" id="balanceRND">0.0000</div>
+            <div class="wallet-label-new">RND Wallet</div>
+            <div class="wallet-sub-new">RND Balance</div>
         </div>
     </div>
 
-    <div class="row g-4">
-        <!-- TRANSFER FORM -->
-        <div class="col-lg-7">
-            <div class="card-glass">
-                <div class="card-title"><i class="bi bi-send"></i> Transfer Details</div>
-                <form id="transferForm">
-                    <div class="mb-3">
-                        <label class="form-label">Recipient (User ID / Username / Referral Code)</label>
-                        <input type="text" id="recipientInput" class="form-control form-control-custom" 
-                               placeholder="Please paste the user ID" required autocomplete="off">
-                    </div>
+    <!-- FORM CARD -->
+    <div class="form-card">
+        <div class="card-title-new">
+            <i class="bi bi-send" style="color: #2ecc71;"></i> Transfer Details
+        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Wallet</label>
-                        <select id="walletSelect" class="form-select form-select-custom">
-                            <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
-                            <option value="referralWallet">💳 Referral Wallet (USDT)</option>
-                            <option value="rndWallet">📊 RND Wallet (RND)</option>
-                        </select>
-                    </div>
+        <form id="transferForm">
+            <div style="margin-bottom: 20px;">
+                <label class="form-label-custom">
+                    Recipient (User ID / Username / Referral Code)
+                </label>
+                <input type="text" id="recipientInput" class="form-control-custom" 
+                       placeholder="Please paste the user ID" required autocomplete="off">
+            </div>
 
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label mb-0">Amount</label>
-                            <span class="small text-muted">Available: <strong id="availableText" class="text-success">0</strong></span>
-                        </div>
-                        <div class="position-relative">
-                            <input type="number" id="amountInput" class="form-control form-control-custom" 
-                                   placeholder="0.00" min="0.01" step="0.01" required>
-                            <button type="button" class="btn-max" onclick="setMaxAmount()">
-                                MAX
-                            </button>
-                        </div>
-                    </div>
+            <div style="margin-bottom: 20px;">
+                <label class="form-label-custom">Wallet</label>
+                <select id="walletSelect" class="form-control-custom">
+                    <option value="depositWallet">💰 Deposit Wallet (USDT)</option>
+                    <option value="referralWallet">💳 Referral Wallet (USDT)</option>
+                    <option value="rndWallet">📊 RND Wallet (RND)</option>
+                </select>
+            </div>
 
-                    <button type="submit" id="sendBtn" class="btn-primary-custom mt-3">
-                        <i class="bi bi-send-fill"></i> Send Money
+            <div style="margin-bottom: 20px;">
+                <label class="form-label-custom">Amount</label>
+                <input type="number" id="amountInput" class="form-control-custom" 
+                       placeholder="0.00" min="0.01" step="0.01" required>
+                <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                    <span style="color: #64748b;">
+                        Available: <strong id="availableText" style="color: #2ecc71;">0</strong>
+                    </span>
+                    <button type="button" class="max-btn" onclick="setMaxAmount()">
+                        <i class="bi bi-lightning-charge-fill"></i> Send Max
                     </button>
-                </form>
-
-                <div class="info-alert mt-4">
-                    <i class="bi bi-shield-check"></i>
-                    <div>
-                        <strong>सुरक्षा सूचना:</strong> हर transfer पर password पूछा जाएगा। अगर पहली बार transfer कर रहे हैं तो password set करना होगा।
-                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- RECENT TRANSFERS -->
-        <div class="col-lg-5">
-            <div class="card-glass h-100">
-                <div class="card-title"><i class="bi bi-clock-history"></i> Recent Transfers</div>
-                <div class="recent-transfers" id="recentTransfers">
-                    <div class="text-center text-muted py-4">Loading...</div>
-                </div>
+            <button type="submit" id="sendBtn" class="btn-send">
+                <i class="bi bi-send-fill"></i> Send Money
+            </button>
+        </form>
+
+        <div class="info-box">
+            <i class="bi bi-shield-check"></i>
+            <div>
+                <strong>सुरक्षा सूचना:</strong> हर transfer पर password पूछा जाएगा। अगर पहली बार transfer कर रहे हैं तो password set करना होगा।
             </div>
         </div>
     </div>
+
+    <!-- RECENT TRANSFERS -->
+    <div class="form-card">
+        <div class="card-title-new">
+            <i class="bi bi-clock-history" style="color: #60a5fa;"></i> Recent Transfers
+        </div>
+        <div class="recent-transfers" id="recentTransfers">
+            <div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">
+                Loading...
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- ============================================ -->
 <!-- MODALS -->
 <!-- ============================================ -->
 
-<!-- Setup Password Modal -->
 <div class="modal-overlay" id="setupModal">
     <div class="modal-box">
         <div class="modal-icon"><i class="bi bi-shield-lock"></i></div>
@@ -253,7 +282,7 @@
     </div>
 </div>
 
-<!-- Verify Password Modal -->
+<!-- VERIFY MODAL -->
 <div class="modal-overlay" id="verifyModal">
     <div class="modal-box">
         <div class="modal-icon"><i class="bi bi-lock-fill"></i></div>
@@ -281,10 +310,9 @@
     </div>
 </div>
 
-<!-- Forgot Password Modal -->
 <div class="modal-overlay" id="forgotModal">
     <div class="modal-box">
-        <div class="modal-icon" style="color: #fbbf24;"><i class="bi bi-key"></i></div>
+        <div class="modal-icon" style="color: #f59e0b;"><i class="bi bi-key"></i></div>
         <div class="modal-title">Reset Transfer Password</div>
 
         <div class="modal-step active" id="forgotStep1">
@@ -334,154 +362,10 @@
     </div>
 </div>
 
-<!-- ====== SCRIPTS ====== -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-
-<script type="importmap">
-{
-    "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js",
-        "firebase/functions": "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js"
-    }
-}
-</script>
-
-<!-- ====== MAIN TRANSFER SCRIPT ====== -->
+<!-- ============================================ -->
+<!-- LOGIC FILE (सिर्फ एक बार लोड होगा) -->
+<!-- ============================================ -->
 <script type="module" src="transfer.js"></script>
-
-<!-- ====== UI SCRIPT (Loader & Sidebar) ====== -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-    // Config
-    const firebaseConfig = {
-        apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-        authDomain: "rnd2-70080.firebaseapp.com",
-        databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "rnd2-70080",
-        storageBucket: "rnd2-70080.firebasestorage.app",
-        messagingSenderId: "468625887938",
-        appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b"
-    };
-    
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
-
-    // ============================================
-    // PAGE LOADER
-    // ============================================
-    const loader = document.getElementById('pageLoader');
-    const bar = document.getElementById('loaderProgressBar');
-    const status = document.getElementById('loaderStatus');
-
-    const steps = [
-        { pct: 15, label: 'Connecting...', delay: 200 },
-        { pct: 35, label: 'Loading wallet data...', delay: 500 },
-        { pct: 60, label: 'Fetching user info...', delay: 900 },
-        { pct: 85, label: 'Preparing interface...', delay: 1300 },
-        { pct: 100, label: 'Ready!', delay: 1700 }
-    ];
-
-    steps.forEach(({ pct, label, delay }) => {
-        setTimeout(() => {
-            bar.style.width = pct + '%';
-            status.textContent = label;
-        }, delay);
-    });
-
-    function hideLoader() {
-        bar.style.width = '100%';
-        status.textContent = 'Ready!';
-        setTimeout(() => {
-            loader.classList.add('hidden');
-            document.body.classList.remove('loading');
-        }, 300);
-    }
-
-    window.__hideTransferLoader = hideLoader;
-    setTimeout(hideLoader, 3000); // Fallback
-
-    // ============================================
-    // SIDEBAR
-    // ============================================
-    const sidebarPanel = document.getElementById('sidebarPanel');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarClose = document.getElementById('sidebarClose');
-
-    function openSidebar() {
-        sidebarPanel.classList.add('open');
-        sidebarOverlay.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-    function closeSidebar() {
-        sidebarPanel.classList.remove('open');
-        sidebarOverlay.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-
-    sidebarToggle.addEventListener('click', openSidebar);
-    sidebarClose.addEventListener('click', closeSidebar);
-    sidebarOverlay.addEventListener('click', closeSidebar);
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeSidebar();
-    });
-
-    // ============================================
-    // LOGOUT
-    // ============================================
-    document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
-        e.preventDefault();
-        try {
-            await signOut(auth);
-            window.location.href = 'login.html';
-        } catch (err) {
-            console.error('Logout error:', err);
-            window.location.href = 'login.html';
-        }
-    });
-
-    // ============================================
-    // SIDEBAR USER INFO
-    // ============================================
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            try {
-                const snap = await get(ref(db, 'users/' + user.uid));
-                if (snap.exists()) {
-                    const u = snap.val();
-                    const name = u.name || u.username || u.referralCode || 'User';
-                    document.getElementById('sidebarName').textContent = name;
-                    document.getElementById('sidebarUserId').textContent = 'ID: ' + (u.username || user.uid.substring(0, 16)) + '...';
-                    document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
-                    
-                    const badge = document.getElementById('referralBadge');
-                    if (badge) badge.textContent = u.totalReferrals || 0;
-                }
-            } catch (err) {
-                console.warn('Sidebar fill error:', err);
-            }
-        }
-    });
-
-    // Function to toggle passwords in modals
-    window.togglePassword = function(inputId, btn) {
-        const input = document.getElementById(inputId);
-        if (input.type === 'password') {
-            input.type = 'text';
-            btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
-        } else {
-            input.type = 'password';
-            btn.innerHTML = '<i class="bi bi-eye"></i>';
-        }
-    };
-</script>
 
 </body>
 </html>
