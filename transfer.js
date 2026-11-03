@@ -1563,3 +1563,64 @@ window.addEventListener('beforeunload', () => {
     if (reconciliationTimer) { clearTimeout(reconciliationTimer); reconciliationTimer = null; }
     if (staleCheckTimer) { clearInterval(staleCheckTimer); staleCheckTimer = null; }
 });
+
+// ============================================================
+// 🔥 UI Logic (Loader & Sidebar) — Added for HTML fix
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Hide loader after 1.5 seconds (fallback)
+    setTimeout(() => {
+        const loader = document.getElementById('pageLoader');
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 400);
+            document.body.classList.remove('loading');
+        }
+    }, 1500);
+
+    // Sidebar toggle
+    const sidebarPanel = document.getElementById('sidebarPanel');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebarPanel.classList.add('open');
+            sidebarOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    }
+    if (sidebarClose) {
+        sidebarClose.addEventListener('click', () => {
+            sidebarPanel.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        });
+    }
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => {
+            sidebarPanel.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        });
+    }
+
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtnSidebar');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                // signOut function needs to be imported or accessed. 
+                // Since it's not imported at the top, we import it dynamically here.
+                const { signOut } = await import("firebase/auth");
+                await signOut(auth);
+                window.location.href = 'login.html';
+            } catch (err) {
+                console.error('Logout error:', err);
+                window.location.href = 'login.html';
+            }
+        });
+    }
+});
