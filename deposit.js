@@ -704,14 +704,14 @@ function attachFormHandler(user) {
         const txHashInput = document.getElementById('txHash');
         const verifyBtn = document.getElementById('verifyBtn');
 
-        const amount = parseFloat(amountInput.value);
-        const txHash = txHashInput.value.trim();
+        const amount = amountInput.value.trim();
+        const txHash = txHashInput.value.trim().toLowerCase();
 
         const minConfirmations = WALLET_CONFIG.MIN_CONFIRMATIONS || 3;
         const pollingInterval = (WALLET_CONFIG.POLLING_INTERVAL || 15000) / 1000;
 
         // ---- FRONTEND VALIDATION ----
-        if (!amount || amount <= 0) {
+        if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
             showToast('❌ Sahi amount enter karein (0 se zyada).', 'error');
             return;
         }
