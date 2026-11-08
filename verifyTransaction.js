@@ -20,20 +20,22 @@ const ERC20_ABI = [
 const activeVerifications = new Map();
 
 // ============================================================
-// 🔥 AMOUNT TOLERANCE CONFIG
+// 🔒 EXACT USDT AMOUNT MATCHING
+// BSC USDT contract uses 18 decimals. Compare integer base units,
+// never floating-point numbers, so a wrong amount cannot pass by tolerance.
 // ============================================================
-const RELATIVE_TOLERANCE = 0.005;  // 0.5%
-const ABSOLUTE_TOLERANCE = 0.01;   // 0.01 USDT minimum floor
+const USDT_DECIMALS = 18;
 
 export function amountsMatch(userAmount, chainAmount) {
-    const a = Number(userAmount);
-    const b = Number(chainAmount);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-    if (a <= 0 || b <= 0) return false;
-
-    const diff = Math.abs(a - b);
-    const tolerance = Math.max(b * RELATIVE_TOLERANCE, ABSOLUTE_TOLERANCE);
-    return diff <= tolerance;
+    try {
+        const entered = String(userAmount ?? "").trim();
+        const actual = String(chainAmount ?? "").trim();
+        if (!entered || !actual || !/^\\d+(\\.\\d+)?$/.test(entered)) return false;
+        if (Number(entered) <= 0 || Number(actual) <= 0) return false;
+        return ethers.parseUnits(entered, USDT_DECIMALS) === ethers.parseUnits(actual, USDT_DECIMALS);
+    } catch {
+        return false;
+    }
 }
 
 // ============================================================
@@ -119,20 +121,65 @@ async function releaseProcessingLock(txHash) {
 // ============================================================
 // 🔒 CHECK DUPLICATE TRANSACTION
 // ============================================================
-export async function checkDuplicateTransaction(txHash) {
-    try {
-        const snap = await get(ref(db, `usedTransactions/${txHash}`));
-        if (snap.exists()) {
-            return {
-                isDuplicate: true,
-                data: snap.val()
-            };
+export async function checkDuplicateTransaction(txHash, uid = null) {
+    const snap = await get(ref(db, `usedTransactions/${txHash}`));
+    if (!snap.exists()) return { isDuplicate: false };
+
+    const data = snap.val() || {};
+    // A completed claim is never reusable. A pending claim can only be resumed
+    // by the same account that originally acquired it.
+    const isDuplicate = data.status === "completed" || (data.uid && uid && data.uid !== uid);
+    return { isDuplicate, data };
+}
+
+// ============================================================
+// 🔥 PARSE THE USDT TRANSFER TO OUR DEPOSIT WALLET
+// Select only logs from the configured token contract and destination.
+// If more than one matching transfer exists, accept them only when they
+// originate from the same sender, then sum their exact raw token amounts.
+// ============================================================
+function parseTransferFromReceipt(receipt) {
+    const iface = new ethers.Interface(ERC20_ABI);
+    const matches = [];
+
+    for (const log of (receipt.logs || [])) {
+        if (!log.address || log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) continue;
+        try {
+            const parsedLog = iface.parseLog(log);
+            if (
+                parsedLog &&
+                parsedLog.name === "Transfer" &&
+                parsedLog.args.to.toLowerCase() === WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()
+            ) {
+                matches.push({
+                    fromAddress: parsedLog.args.from,
+                    toAddress: parsedLog.args.to,
+                    transferAmount: parsedLog.args.value,
+                    tokenContract: log.address
+                });
+            }
+        } catch {
+            // Ignore unrelated logs.
         }
-        return { isDuplicate: false };
-    } catch (error) {
-        console.error("Error checking duplicate:", error);
-        return { isDuplicate: false };
     }
+
+    if (matches.length === 0) {
+        return { transferEvent: null, fromAddress: null, toAddress: null, transferAmount: null, tokenContract: null };
+    }
+
+    const sender = matches[0].fromAddress.toLowerCase();
+    if (matches.some(item => item.fromAddress.toLowerCase() !== sender)) {
+        return { ambiguous: true, transferEvent: null, fromAddress: null, toAddress: WALLET_CONFIG.DEPOSIT_WALLET, transferAmount: null, tokenContract: WALLET_CONFIG.USDT_CONTRACT };
+    }
+
+    const totalRawAmount = matches.reduce((sum, item) => sum + item.transferAmount, 0n);
+    return {
+        transferEvent: matches[0],
+        fromAddress: matches[0].fromAddress,
+        toAddress: WALLET_CONFIG.DEPOSIT_WALLET,
+        transferAmount: totalRawAmount,
+        tokenContract: WALLET_CONFIG.USDT_CONTRACT
+    };
 }
 
 // ============================================================
@@ -178,145 +225,99 @@ function parseTransferFromReceipt(receipt) {
 //   - Confirmations baad me check hoti hain (sirf agar amount sahi ho)
 // ============================================================
 export async function verifyTransaction(txHash, expectedAmount) {
-    if (activeVerifications.has(txHash)) {
-        return {
-            success: false,
-            error: "This transaction is already being verified. Please wait."
-        };
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[a-f0-9]{64}$/.test(normalizedHash)) {
+        return { success: false, error: "Invalid transaction hash. Enter the complete 0x transaction hash." };
     }
-    
-    activeVerifications.set(txHash, Date.now());
-    
+    if (activeVerifications.has(normalizedHash)) {
+        return { success: false, error: "This transaction is already being verified. Please wait." };
+    }
+
+    activeVerifications.set(normalizedHash, Date.now());
+
     try {
         const provider = await getProvider();
-        
-        // Get transaction receipt with retry
         let receipt = null;
         let retries = 3;
+
         while (retries > 0 && !receipt) {
             try {
-                receipt = await provider.getTransactionReceipt(txHash);
+                receipt = await provider.getTransactionReceipt(normalizedHash);
                 if (!receipt) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
                     retries--;
-                } else {
-                    break;
+                    if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1500));
                 }
-            } catch (e) {
+            } catch (error) {
                 retries--;
-                if (retries === 0) throw e;
+                if (retries === 0) throw error;
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
-        
-        if (!receipt) {
-            return {
-                success: false,
-                error: "Transaction not found. Please check the hash and try again."
-            };
-        }
-        
-        if (receipt.status !== 1) {
-            return {
-                success: false,
-                error: "Transaction failed on blockchain. Please check the transaction."
-            };
-        }
-        
-        // ============================================================
-        // 🔥 STEP 1: PARSE USDT TRANSFER FIRST
-        // ============================================================
+
+        if (!receipt) return { success: false, error: "Transaction not found. Check the hash and try again." };
+        if (receipt.status !== 1) return { success: false, error: "Transaction failed on blockchain." };
+
         const parsed = parseTransferFromReceipt(receipt);
-        
         if (!parsed.transferEvent) {
+            if (parsed.ambiguous) {
+                return { success: false, error: "This transaction has multiple USDT transfers from different senders to the deposit wallet. Please contact support for manual review." };
+            }
             return {
                 success: false,
-                error: "No USDT transfer found in this transaction. Please verify the contract address."
+                error: `No USDT (BEP20) transfer to our deposit wallet was found. Verify the receiver address and USDT contract.`
             };
         }
-        
-        if (parsed.tokenContract?.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
-            return {
-                success: false,
-                error: `Invalid token. Expected USDT (${WALLET_CONFIG.USDT_CONTRACT}) but got ${parsed.tokenContract || 'unknown'}.`
-            };
-        }
-        
-        if (parsed.toAddress?.toLowerCase() !== WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()) {
-            return {
-                success: false,
-                error: `Wrong receiver wallet. Expected ${WALLET_CONFIG.DEPOSIT_WALLET} but got ${parsed.toAddress}.`
-            };
-        }
-        
-        // ============================================================
-        // 🔥 STEP 2: CHECK AMOUNT — BEFORE CONFIRMATIONS
-        // ============================================================
-        const actualAmount = parseFloat(ethers.formatUnits(parsed.transferAmount, 18));
-        
-        if (expectedAmount && Number(expectedAmount) > 0) {
+
+        const actualAmount = ethers.formatUnits(parsed.transferAmount, USDT_DECIMALS);
+        if (expectedAmount !== undefined && expectedAmount !== null && String(expectedAmount).trim() !== "") {
             if (!amountsMatch(expectedAmount, actualAmount)) {
-                const tolerance = Math.max(actualAmount * RELATIVE_TOLERANCE, ABSOLUTE_TOLERANCE);
-                
-                // 🔥 Return Amount Mismatch — IMMEDIATELY, no pending!
                 return {
                     success: false,
-                    error: `Amount mismatch. You entered ${Number(expectedAmount)} USDT but blockchain shows ${actualAmount} USDT.`,
                     amountMismatch: true,
                     blockchainAmount: actualAmount,
-                    userAmount: Number(expectedAmount),
-                    tolerance: tolerance
+                    userAmount: String(expectedAmount),
+                    error: `Amount mismatch. You entered ${String(expectedAmount)} USDT but blockchain shows ${actualAmount} USDT.`
                 };
             }
         }
-        
-        // ============================================================
-        // 🔥 STEP 3: NOW CHECK CONFIRMATIONS
-        // ============================================================
+
         const currentBlock = await provider.getBlockNumber();
-        const confirmations = currentBlock - receipt.blockNumber;
-        
+        // Include the transaction's own block as confirmation #1.
+        const confirmations = currentBlock - receipt.blockNumber + 1;
+
         if (confirmations < WALLET_CONFIG.MIN_CONFIRMATIONS) {
             return {
                 success: false,
                 error: `Waiting for confirmations... (${confirmations}/${WALLET_CONFIG.MIN_CONFIRMATIONS})`,
                 pending: true,
-                confirmations: confirmations,
-                currentBlock: currentBlock,
+                confirmations,
+                currentBlock,
                 blockNumber: receipt.blockNumber,
-                // Extra info for UI
                 blockchainAmount: actualAmount
             };
         }
-        
-        // ============================================================
-        // 🔒 ALL VALIDATIONS PASSED
-        // ============================================================
+
         return {
             success: true,
             verified: true,
             receipt: {
                 blockNumber: receipt.blockNumber,
-                confirmations: confirmations,
+                confirmations,
                 from: parsed.fromAddress,
                 to: parsed.toAddress,
                 amount: actualAmount,
                 tokenContract: parsed.tokenContract,
-                txHash: txHash,
+                txHash: normalizedHash,
                 blockHash: receipt.blockHash,
                 gasUsed: receipt.gasUsed.toString(),
                 status: receipt.status
             }
         };
-        
     } catch (error) {
         console.error("Verification error:", error);
-        return {
-            success: false,
-            error: `Verification failed: ${error.message}`
-        };
+        return { success: false, error: `Verification failed: ${error.message}` };
     } finally {
-        activeVerifications.delete(txHash);
+        activeVerifications.delete(normalizedHash);
     }
 }
 
@@ -324,36 +325,72 @@ export async function verifyTransaction(txHash, expectedAmount) {
 // 🔒 PROCESS DEPOSIT - ATOMIC
 // ============================================================
 export async function processDeposit(uid, txHash, amount, receipt) {
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[a-f0-9]{64}$/.test(normalizedHash)) throw new Error("Invalid transaction hash.");
+
+    // Only the blockchain-verified amount may be credited. Never fall back to
+    // the amount typed by the user.
+    const finalAmount = Number(receipt && receipt.amount);
+    if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
+        throw new Error("Verified blockchain amount is missing or invalid.");
+    }
+
+    const claimRef = ref(db, `usedTransactions/${normalizedHash}`);
+    const claimResult = await runTransaction(claimRef, current => {
+        if (current === null) {
+            return {
+                uid,
+                amount: finalAmount,
+                txHash: normalizedHash,
+                blockNumber: receipt.blockNumber,
+                status: "processing",
+                timestamp: Date.now()
+            };
+        }
+
+        // Allow the original account to resume an interrupted credit operation.
+        // Never let a different account take over an existing claim.
+        if (current.uid === uid && current.status === "processing") return current;
+        return;
+    });
+
+    if (!claimResult.committed) {
+        const existing = claimResult.snapshot.val();
+        if (existing && existing.uid === uid && existing.status === "completed") {
+            throw new Error("This transaction has already been credited to your account.");
+        }
+        throw new Error("This transaction hash has already been claimed or used. Duplicate deposits are not allowed.");
+    }
+
     try {
-        const finalAmount = (receipt && receipt.amount) ? Number(receipt.amount) : Number(amount);
-        
         const userRef = ref(db, `users/${uid}`);
-        
-        const result = await runTransaction(userRef, (currentData) => {
-            if (!currentData) {
-                return { ...currentData };
-            }
-            
-            // STEP 1: Check duplicate
+        let wasAlreadyCredited = false;
+
+        const userResult = await runTransaction(userRef, currentData => {
+            if (!currentData) return;
+
             const transactions = currentData.transactions || {};
-            for (let key in transactions) {
-                const tx = transactions[key];
-                if (tx.type === 'deposit' && tx.txHash === txHash && tx.status === 'success') {
-                    return { ...currentData };
-                }
+            const existingEntry = Object.values(transactions).find(tx =>
+                tx &&
+                tx.type === "deposit" &&
+                String(tx.txHash || "").toLowerCase() === normalizedHash &&
+                tx.status === "success"
+            );
+
+            if (existingEntry) {
+                wasAlreadyCredited = true;
+                return currentData;
             }
-            
-            // STEP 2: Update balance
+
             const currentBalance = Number(currentData.depositWallet) || 0;
             const newBalance = currentBalance + finalAmount;
-            
-            // STEP 3: Create transaction record
-            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-            const transactionRecord = {
-                type: 'deposit',
-                status: 'success',
+            const txId = "deposit_" + normalizedHash.slice(2);
+
+            transactions[txId] = {
+                type: "deposit",
+                status: "success",
                 amount: finalAmount,
-                txHash: txHash,
+                txHash: normalizedHash,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
                 to: receipt.to,
@@ -363,60 +400,55 @@ export async function processDeposit(uid, txHash, amount, receipt) {
                 date: new Date().toDateString(),
                 description: `Deposit of ${finalAmount.toFixed(6)} USDT verified on blockchain`
             };
-            
-            transactions[txId] = transactionRecord;
-            
+
             return {
                 ...currentData,
                 depositWallet: newBalance,
-                transactions: transactions
+                transactions
             };
         });
-        
-        if (!result.committed) {
-            throw new Error("Transaction failed - duplicate or insufficient balance");
+
+        if (!userResult.committed || !userResult.snapshot.exists()) {
+            throw new Error("Could not safely update the user deposit balance. The transaction claim has been retained for safe retry.");
         }
-        
-        // STEP 5: Mark as used
-        try {
-            await set(ref(db, `usedTransactions/${txHash}`), {
-                uid: uid,
-                amount: finalAmount,
-                timestamp: Date.now(),
-                blockNumber: receipt.blockNumber,
-                status: 'completed'
-            });
-        } catch (err) {
-            console.warn('Warning: Could not mark transaction as used:', err);
-        }
-        
-        // STEP 6: Save to deposit history
-        try {
-            const historyRef = ref(db, `depositHistory`);
-            const newHistoryRef = push(historyRef);
-            await set(newHistoryRef, {
-                uid: uid,
-                txHash: txHash,
-                amount: finalAmount,
-                blockNumber: receipt.blockNumber,
-                from: receipt.from,
-                to: receipt.to,
-                timestamp: Date.now(),
-                status: 'success'
-            });
-        } catch (err) {
-            console.warn('Warning: Could not save deposit history:', err);
-        }
-        
+
+        const newBalance = Number(userResult.snapshot.val().depositWallet) || 0;
+
+        // Mark completed only after the user's transaction record and balance
+        // are confirmed in the same per-user RTDB transaction.
+        await update(claimRef, {
+            uid,
+            amount: finalAmount,
+            txHash: normalizedHash,
+            blockNumber: receipt.blockNumber,
+            status: "completed",
+            completedAt: Date.now()
+        });
+
+        // Fixed TXID key prevents duplicate history rows on safe retries.
+        await set(ref(db, `depositHistory/${normalizedHash}`), {
+            uid,
+            txHash: normalizedHash,
+            amount: finalAmount,
+            blockNumber: receipt.blockNumber,
+            from: receipt.from,
+            to: receipt.to,
+            timestamp: Date.now(),
+            status: "success"
+        });
+
         return {
             success: true,
-            newBalance: result.snapshot.val().depositWallet,
+            newBalance,
             amountCredited: finalAmount,
-            blockNumber: receipt.blockNumber
+            blockNumber: receipt.blockNumber,
+            alreadyCredited: wasAlreadyCredited
         };
-        
     } catch (error) {
-        console.error("Error processing deposit:", error);
+        // Keep the claim in "processing". The same UID can retry; another UID
+        // cannot steal the TXID. This avoids reopening a TXID after uncertain
+        // network outcomes where the user balance may already have committed.
+        console.error("Error processing claimed deposit:", error);
         throw error;
     }
 }
@@ -429,7 +461,7 @@ export async function completeDeposit(uid, txHash, amount, onPending, onSuccess,
     
     try {
         // STEP 1: Check duplicate
-        const duplicateCheck = await checkDuplicateTransaction(txHash);
+        const duplicateCheck = await checkDuplicateTransaction(String(txHash).trim().toLowerCase(), uid);
         if (duplicateCheck.isDuplicate) {
             return {
                 success: false,
