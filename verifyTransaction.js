@@ -119,28 +119,20 @@ async function releaseProcessingLock(txHash) {
 // ============================================================
 // 🔒 CHECK DUPLICATE TRANSACTION
 // ============================================================
-export async function checkDuplicateTransaction(txHash, uid = null) {
-    // Fail closed: if Firebase cannot be checked, do not allow a deposit.
-    const snap = await get(ref(db, `usedTransactions/${txHash}`));
-
-    if (!snap.exists()) {
+export async function checkDuplicateTransaction(txHash) {
+    try {
+        const snap = await get(ref(db, `usedTransactions/${txHash}`));
+        if (snap.exists()) {
+            return {
+                isDuplicate: true,
+                data: snap.val()
+            };
+        }
+        return { isDuplicate: false };
+    } catch (error) {
+        console.error("Error checking duplicate:", error);
         return { isDuplicate: false };
     }
-
-    const data = snap.val() || {};
-
-    // Completed TXIDs are permanently blocked for every user.
-    if (data.status === 'completed') {
-        return { isDuplicate: true, data };
-    }
-
-    // An interrupted claim can be retried by the same user only.
-    if (data.status === 'processing' && data.uid === uid && uid) {
-        return { isDuplicate: false, retry: true, data };
-    }
-
-    // Any other existing claim is unavailable.
-    return { isDuplicate: true, data };
 }
 
 // ============================================================
@@ -148,63 +140,33 @@ export async function checkDuplicateTransaction(txHash, uid = null) {
 // ============================================================
 function parseTransferFromReceipt(receipt) {
     const iface = new ethers.Interface(ERC20_ABI);
-    const matchingTransfers = [];
+    let transferEvent = null;
+    let fromAddress = null;
+    let toAddress = null;
+    let transferAmount = null;
+    let tokenContract = null;
 
-    // Only accept Transfer events from the official USDT contract
-    // whose receiver is exactly our configured deposit wallet.
-    for (const log of (receipt.logs || [])) {
-        if (
-            !log.address ||
-            log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()
-        ) {
+    for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
             continue;
         }
-
+        
         try {
             const parsedLog = iface.parseLog(log);
-
-            if (
-                parsedLog &&
-                parsedLog.name === 'Transfer' &&
-                parsedLog.args.to.toLowerCase() === WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()
-            ) {
-                matchingTransfers.push({
-                    fromAddress: parsedLog.args.from,
-                    toAddress: parsedLog.args.to,
-                    transferAmount: parsedLog.args.value,
-                    tokenContract: log.address,
-                    transferEvent: parsedLog
-                });
+            if (parsedLog && parsedLog.name === 'Transfer') {
+                fromAddress = parsedLog.args.from;
+                toAddress = parsedLog.args.to;
+                transferAmount = parsedLog.args.value;
+                tokenContract = log.address;
+                transferEvent = parsedLog;
+                break;
             }
         } catch (e) {
-            // Ignore unrelated or malformed logs.
+            continue;
         }
     }
 
-    if (matchingTransfers.length === 0) {
-        return {
-            transferEvent: null,
-            fromAddress: null,
-            toAddress: null,
-            transferAmount: null,
-            tokenContract: null
-        };
-    }
-
-    // Sum all official-USDT Transfer events in this transaction that
-    // actually arrived at our deposit wallet.
-    const totalAmount = matchingTransfers.reduce(
-        (total, item) => total + item.transferAmount,
-        0n
-    );
-
-    return {
-        transferEvent: matchingTransfers[0].transferEvent,
-        fromAddress: matchingTransfers[0].fromAddress,
-        toAddress: matchingTransfers[0].toAddress,
-        transferAmount: totalAmount,
-        tokenContract: matchingTransfers[0].tokenContract
-    };
+    return { transferEvent, fromAddress, toAddress, transferAmount, tokenContract };
 }
 
 // ============================================================
@@ -363,80 +325,35 @@ export async function verifyTransaction(txHash, expectedAmount) {
 // ============================================================
 export async function processDeposit(uid, txHash, amount, receipt) {
     try {
-        const normalizedHash = String(txHash || '').trim().toLowerCase();
-        const finalAmount = Number(receipt && receipt.amount);
-
-        if (!uid) throw new Error("Please sign in before depositing.");
-        if (!/^0x[a-f0-9]{64}$/.test(normalizedHash)) {
-            throw new Error("Invalid transaction hash.");
-        }
-        if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
-            throw new Error("Verified blockchain amount is invalid.");
-        }
-
-        // STEP 1: Atomically reserve this TXID BEFORE crediting any balance.
-        // A completed TXID can never be credited again.
-        const claimRef = ref(db, `usedTransactions/${normalizedHash}`);
-        const claimResult = await runTransaction(claimRef, (current) => {
-            if (current === null) {
-                return {
-                    uid: uid,
-                    amount: finalAmount,
-                    timestamp: Date.now(),
-                    blockNumber: receipt.blockNumber,
-                    status: 'processing'
-                };
-            }
-
-            // Allow only the same user to resume an interrupted processing claim.
-            if (
-                current.status === 'processing' &&
-                current.uid === uid
-            ) {
-                return current;
-            }
-
-            // Abort for completed claims or claims owned by another user.
-            return;
-        });
-
-        if (!claimResult.committed) {
-            const existing = claimResult.snapshot.val() || {};
-            if (existing.status === 'completed') {
-                throw new Error("This transaction hash has already been credited. Duplicate deposits are not allowed.");
-            }
-            throw new Error("This transaction is already claimed or being processed. Please try again shortly.");
-        }
-
-        // STEP 2: Keep the original user data structure and balance path.
+        const finalAmount = (receipt && receipt.amount) ? Number(receipt.amount) : Number(amount);
+        
         const userRef = ref(db, `users/${uid}`);
+        
         const result = await runTransaction(userRef, (currentData) => {
-            if (!currentData) return;
-
-            const transactions = currentData.transactions || {};
-
-            // Idempotency check inside the user's atomic transaction.
-            // If this TXID was credited before, do not increase the balance again.
-            const alreadyCredited = Object.values(transactions).some((tx) =>
-                tx &&
-                tx.type === 'deposit' &&
-                String(tx.txHash || '').toLowerCase() === normalizedHash &&
-                tx.status === 'success'
-            );
-
-            if (alreadyCredited) {
-                return currentData;
+            if (!currentData) {
+                return { ...currentData };
             }
-
+            
+            // STEP 1: Check duplicate
+            const transactions = currentData.transactions || {};
+            for (let key in transactions) {
+                const tx = transactions[key];
+                if (tx.type === 'deposit' && tx.txHash === txHash && tx.status === 'success') {
+                    return { ...currentData };
+                }
+            }
+            
+            // STEP 2: Update balance
             const currentBalance = Number(currentData.depositWallet) || 0;
             const newBalance = currentBalance + finalAmount;
-
+            
+            // STEP 3: Create transaction record
             const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
             const transactionRecord = {
                 type: 'deposit',
                 status: 'success',
                 amount: finalAmount,
-                txHash: normalizedHash,
+                txHash: txHash,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
                 to: receipt.to,
@@ -446,80 +363,58 @@ export async function processDeposit(uid, txHash, amount, receipt) {
                 date: new Date().toDateString(),
                 description: `Deposit of ${finalAmount.toFixed(6)} USDT verified on blockchain`
             };
-
+            
             transactions[txId] = transactionRecord;
-
+            
             return {
                 ...currentData,
                 depositWallet: newBalance,
                 transactions: transactions
             };
         });
-
-        if (!result.committed || !result.snapshot.exists()) {
-            throw new Error("Could not update the user deposit balance. The TXID claim is retained for a safe retry.");
+        
+        if (!result.committed) {
+            throw new Error("Transaction failed - duplicate or insufficient balance");
         }
-
-        const updatedUser = result.snapshot.val() || {};
-        const updatedTransactions = updatedUser.transactions || {};
-
-        const creditedRecordExists = Object.values(updatedTransactions).some((tx) =>
-            tx &&
-            tx.type === 'deposit' &&
-            String(tx.txHash || '').toLowerCase() === normalizedHash &&
-            tx.status === 'success'
-        );
-
-        if (!creditedRecordExists) {
-            throw new Error("Deposit transaction record was not saved. The TXID claim is retained for a safe retry.");
+        
+        // STEP 5: Mark as used
+        try {
+            await set(ref(db, `usedTransactions/${txHash}`), {
+                uid: uid,
+                amount: finalAmount,
+                timestamp: Date.now(),
+                blockNumber: receipt.blockNumber,
+                status: 'completed'
+            });
+        } catch (err) {
+            console.warn('Warning: Could not mark transaction as used:', err);
         }
-
-        // STEP 3: Mark TXID completed only after the user record confirms credit.
-        await set(claimRef, {
-            uid: uid,
-            amount: finalAmount,
-            timestamp: Date.now(),
-            blockNumber: receipt.blockNumber,
-            status: 'completed'
-        });
-
-        // STEP 4: Preserve the existing depositHistory structure.
-        // Avoid adding another history row when the same TXID is retried.
-        const historySnap = await get(ref(db, 'depositHistory'));
-        const historyData = historySnap.exists() ? historySnap.val() : {};
-
-        const historyAlreadyExists = Object.values(historyData || {}).some((item) =>
-            item &&
-            String(item.txHash || '').toLowerCase() === normalizedHash
-        );
-
-        if (!historyAlreadyExists) {
-            try {
-                const historyRef = push(ref(db, 'depositHistory'));
-                await set(historyRef, {
-                    uid: uid,
-                    txHash: normalizedHash,
-                    amount: finalAmount,
-                    blockNumber: receipt.blockNumber,
-                    from: receipt.from,
-                    to: receipt.to,
-                    timestamp: Date.now(),
-                    status: 'success'
-                });
-            } catch (historyError) {
-                // Balance and TXID completion are already safely recorded.
-                // Keep the original behavior: history failure must not undo a deposit.
-                console.warn('Warning: Could not save deposit history:', historyError);
-            }
+        
+        // STEP 6: Save to deposit history
+        try {
+            const historyRef = ref(db, `depositHistory`);
+            const newHistoryRef = push(historyRef);
+            await set(newHistoryRef, {
+                uid: uid,
+                txHash: txHash,
+                amount: finalAmount,
+                blockNumber: receipt.blockNumber,
+                from: receipt.from,
+                to: receipt.to,
+                timestamp: Date.now(),
+                status: 'success'
+            });
+        } catch (err) {
+            console.warn('Warning: Could not save deposit history:', err);
         }
-
+        
         return {
             success: true,
-            newBalance: Number(updatedUser.depositWallet) || 0,
+            newBalance: result.snapshot.val().depositWallet,
             amountCredited: finalAmount,
             blockNumber: receipt.blockNumber
         };
-
+        
     } catch (error) {
         console.error("Error processing deposit:", error);
         throw error;
@@ -531,13 +426,10 @@ export async function processDeposit(uid, txHash, amount, receipt) {
 // ============================================================
 export async function completeDeposit(uid, txHash, amount, onPending, onSuccess, onError) {
     console.log('🔒 Starting secure deposit flow...');
-
-    // Normalize TXID to prevent case-based duplicate-check bypass.
-    txHash = String(txHash || '').trim().toLowerCase();
     
     try {
         // STEP 1: Check duplicate
-        const duplicateCheck = await checkDuplicateTransaction(txHash, uid);
+        const duplicateCheck = await checkDuplicateTransaction(txHash);
         if (duplicateCheck.isDuplicate) {
             return {
                 success: false,
