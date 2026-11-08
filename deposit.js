@@ -1,8 +1,12 @@
 // ============================================================
-// 🔥 DEPOSIT PAGE LOGIC - RND STAKING
+// 🔥 DEPOSIT PAGE LOGIC - RND STAKING (v3.0 SECURE)
 // ============================================================
 // Firebase + Real Blockchain Verification
-// Amount tolerance: ±0.5% (handles rounding like 5.012 vs 5.01)
+// - Atomic duplicate prevention (cross-user safe)
+// - Auto-fill on amount mismatch
+// - Parallel pending resume
+// - Double-submit protection
+// - Periodic stale lock cleanup
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -38,9 +42,16 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 // ============================================================
-// 🔥 DEPOSIT WALLET (NEW ADDRESS)
+// 🔥 DEPOSIT WALLET ADDRESS
 // ============================================================
 const DEPOSIT_WALLET_ADDRESS = '0xe757c330D267784F190e79e0Ec0dC5d30ad6eFA4';
+
+// ============================================================
+// 🧹 GLOBAL STATE
+// ============================================================
+let staleCleanupInterval = null;
+let depositsListenerOff = null;
+let balanceListenerOff = null;
 
 // ============================================================
 // 🔥 SMART NOTIFICATION SYSTEM
@@ -83,12 +94,32 @@ function showToast(message, type = 'success', duration = null) {
 }
 
 // ============================================================
-// 🔥 ANALYZE ERROR AND SHOW APPROPRIATE NOTIFICATION
+// 🔥 ANALYZE ERROR — v3.0 (accepts blockchainAmount directly)
 // ============================================================
-function analyzeError(errorMsg, userAmount) {
+function analyzeError(errorMsg, userAmount, blockchainAmountDirect) {
     const msg = String(errorMsg || '').toLowerCase();
 
+    // ============================================================
+    // 0. ALREADY CREDITED
+    // ============================================================
+    if (msg.includes('already credited') || msg.includes('already added') ||
+        msg.includes('was already credited')) {
+        return {
+            type: 'success',
+            title: '✅ Already Credited',
+            message: 'Yeh transaction pehle hi aapke account me add ho chuka hai.',
+            statusHTML: `
+                <i class="bi bi-check-circle-fill me-2"></i>
+                ✅ <strong>Already Credited</strong>
+                <br><small>Yeh transaction pehle hi aapke wallet me add ho chuka hai.</small>
+                <br><small>💡 Dobara deposit karne ke liye naya transaction hash use karein.</small>
+            `
+        };
+    }
+
+    // ============================================================
     // 1. DUPLICATE TRANSACTION
+    // ============================================================
     if (msg.includes('already been used') || msg.includes('duplicate')) {
         return {
             type: 'error',
@@ -103,32 +134,43 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
-    // 2. AMOUNT MISMATCH
-    if (msg.includes('amount mismatch') || msg.includes('shows')) {
-        const match = String(errorMsg).match(/shows\s*([\d.]+)/i)
-                  || String(errorMsg).match(/blockchain\s*shows\s*([\d.]+)/i);
-        const chainAmount = match ? match[1] : null;
+    // ============================================================
+    // 2. AMOUNT MISMATCH (priority: direct blockchain amount)
+    // ============================================================
+    if (msg.includes('amount mismatch') || msg.includes('shows') || blockchainAmountDirect) {
+        let chainAmount = blockchainAmountDirect;
 
-        if (chainAmount) {
+        if (!chainAmount) {
+            const match = String(errorMsg).match(/shows\s*([\d.]+)/i)
+                      || String(errorMsg).match(/blockchain\s*shows\s*([\d.]+)/i);
+            if (match) chainAmount = parseFloat(match[1]);
+        }
+
+        if (chainAmount && isFinite(chainAmount) && chainAmount > 0) {
+            // Format: remove trailing zeros but keep at least 2 decimals
+            const formatted = Number(chainAmount).toFixed(6).replace(/\.?0+$/, '');
+            const displayAmount = formatted || '0';
+
             return {
                 type: 'warning',
                 title: '💰 Amount Mismatch',
-                message: `Aapne ${userAmount} USDT enter kiya, lekin blockchain pe ${chainAmount} USDT hai. Auto-fill button se sahi amount daalein.`,
+                message: `Aapne ${userAmount} USDT enter kiya, lekin blockchain pe ${displayAmount} USDT hai. Neeche button se sahi amount auto-fill karein.`,
                 statusHTML: `
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
                     💰 <strong>Amount Mismatch</strong>
                     <br><small>Aapne enter kiya: <strong>${userAmount} USDT</strong></small>
-                    <br><small>Blockchain pe actual: <strong>${chainAmount} USDT</strong></small>
+                    <br><small>Blockchain pe actual: <strong>${displayAmount} USDT</strong></small>
                     <br><small>💡 Neeche button click karke sahi amount auto-fill karein, phir Verify dabayein.</small>
                     <br>
-                    <button type="button" class="btn-refresh mt-2" id="autoFillBtn" style="max-width:340px;padding:8px 16px;font-size:0.8rem;">
+                    <button type="button" class="btn-refresh mt-2" id="autoFillBtn" data-amount="${displayAmount}" style="max-width:340px;padding:8px 16px;font-size:0.8rem;">
                         <i class="bi bi-magic"></i>
-                        Auto-fill ${chainAmount} USDT
+                        Auto-fill ${displayAmount} USDT
                     </button>
                 `,
-                chainAmount: chainAmount
+                chainAmount: displayAmount
             };
         }
+
         return {
             type: 'warning',
             title: '💰 Amount Mismatch',
@@ -142,7 +184,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 3. WRONG RECEIVER WALLET
+    // ============================================================
     if (msg.includes('wrong receiver') || msg.includes('wrong wallet')) {
         return {
             type: 'error',
@@ -157,7 +201,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 4. INVALID TOKEN / WRONG CONTRACT
+    // ============================================================
     if (msg.includes('invalid token') || msg.includes('contract')) {
         return {
             type: 'error',
@@ -172,7 +218,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 5. NO USDT TRANSFER FOUND
+    // ============================================================
     if (msg.includes('no usdt transfer')) {
         return {
             type: 'error',
@@ -187,7 +235,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 6. TRANSACTION FAILED
+    // ============================================================
     if (msg.includes('failed on blockchain') || msg.includes('transaction failed')) {
         return {
             type: 'error',
@@ -202,7 +252,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 7. TRANSACTION NOT FOUND
+    // ============================================================
     if (msg.includes('not found') || msg.includes('check the hash')) {
         return {
             type: 'error',
@@ -217,7 +269,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 8. STILL PROCESSING
+    // ============================================================
     if (msg.includes('already being processed') || msg.includes('already being verified')) {
         return {
             type: 'info',
@@ -231,7 +285,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 9. INSUFFICIENT CONFIRMATIONS / PENDING
+    // ============================================================
     if (msg.includes('waiting for confirmations') || msg.includes('confirmations')) {
         return {
             type: 'info',
@@ -245,7 +301,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 10. RPC / NETWORK ERROR
+    // ============================================================
     if (msg.includes('rpc') || msg.includes('network') || msg.includes('timeout')) {
         return {
             type: 'error',
@@ -260,7 +318,9 @@ function analyzeError(errorMsg, userAmount) {
         };
     }
 
+    // ============================================================
     // 11. GENERIC FALLBACK
+    // ============================================================
     return {
         type: 'error',
         title: '❌ Verification Failed',
@@ -505,7 +565,7 @@ function renderDepositUI(depositWallet) {
 }
 
 // ============================================================
-// 🔥 RESUME PENDING VERIFICATIONS (FIXED)
+// 🔥 RESUME PENDING VERIFICATIONS (parallel)
 // ============================================================
 async function resumePendingVerifications(userId) {
     try {
@@ -523,7 +583,7 @@ async function resumePendingVerifications(userId) {
         let html = `
             <div class="verification-status show polling">
                 <i class="bi bi-arrow-repeat me-2"></i>
-                <strong>⏳ Resuming pending verifications...</strong>
+                <strong>⏳ Resuming ${pendingTxs.length} pending verification(s)...</strong>
                 <div class="mt-2">
         `;
 
@@ -540,46 +600,53 @@ async function resumePendingVerifications(userId) {
         html += `</div></div>`;
         container.innerHTML = html;
 
-        for (const pending of pendingTxs) {
-            try {
-                await realCompleteDeposit(
-                    userId,
-                    pending.txHash,
-                    (pending.lockData && pending.lockData.amount) || 0,
-                    (confirmations, currentBlock, blockNumber) => {
-                        updateVerificationStatus(
-                            'polling',
-                            `<span class="polling-indicator"></span>
-                             ⏳ Waiting for confirmations... (${confirmations}/${minConfirmations})<br>
-                             <small>Block: ${blockNumber || 'pending'} | Auto-checking every ${pollingInterval} seconds...</small>`
-                        );
-                    },
-                    (newBalance, creditedAmount, blockNumber) => {
-                        const finalAmount = (creditedAmount !== undefined && creditedAmount !== null)
-                            ? Number(creditedAmount) : Number(pending.lockData && pending.lockData.amount) || 0;
-                        const finalBlock = blockNumber || 'confirmed';
+        // ✅ Parallel processing with individual error handling
+        await Promise.allSettled(pendingTxs.map(pending =>
+            realCompleteDeposit(
+                userId,
+                pending.txHash,
+                (pending.lockData && pending.lockData.amount) || 0,
+                (confirmations, currentBlock, blockNumber) => {
+                    updateVerificationStatus(
+                        'polling',
+                        `<span class="polling-indicator"></span>
+                         ⏳ Waiting for confirmations... (${confirmations}/${minConfirmations})<br>
+                         <small>Block: ${blockNumber || 'pending'} | Auto-checking every ${pollingInterval} seconds...</small>`
+                    );
+                },
+                (newBalance, creditedAmount, blockNumber) => {
+                    const finalAmount = (creditedAmount !== undefined && creditedAmount !== null)
+                        ? Number(creditedAmount) : Number(pending.lockData && pending.lockData.amount) || 0;
+                    const finalBlock = blockNumber || 'confirmed';
 
-                        updateVerificationStatus(
-                            'success',
-                            `<i class="bi bi-check-circle-fill me-2"></i>
-                             ✅ <strong>Deposit Successfully Credited!</strong>
-                             <br><small>Credited Amount: <strong>$${finalAmount.toFixed(6)} USDT</strong></small>
-                             <br><small>New Balance: <strong>$${Number(newBalance).toFixed(2)} USDT</strong></small>
-                             <br><small>🔒 Verified on BSC Block: <strong>${finalBlock}</strong></small>`
-                        );
-                        showToast(`✅ Pending deposit of $${finalAmount.toFixed(4)} USDT completed!`, 'success', 6000);
-                        updateBalance(newBalance);
-                    },
-                    (error) => {
-                        const analysis = analyzeError(error, (pending.lockData && pending.lockData.amount) || 0);
-                        updateVerificationStatus(analysis.type === 'warning' ? 'error' : analysis.type, analysis.statusHTML);
-                        showToast(analysis.message, analysis.type === 'warning' ? 'warning' : 'error', 8000);
-                    }
-                );
-            } catch (error) {
-                console.error('Error resuming pending verification:', error);
-            }
-        }
+                    updateVerificationStatus(
+                        'success',
+                        `<i class="bi bi-check-circle-fill me-2"></i>
+                         ✅ <strong>Pending Deposit Successfully Credited!</strong>
+                         <br><small>Credited Amount: <strong>$${finalAmount.toFixed(6)} USDT</strong></small>
+                         <br><small>New Balance: <strong>$${Number(newBalance).toFixed(2)} USDT</strong></small>
+                         <br><small>🔒 Verified on BSC Block: <strong>${finalBlock}</strong></small>`
+                    );
+                    showToast(`✅ Pending deposit of $${finalAmount.toFixed(4)} USDT completed!`, 'success', 6000);
+                    updateBalance(newBalance);
+                },
+                (error) => {
+                    const errMsg = (typeof error === 'object' && error !== null)
+                        ? (error.error || error.message || String(error))
+                        : String(error);
+                    const chainAmt = (typeof error === 'object' && error !== null)
+                        ? error.blockchainAmount
+                        : undefined;
+                    const analysis = analyzeError(errMsg, (pending.lockData && pending.lockData.amount) || 0, chainAmt);
+                    updateVerificationStatus(analysis.type === 'warning' ? 'error' : analysis.type, analysis.statusHTML);
+                    showToast(analysis.message, analysis.type === 'warning' ? 'warning' : 'error', 8000);
+                }
+            ).catch(err => {
+                console.error(`Resume pending error for ${pending.txHash}:`, err);
+                return { success: false, error: err.message };
+            })
+        ));
+
     } catch (err) {
         console.error('Error in resumePendingVerifications:', err);
     }
@@ -589,9 +656,15 @@ async function resumePendingVerifications(userId) {
 // 🔥 LOAD RECENT DEPOSITS (REAL-TIME)
 // ============================================================
 function loadRecentDeposits(userId) {
+    // ✅ Cleanup previous listener
+    if (depositsListenerOff) {
+        try { depositsListenerOff(); } catch (_) {}
+        depositsListenerOff = null;
+    }
+
     const depositsRef = ref(db, `users/${userId}/transactions`);
 
-    onValue(depositsRef, (snapshot) => {
+    depositsListenerOff = onValue(depositsRef, (snapshot) => {
         const container = document.getElementById('recentDeposits');
         if (!container) return;
 
@@ -664,8 +737,13 @@ function loadRecentDeposits(userId) {
 // 🔥 BALANCE REAL-TIME LISTENER
 // ============================================================
 function listenToBalance(userId) {
+    if (balanceListenerOff) {
+        try { balanceListenerOff(); } catch (_) {}
+        balanceListenerOff = null;
+    }
+
     const balanceRef = ref(db, `users/${userId}/depositWallet`);
-    onValue(balanceRef, (snapshot) => {
+    balanceListenerOff = onValue(balanceRef, (snapshot) => {
         if (snapshot.exists()) {
             updateBalance(snapshot.val());
         }
@@ -673,29 +751,45 @@ function listenToBalance(userId) {
 }
 
 // ============================================================
-// 🔥 AUTO-FILL BUTTON HANDLER
+// 🔥 AUTO-FILL BUTTON HANDLER (v3.0 — uses data-amount)
 // ============================================================
 document.addEventListener('click', function (e) {
     const btn = e.target.closest('#autoFillBtn');
     if (!btn) return;
 
-    const match = btn.textContent.match(/([\d.]+)/);
-    if (!match) return;
+    // ✅ Primary: data-amount (exact blockchain value)
+    let amount = btn.dataset.amount;
+
+    // Fallback: parse from text
+    if (!amount) {
+        const match = btn.textContent.match(/([\d.]+)/);
+        if (match) amount = match[1];
+    }
+
+    if (!amount) {
+        showToast('❌ Could not auto-fill. Please enter amount manually.', 'error');
+        return;
+    }
 
     const amountInput = document.getElementById('depositAmount');
     if (amountInput) {
-        amountInput.value = match[1];
-        showToast(`✅ Auto-filled ${match[1]} USDT. Ab "Verify" button dabayein.`, 'success');
+        amountInput.value = amount;
+        amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+        showToast(`✅ Auto-filled ${amount} USDT. Ab "Verify" button dabayein.`, 'success', 5000);
         btn.remove();
     }
 });
 
 // ============================================================
-// 🔥 HANDLE DEPOSIT FORM SUBMIT (FIXED)
+// 🔥 HANDLE DEPOSIT FORM SUBMIT (v3.0 — double-submit safe)
 // ============================================================
 function attachFormHandler(user) {
     const form = document.getElementById('depositForm');
     if (!form) return;
+
+    // ✅ Guard: attach only once
+    if (form.dataset.handlerAttached === 'true') return;
+    form.dataset.handlerAttached = 'true';
 
     form.addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -704,34 +798,43 @@ function attachFormHandler(user) {
         const txHashInput = document.getElementById('txHash');
         const verifyBtn = document.getElementById('verifyBtn');
 
+        // ✅ INSTANT disable — double-submit protection (before any await)
+        if (verifyBtn.disabled) {
+            showToast('⏳ Please wait, verification already chal rahi hai...', 'info');
+            return;
+        }
+        verifyBtn.disabled = true;
+
         const amount = parseFloat(amountInput.value);
         const txHash = txHashInput.value.trim();
 
         const minConfirmations = WALLET_CONFIG.MIN_CONFIRMATIONS || 3;
         const pollingInterval = (WALLET_CONFIG.POLLING_INTERVAL || 15000) / 1000;
 
-        // ---- FRONTEND VALIDATION ----
+        // ============================================================
+        // FRONTEND VALIDATION
+        // ============================================================
         if (!amount || amount <= 0) {
             showToast('❌ Sahi amount enter karein (0 se zyada).', 'error');
+            verifyBtn.disabled = false;
             return;
         }
 
         if (!txHash || txHash.length < 10) {
             showToast('❌ Sahi transaction hash enter karein.', 'error');
+            verifyBtn.disabled = false;
             return;
         }
 
         if (!txHash.startsWith('0x')) {
             showToast('❌ Transaction hash "0x" se start hona chahiye.', 'error');
+            verifyBtn.disabled = false;
             return;
         }
 
-        if (verifyBtn.disabled) {
-            showToast('⏳ Please wait, verification already chal rahi hai...', 'info');
-            return;
-        }
-
-        // ---- START VERIFICATION ----
+        // ============================================================
+        // START VERIFICATION
+        // ============================================================
         updateVerificationStatus(
             'pending',
             `<i class="bi bi-hourglass-split me-2"></i>
@@ -740,7 +843,6 @@ function attachFormHandler(user) {
              <br><small>Please wait, yeh thoda time le sakta hai...</small>`
         );
 
-        verifyBtn.disabled = true;
         const originalBtnHTML = verifyBtn.innerHTML;
         verifyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Verifying...';
 
@@ -811,7 +913,14 @@ function attachFormHandler(user) {
                         return;
                     }
 
-                    const analysis = analyzeError(error, amount);
+                    const errMsg = (typeof error === 'object' && error !== null)
+                        ? (error.error || error.message || String(error))
+                        : String(error);
+                    const chainAmt = (typeof error === 'object' && error !== null)
+                        ? error.blockchainAmount
+                        : undefined;
+
+                    const analysis = analyzeError(errMsg, amount, chainAmt);
                     updateVerificationStatus(
                         analysis.type === 'warning' ? 'error' : analysis.type,
                         analysis.statusHTML
@@ -820,33 +929,57 @@ function attachFormHandler(user) {
                 }
             );
 
-            // 🔥 IMPORTANT: Check result AFTER all callbacks fire
-            // If result has amountMismatch and callback didn't fire
-            if (result && result.amountMismatch && !successFired) {
-                const analysis = analyzeError(result.error, amount);
-                updateVerificationStatus(
-                    analysis.type === 'warning' ? 'error' : analysis.type,
-                    analysis.statusHTML
-                );
-                showToast(analysis.message, analysis.type, 8000);
-            }
-            // If result has error and callback didn't fire
-            else if (result && result.error && !successFired) {
-                const analysis = analyzeError(result.error, amount);
-                updateVerificationStatus(
-                    analysis.type === 'warning' ? 'error' : analysis.type,
-                    analysis.statusHTML
-                );
-                showToast(analysis.message, analysis.type, 8000);
+            // ============================================================
+            // 🔥 RESULT HANDLING (if no callback fired)
+            // ============================================================
+            if (!successFired && result) {
+                // Amount mismatch
+                if (result.amountMismatch) {
+                    const analysis = analyzeError(result.error, amount, result.blockchainAmount);
+                    updateVerificationStatus(
+                        analysis.type === 'warning' ? 'error' : analysis.type,
+                        analysis.statusHTML
+                    );
+                    showToast(analysis.message, analysis.type, 8000);
+                }
+                // Already credited
+                else if (result.alreadyCredited) {
+                    updateVerificationStatus(
+                        'success',
+                        `<i class="bi bi-check-circle-fill me-2"></i>
+                         ✅ <strong>Already Credited</strong>
+                         <br><small>Yeh transaction pehle hi aapke account me add ho chuka hai.</small>`
+                    );
+                    showToast('✅ Yeh deposit pehle hi credit ho chuka hai.', 'success', 6000);
+                }
+                // Pending (gave up after max attempts)
+                else if (result.pending) {
+                    updateVerificationStatus(
+                        'info',
+                        `<i class="bi bi-hourglass-split me-2"></i>
+                         ⏳ <strong>Still waiting for confirmations</strong>
+                         <br><small>Please 1-2 minute baad try karein. Transaction auto-resume hoga.</small>`
+                    );
+                }
+                // Other errors
+                else if (result.error) {
+                    const analysis = analyzeError(result.error, amount, result.blockchainAmount);
+                    updateVerificationStatus(
+                        analysis.type === 'warning' ? 'error' : analysis.type,
+                        analysis.statusHTML
+                    );
+                    showToast(analysis.message, analysis.type, 8000);
+                }
             }
 
         } catch (error) {
             console.error('Deposit error:', error);
 
-            if (successFired) {
-                console.warn('Ignoring catch error because success already fired:', error);
-            } else {
-                const analysis = analyzeError(error.message || 'Unexpected error', amount);
+            if (!successFired) {
+                const errMsg = (typeof error === 'object' && error !== null)
+                    ? (error.error || error.message || String(error))
+                    : String(error);
+                const analysis = analyzeError(errMsg, amount);
                 updateVerificationStatus(
                     analysis.type === 'warning' ? 'error' : analysis.type,
                     analysis.statusHTML
@@ -870,12 +1003,20 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     try {
+        // ---- Initial stale lock cleanup ----
         try {
             await realCleanupStaleLocks();
         } catch (err) {
             console.warn('cleanupStaleLocks warning:', err);
         }
 
+        // ✅ Periodic stale lock cleanup (every 5 minutes)
+        if (staleCleanupInterval) clearInterval(staleCleanupInterval);
+        staleCleanupInterval = setInterval(() => {
+            realCleanupStaleLocks().catch(err => console.warn('Periodic cleanup error:', err));
+        }, 5 * 60 * 1000);
+
+        // ---- User data ----
         const userSnap = await get(ref(db, 'users/' + user.uid));
         if (!userSnap.exists()) {
             window.location.href = 'dashboard.html';
@@ -898,6 +1039,7 @@ onAuthStateChanged(auth, async (user) => {
 
         const depositWallet = userData.depositWallet || 0;
 
+        // ---- Render UI + attach handlers ----
         renderDepositUI(depositWallet);
         await resumePendingVerifications(user.uid);
         loadRecentDeposits(user.uid);
@@ -922,5 +1064,23 @@ onAuthStateChanged(auth, async (user) => {
                 </div>
             `;
         }
+    }
+});
+
+// ============================================================
+// 🧹 CLEANUP
+// ============================================================
+window.addEventListener('beforeunload', () => {
+    if (staleCleanupInterval) {
+        clearInterval(staleCleanupInterval);
+        staleCleanupInterval = null;
+    }
+    if (depositsListenerOff) {
+        try { depositsListenerOff(); } catch (_) {}
+        depositsListenerOff = null;
+    }
+    if (balanceListenerOff) {
+        try { balanceListenerOff(); } catch (_) {}
+        balanceListenerOff = null;
     }
 });
