@@ -1,0 +1,65 @@
+RND STAKING - DEPOSIT VERIFICATION PATCH
+========================================
+
+Files changed:
+- deposit.js
+  * Preserves the user's entered amount as a decimal string instead of converting
+    it to a JavaScript floating-point number before verification.
+  * Normalizes TXID to lowercase before starting verification.
+
+- verifyTransaction.js
+  * Validates the full BSC transaction hash format.
+  * Searches the receipt for USDT Transfer logs that actually target the configured
+    deposit wallet, instead of stopping at the first USDT Transfer log.
+  * If multiple matching transfers target the deposit wallet, it sums them only
+    when they have the same sender; mixed-sender receipts are rejected for manual review.
+  * Compares entered and on-chain amounts exactly using 18-decimal integer units;
+    the old 0.5% / 0.01 USDT tolerance has been removed.
+  * A mismatch returns the actual on-chain amount in the error message so the
+    existing Auto-fill UI can populate the amount.
+  * Creates an atomic TXID claim at usedTransactions/<txid> before crediting.
+    The same account can resume an interrupted "processing" claim; another
+    account cannot claim it. The user's balance and transaction record are
+    updated together in a transaction at users/<uid>.
+  * Uses a deterministic transaction record key and fixed deposit-history key
+    to avoid duplicate records on retries.
+  * Credits only the verified on-chain amount, never the amount typed by user.
+
+Files not changed:
+- wallet.js
+- firebase.js
+- all other website pages/assets
+
+IMPORTANT PRODUCTION SECURITY WARNING
+-------------------------------------
+This patch improves the deposit flow and prevents normal concurrent/retry
+double-credit paths in the client code. It does NOT make browser-only deposit
+verification fully secure against a malicious authenticated user.
+
+The Firebase Rules supplied with the project grant every authenticated user
+root-level .write permission (".write": "auth != null"). That permission also
+allows users to modify data outside their own account and bypass client-side
+checks. Firebase Security Rules cannot independently prove a BSC transaction.
+Do not treat this ZIP as a complete security audit or as a guarantee against
+malicious writes. A trusted server-side verifier/crediting service and
+appropriately restrictive RTDB rules are required for production-grade
+protection. Do not paste replacement rules without testing every existing
+feature, because this website also uses deposits, withdrawals, offers and
+other user data.
+
+DEPLOYMENT SAFETY
+-----------------
+1. Download a full backup of the live website and export/backup the RTDB first.
+2. Test this ZIP on a staging copy with a test account and a small test transfer.
+3. Test: wrong amount -> Auto-fill -> correct amount -> successful credit;
+   same TXID again on same account; same TXID from a second account; pending
+   confirmations; RPC/network interruption; multiple USDT Transfer logs.
+4. Compare balances and transaction histories before and after.
+5. Only then deploy the two changed JS files. Keep the original files available
+   for immediate rollback.
+
+Syntax check:
+- deposit.js: passed Node syntax check
+- verifyTransaction.js: passed Node syntax check
+- wallet.js: passed Node syntax check
+- firebase.js: passed Node syntax check
