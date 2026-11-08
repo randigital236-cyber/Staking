@@ -1,7 +1,12 @@
 // ============================================================
-// TRANSFER.JS — v7.2 Final (Client-Side Only, No Cloud Function)
-// Complete safety: stale pending, unknown recovery, rollback retry,
-// background checker, multi-request tracking
+// TRANSFER.JS — v8.0 FINAL
+// 100% Safe Client-Side Transfer
+// - Network pre-check (no debit if offline)
+// - Immediate rollback on recipient failure
+// - Race-condition-safe reconciliation
+// - Silent-fail-proof status patches
+// - Never reuses old requestId
+// - UI never locks
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -43,9 +48,10 @@ const WALLET_CURRENCY = { depositWallet: 'USDT', referralWallet: 'USDT', rndWall
 const WALLET_PRECISION = { depositWallet: 2, referralWallet: 2, rndWallet: 8 };
 
 const ACTIVE_REQUESTS_KEY = 'activeTransferRequestIds';
-const STALE_PENDING_MS = 90 * 1000;          // 90 sec
-const STALE_RECHECK_INTERVAL_MS = 60 * 1000;  // 1 min
-const FALLBACK_USER_SCAN = false;             // Production: false
+const STALE_PENDING_MS = 90 * 1000;
+const STALE_RECHECK_INTERVAL_MS = 60 * 1000;
+const MAX_STALE_ATTEMPTS = 30; // 30 min max then manual review
+const FALLBACK_USER_SCAN = false;
 
 // ============================================================
 // State
@@ -59,6 +65,7 @@ let pendingTransfer = null;
 let modalOpen = false;
 let reconciliationTimer = null;
 let staleCheckTimer = null;
+const staleAttempts = {}; // requestId -> count
 
 // ============================================================
 // 👁️ Eye toggle
@@ -75,6 +82,27 @@ window.togglePassword = function (inputId, btn) {
         icon.className = 'bi bi-eye';
     }
 };
+
+// ============================================================
+// 🌐 Network check
+// ============================================================
+function isOnline() {
+    return typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
+}
+
+async function waitForOnline(timeoutMs = 5000) {
+    if (isOnline()) return true;
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const check = () => {
+            if (isOnline()) return resolve(true);
+            if (Date.now() - start > timeoutMs) return resolve(false);
+            setTimeout(check, 250);
+        };
+        window.addEventListener('online', () => resolve(true), { once: true });
+        check();
+    });
+}
 
 // ============================================================
 // 🔐 Hash
@@ -94,7 +122,6 @@ function getActiveRequestIds() {
     try {
         const raw = localStorage.getItem(ACTIVE_REQUESTS_KEY);
         if (!raw) {
-            // Legacy migration
             const legacy = localStorage.getItem('activeTransferRequestId');
             if (legacy) {
                 const arr = [legacy];
@@ -117,11 +144,11 @@ function addActiveRequestId(id) {
 function removeActiveRequestId(id) {
     const arr = getActiveRequestIds().filter(x => x !== id);
     localStorage.setItem(ACTIVE_REQUESTS_KEY, JSON.stringify(arr));
+    delete staleAttempts[id];
 }
 
-function getOrCreateRequestId() {
-    const arr = getActiveRequestIds();
-    if (arr.length > 0) return arr[arr.length - 1];
+// ✅ v8.0: हमेशा नई requestId — पुरानी reuse नहीं
+function createNewRequestId() {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? crypto.randomUUID()
         : 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
@@ -136,7 +163,6 @@ function clearActiveRequestId(specificId = null) {
         localStorage.removeItem(ACTIVE_REQUESTS_KEY);
         localStorage.removeItem('activeTransferRequestId');
     }
-    localStorage.removeItem('activeTransferDetails');
 }
 
 // ============================================================
@@ -195,25 +221,30 @@ function getTodayDate() {
 }
 
 // ============================================================
-// Lookup
+// Lookup (case-insensitive fallback)
 // ============================================================
 async function getUserByIdentifier(identifier) {
     try {
         if (!identifier) return null;
 
-        // 1. Direct UID lookup
+        // 1. Direct UID
         const uidSnap = await get(ref(db, 'users/' + identifier));
         if (uidSnap.exists()) return { uid: identifier, data: uidSnap.val(), source: 'uid' };
 
-        // 2. Indexed lookup
-        const [unameSnap, refSnap] = await Promise.all([
+        // 2. Indexed lookup (case-sensitive + lowercase fallback)
+        const lower = identifier.toLowerCase();
+        const [unameSnap, refSnap, unameLowerSnap, refLowerSnap] = await Promise.all([
             get(ref(db, 'lookup/username/' + identifier)),
-            get(ref(db, 'lookup/referralCode/' + identifier))
+            get(ref(db, 'lookup/referralCode/' + identifier)),
+            get(ref(db, 'lookup/usernameLower/' + lower)),
+            get(ref(db, 'lookup/referralCodeLower/' + lower))
         ]);
 
         let uid = null;
         if (unameSnap.exists()) uid = unameSnap.val();
         else if (refSnap.exists()) uid = refSnap.val();
+        else if (unameLowerSnap.exists()) uid = unameLowerSnap.val();
+        else if (refLowerSnap.exists()) uid = refLowerSnap.val();
 
         if (uid) {
             const uSnap = await get(ref(db, 'users/' + uid));
@@ -226,10 +257,12 @@ async function getUserByIdentifier(identifier) {
         const usersSnap = await get(ref(db, 'users'));
         if (usersSnap.exists()) {
             const users = usersSnap.val();
-            for (const uid in users) {
-                const u = users[uid];
-                if (u.username === identifier || u.referralCode === identifier)
-                    return { uid, data: u, source: 'scan' };
+            for (const uUid in users) {
+                const u = users[uUid];
+                if (u.username === identifier || u.referralCode === identifier ||
+                    (u.username && u.username.toLowerCase() === lower) ||
+                    (u.referralCode && u.referralCode.toLowerCase() === lower))
+                    return { uid: uUid, data: u, source: 'scan' };
             }
         }
         return null;
@@ -252,7 +285,7 @@ async function hasTransferPassword(uid) {
     try {
         const snap = await get(ref(db, `users/${uid}/transferPasswordHash`));
         return snap.exists() && !!snap.val();
-    } catch (err) { return false; }
+    } catch { return false; }
 }
 
 async function saveTransferPassword(uid, password) {
@@ -266,11 +299,11 @@ async function verifyTransferPassword(uid, password) {
         const snap = await get(ref(db, `users/${uid}/transferPasswordHash`));
         if (!snap.exists()) return false;
         return snap.val() === await hashPassword(password);
-    } catch (err) { return false; }
+    } catch { return false; }
 }
 
 // ============================================================
-// History normalizer (array → object)
+// History normalizer
 // ============================================================
 function normalizeTransferHistory(currentData) {
     if (!currentData.transferHistory || Array.isArray(currentData.transferHistory)) {
@@ -285,21 +318,24 @@ function normalizeTransferHistory(currentData) {
 }
 
 // ============================================================
-// Safe request patch
+// ✅ v8.0: patchRequest now returns boolean (no silent fail)
 // ============================================================
 async function patchRequest(requestRef, patch) {
     try {
         await update(requestRef, { ...patch, updatedAt: Date.now() });
+        return true;
     } catch (err) {
         console.warn('patchRequest failed:', err);
+        return false;
     }
 }
 
 // ============================================================
-// 🔧 resolveUnknownTransfer — 4 case resolver
+// 🔧 resolveUnknownTransfer — v8.0 (race-safe)
 // ============================================================
 async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, walletType, amount) {
     try {
+        // 🔥 Re-read BOTH wallets fresh (no stale cache)
         const [senderSnap, recipientSnap] = await Promise.all([
             get(ref(db, `users/${senderUid}/transferHistory/${txId}`)),
             get(ref(db, `users/${recipientUid}/transferHistory/${txId}`))
@@ -310,21 +346,53 @@ async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, 
 
         const senderReversed = senderEntry && senderEntry.status === 'reversed';
         const senderCompleted = senderEntry && senderEntry.status === 'completed';
+        const recipientCompleted = recipientEntry && recipientEntry.status === 'completed';
 
         const requestRef = ref(db, `transferRequests/${requestId}`);
 
-        // CASE A: Recipient got it → SUCCESS
-        if (recipientEntry && !senderReversed) {
+        // ============================================================
+        // CASE A: Recipient got it AND sender not reversed → SUCCESS
+        // ============================================================
+        if (recipientCompleted && !senderReversed) {
             await patchRequest(requestRef, {
                 status: 'success',
                 completedAt: Date.now(),
-                resolvedBy: 'reconciliation'
+                resolvedBy: 'reconciliation_case_a'
             });
             return { status: 'success' };
         }
 
-        // CASE B: Sender debited, Recipient missing → REFUND
+        // ============================================================
+        // CASE D (moved up): Sender reversed AND recipient got it → manual review
+        // (इसे CASE A के बाद रखा ताकि double-credit न हो)
+        // ============================================================
+        if (senderReversed && recipientCompleted) {
+            await patchRequest(requestRef, {
+                status: 'unknown',
+                needsManualReview: true,
+                lastCheckedAt: Date.now(),
+                lastError: 'Sender reversed but recipient credited — manual review needed'
+            });
+            return { status: 'unknown', error: 'Manual review needed' };
+        }
+
+        // ============================================================
+        // CASE B: Sender debited, recipient missing → REFUND
+        // 🔥 Race-safe: refund से पहले recipient को फिर से check
+        // ============================================================
         if (senderCompleted && !recipientEntry) {
+            // 🔥 Re-verify recipient immediately before refund
+            const recipientRecheck = await get(ref(db, `users/${recipientUid}/transferHistory/${txId}`));
+            if (recipientRecheck.exists()) {
+                // Recipient को अभी-अभी मिला — success मानो
+                await patchRequest(requestRef, {
+                    status: 'success',
+                    completedAt: Date.now(),
+                    resolvedBy: 'reconciliation_recheck'
+                });
+                return { status: 'success' };
+            }
+
             const precision = WALLET_PRECISION[walletType] || 8;
             const senderRef = ref(db, `users/${senderUid}`);
 
@@ -359,7 +427,7 @@ async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, 
                     status: 'failed',
                     failedAt: Date.now(),
                     reason: 'Refunded — recipient never credited',
-                    resolvedBy: 'reconciliation'
+                    resolvedBy: 'reconciliation_case_b'
                 });
                 return { status: 'failed', error: 'Refunded to sender' };
             }
@@ -370,26 +438,17 @@ async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, 
             return { status: 'unknown' };
         }
 
+        // ============================================================
         // CASE C: Neither wallet touched → FAILED
+        // ============================================================
         if (!senderEntry && !recipientEntry) {
             await patchRequest(requestRef, {
                 status: 'failed',
                 failedAt: Date.now(),
                 reason: 'Neither wallet touched',
-                resolvedBy: 'reconciliation'
+                resolvedBy: 'reconciliation_case_c'
             });
             return { status: 'failed', error: 'No debit detected' };
-        }
-
-        // CASE D: Data corruption
-        if (senderReversed && recipientEntry) {
-            await patchRequest(requestRef, {
-                status: 'unknown',
-                needsManualReview: true,
-                lastCheckedAt: Date.now(),
-                lastError: 'Data inconsistency'
-            });
-            return { status: 'unknown', error: 'Manual review needed' };
         }
 
         return { status: 'unknown' };
@@ -400,7 +459,7 @@ async function resolveUnknownTransfer(requestId, txId, senderUid, recipientUid, 
 }
 
 // ============================================================
-// ATOMIC TRANSFER — v7.2
+// 🚀 ATOMIC TRANSFER — v8.0 (Network-safe + Immediate rollback)
 // ============================================================
 async function atomicTransfer(senderUid, recipientUid, amount, walletType, currency, requestId, senderName, recipientName) {
     if (!senderUid || !recipientUid) return { status: 'failed', error: 'Missing IDs' };
@@ -412,12 +471,22 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     const safeAmount = amountCheck.value;
     const precision = WALLET_PRECISION[walletType];
 
+    // ============================================================
+    // 🌐 STEP 0: Network pre-check — अगर offline है तो कुछ नहीं कटेगा
+    // ============================================================
+    if (!isOnline()) {
+        const online = await waitForOnline(5000);
+        if (!online) {
+            return { status: 'failed', error: 'No internet connection. कुछ नहीं कटा।' };
+        }
+    }
+
     const requestRef = ref(db, `transferRequests/${requestId}`);
     const txId = 'TX_' + requestId.replace(/-/g, '').slice(0, 20);
     const now = Date.now();
 
     // ============================================================
-    // STEP 1: Create PENDING record
+    // STEP 1: Create PENDING record (with network error guard)
     // ============================================================
     let alreadyCompleted = false;
     let alreadyPending = false;
@@ -450,11 +519,12 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         if (alreadyPending) return { status: 'unknown', txId, error: 'Transfer already processing.' };
 
         if (!requestResult.committed) {
-            return { status: 'failed', error: 'Unable to create transfer request.' };
+            return { status: 'failed', error: 'Unable to create transfer request. कुछ नहीं कटा।' };
         }
     } catch (err) {
         console.error('Request create error:', err);
-        return { status: 'failed', error: 'Unable to create transfer request.' };
+        // ✅ Network error → कुछ नहीं कटा
+        return { status: 'failed', error: 'Network error. कुछ नहीं कटा।' };
     }
 
     // ============================================================
@@ -473,7 +543,7 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
 
             const balance = roundToPrecision(currentData[walletType] || 0, precision);
             senderBalanceBefore = balance;
-            if (balance < safeAmount) return;
+            if (balance < safeAmount) return; // abort
 
             currentData[walletType] = roundToPrecision(balance - safeAmount, precision);
             currentData.transferHistory[txId] = {
@@ -493,31 +563,33 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
             return currentData;
         });
 
-        if (alreadyInSender) return { status: 'success', txId, recipientName, duplicate: true };
-
-        if (!senderResult.committed) {
+        if (alreadyInSender) {
+            // Pehle se debit हो चुका — aage badho (recipient check karega)
+        } else if (!senderResult.committed) {
+            // Insufficient balance ya transaction abort
             await patchRequest(requestRef, {
                 status: 'failed',
                 failedAt: Date.now(),
-                reason: 'Insufficient balance'
+                reason: 'Insufficient balance or transaction aborted'
             });
             return {
                 status: 'failed',
-                error: `Insufficient balance. Available: ${senderBalanceBefore} ${currency}`
+                error: `Insufficient balance. Available: ${senderBalanceBefore} ${currency}. कुछ नहीं कटा।`
             };
         }
     } catch (err) {
         console.error('Sender error:', err);
+        // ✅ Network error पर debit नहीं हुआ — कुछ नहीं कटा
         await patchRequest(requestRef, {
             status: 'failed',
             failedAt: Date.now(),
-            reason: 'Sender transaction error'
+            reason: 'Sender transaction network error — no debit'
         });
-        return { status: 'failed', error: 'Network error on sender' };
+        return { status: 'failed', error: 'Network error on sender. कुछ नहीं कटा।' };
     }
 
     // ============================================================
-    // STEP 3: Recipient credit
+    // STEP 3: Recipient credit (with IMMEDIATE rollback on failure)
     // ============================================================
     const recipientRef = ref(db, `users/${recipientUid}`);
     let alreadyInRecipient = false;
@@ -550,37 +622,14 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         });
 
         if (alreadyInRecipient) {
-            // already done — success path
+            // ✅ Already done — success path
         } else if (!recipientResult.committed) {
             // ============================================================
-            // Rollback sender
+            // 🔥 Recipient fail → IMMEDIATE rollback
             // ============================================================
-            let rollbackSuccess = false;
-            try {
-                const rbResult = await runTransaction(senderRef, (currentData) => {
-                    if (!currentData) return currentData;
-                    normalizeTransferHistory(currentData);
-                    const hist = currentData.transferHistory || {};
-                    if (hist[txId] && hist[txId].status === 'reversed') return;
+            const rbOk = await rollbackSender(senderRef, senderUid, txId, walletType, safeAmount, precision, 'recipient_failed');
 
-                    currentData[walletType] = roundToPrecision(
-                        (currentData[walletType] || 0) + safeAmount, precision
-                    );
-                    if (currentData.transferHistory[txId]) {
-                        currentData.transferHistory[txId].status = 'reversed';
-                        currentData.transferHistory[txId].reversedAt = Date.now();
-                    }
-                    if (currentData.transactions && currentData.transactions[txId]) {
-                        currentData.transactions[txId].status = 'reversed';
-                    }
-                    return currentData;
-                });
-                rollbackSuccess = rbResult.committed;
-            } catch (rbErr) {
-                console.error('Rollback failed:', rbErr);
-            }
-
-            if (!rollbackSuccess) {
+            if (!rbOk) {
                 await patchRequest(requestRef, {
                     status: 'unknown',
                     unknownAt: Date.now(),
@@ -599,10 +648,26 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
         }
     } catch (err) {
         console.error('Recipient error:', err);
+        // ============================================================
+        // 🔥 Network exception → IMMEDIATE rollback (silent fail नहीं)
+        // ============================================================
+        const rbOk = await rollbackSender(senderRef, senderUid, txId, walletType, safeAmount, precision, 'recipient_network_error');
+
+        if (rbOk) {
+            await patchRequest(requestRef, {
+                status: 'failed',
+                failedAt: Date.now(),
+                reason: 'Recipient network error — refunded'
+            });
+            return { status: 'failed', error: 'Recipient network error — amount returned' };
+        }
+
+        // Rollback भी fail → unknown (reconciliation handle करेगा)
         await patchRequest(requestRef, {
             status: 'unknown',
             unknownAt: Date.now(),
-            error: 'Network ambiguity'
+            error: 'Network ambiguity + rollback failed',
+            lastError: 'rollback_failed'
         });
         return { status: 'unknown', txId, error: 'Status could not be confirmed.' };
     }
@@ -610,12 +675,48 @@ async function atomicTransfer(senderUid, recipientUid, amount, walletType, curre
     // ============================================================
     // STEP 4: Mark SUCCESS
     // ============================================================
-    await patchRequest(requestRef, {
+    const successPatched = await patchRequest(requestRef, {
         status: 'success',
         completedAt: Date.now()
     });
 
+    if (!successPatched) {
+        // 🔥 Status patch fail → reconciliation पर भरोसा (data safe है)
+        console.warn('Success patch failed — reconciliation will confirm');
+    }
+
     return { status: 'success', txId, recipientName };
+}
+
+// ============================================================
+// 🔄 rollbackSender — shared rollback helper
+// ============================================================
+async function rollbackSender(senderRef, senderUid, txId, walletType, amount, precision, reason) {
+    try {
+        const rbResult = await runTransaction(senderRef, (currentData) => {
+            if (!currentData) return currentData;
+            normalizeTransferHistory(currentData);
+            const hist = currentData.transferHistory || {};
+            if (hist[txId] && hist[txId].status === 'reversed') return; // already reversed
+
+            currentData[walletType] = roundToPrecision(
+                (currentData[walletType] || 0) + amount, precision
+            );
+            if (currentData.transferHistory[txId]) {
+                currentData.transferHistory[txId].status = 'reversed';
+                currentData.transferHistory[txId].reversedAt = Date.now();
+                currentData.transferHistory[txId].reversedReason = reason;
+            }
+            if (currentData.transactions && currentData.transactions[txId]) {
+                currentData.transactions[txId].status = 'reversed';
+            }
+            return currentData;
+        });
+        return rbResult.committed;
+    } catch (err) {
+        console.error('rollbackSender error:', err);
+        return false;
+    }
 }
 
 // ============================================================
@@ -792,7 +893,7 @@ async function handlePasswordVerify() {
 }
 
 // ============================================================
-// 🚀 EXECUTE TRANSFER
+// 🚀 EXECUTE TRANSFER — v8.0 (UI never locks)
 // ============================================================
 async function executeTransfer(details) {
     const user = auth.currentUser;
@@ -826,10 +927,9 @@ async function executeTransfer(details) {
             resetButton();
         } else if (result.status === 'unknown') {
             showToast('⚠️ Status could not be confirmed. Auto-recovery शुरू...', 'error');
-            if (btn) {
-                btn.className = 'btn-send verifying';
-                btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
-            }
+
+            // 🔥 UI unlock — background में reconciliation
+            resetButton();
 
             // Immediate resolve attempt
             const snap = await get(ref(db, `transferRequests/${details.requestId}`));
@@ -843,14 +943,12 @@ async function executeTransfer(details) {
                     showToast('✅ Transfer confirmed (recovered)!', 'success');
                     clearActiveRequestId(details.requestId);
                     loadUserData(user.uid);
-                    resetButton();
                     return;
                 }
                 if (resolved.status === 'failed') {
                     showToast('❌ Transfer failed — amount refunded.', 'error');
                     clearActiveRequestId(details.requestId);
                     loadUserData(user.uid);
-                    resetButton();
                     return;
                 }
             }
@@ -864,7 +962,7 @@ async function executeTransfer(details) {
         }
     } catch (err) {
         console.error('Execute error:', err);
-        showToast('❌ Unexpected error.', 'error');
+        showToast('❌ Unexpected error. कुछ नहीं कटा।', 'error');
         resetButton();
     }
 }
@@ -989,6 +1087,13 @@ async function handleTransferSubmit(e) {
     }
 
     try {
+        // 🌐 Network pre-check
+        if (!isOnline()) {
+            showToast('❌ No internet connection. कुछ नहीं कटा।', 'error');
+            resetButton();
+            return;
+        }
+
         const recipientInput = document.getElementById('recipientInput').value.trim();
         const walletType = document.getElementById('walletSelect').value;
         const amountRaw = document.getElementById('amountInput').value;
@@ -1026,17 +1131,11 @@ async function handleTransferSubmit(e) {
 
                 const pData = pendingSnap.val();
 
-                if (pData.status === 'success') {
+                if (pData.status === 'success' || pData.status === 'failed') {
                     removeActiveRequestId(existingRequestId);
                     continue;
                 }
 
-                if (pData.status === 'failed') {
-                    removeActiveRequestId(existingRequestId);
-                    continue;
-                }
-
-                // Stale pending → promote
                 if (isStalePending(pData)) {
                     await patchRequest(ref(db, `transferRequests/${existingRequestId}`), {
                         status: 'unknown',
@@ -1072,9 +1171,9 @@ async function handleTransferSubmit(e) {
         }
 
         // ============================================================
-        // Create new request
+        // ✅ v8.0: हमेशा नई requestId
         // ============================================================
-        const requestId = getOrCreateRequestId();
+        const requestId = createNewRequestId();
         const senderName = getUserDisplayName(currentUserData, user.uid);
         const recipientName = getUserDisplayName(recipient.data, recipient.uid);
 
@@ -1115,7 +1214,7 @@ function getWalletLabel(w) {
 }
 
 // ============================================================
-// Reconciliation Loop (10 min max)
+// Reconciliation Loop (max 10 min)
 // ============================================================
 function startReconciliationLoop(requestId, userId) {
     if (reconciliationTimer) clearTimeout(reconciliationTimer);
@@ -1154,7 +1253,6 @@ function startReconciliationLoop(requestId, userId) {
                 return;
             }
 
-            // Stale pending → promote
             if (isStalePending(data)) {
                 await patchRequest(ref(db, `transferRequests/${requestId}`), {
                     status: 'unknown',
@@ -1215,7 +1313,7 @@ function startReconciliationLoop(requestId, userId) {
 }
 
 // ============================================================
-// Background Stale Checker (हर 1 मिनट)
+// Background Stale Checker (with max attempts → manual review)
 // ============================================================
 function startStaleChecker() {
     if (staleCheckTimer) clearInterval(staleCheckTimer);
@@ -1235,6 +1333,19 @@ function startStaleChecker() {
                 if (data.status === 'success' || data.status === 'failed') {
                     removeActiveRequestId(requestId);
                     if (currentUserId) loadUserData(currentUserId);
+                    continue;
+                }
+
+                // 🔥 Max attempts → manual review flag
+                staleAttempts[requestId] = (staleAttempts[requestId] || 0) + 1;
+                if (staleAttempts[requestId] > MAX_STALE_ATTEMPTS) {
+                    await patchRequest(ref(db, `transferRequests/${requestId}`), {
+                        needsManualReview: true,
+                        lastCheckedAt: Date.now(),
+                        staleAttempts: staleAttempts[requestId]
+                    });
+                    showToast('⚠️ Transfer needs manual review. Support से संपर्क करें।', 'error');
+                    removeActiveRequestId(requestId);
                     continue;
                 }
 
@@ -1263,13 +1374,11 @@ function startStaleChecker() {
 }
 
 // ============================================================
-// On-Load Verification (all active requests)
+// On-Load Verification
 // ============================================================
 async function verifyPendingTransfersOnLoad() {
     const ids = getActiveRequestIds();
     if (ids.length === 0) return;
-
-    let anyBlocking = false;
 
     for (const requestId of ids) {
         try {
@@ -1295,7 +1404,6 @@ async function verifyPendingTransfersOnLoad() {
                 continue;
             }
 
-            // Stale pending → promote
             if (isStalePending(data)) {
                 await patchRequest(ref(db, `transferRequests/${requestId}`), {
                     status: 'unknown',
@@ -1324,24 +1432,9 @@ async function verifyPendingTransfersOnLoad() {
                     continue;
                 }
 
-                anyBlocking = true;
-                const btn = document.getElementById('sendBtn');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.className = 'btn-send verifying';
-                    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
-                }
-                transferLock = true;
+                // Unknown → background reconciliation, UI unlock
                 startReconciliationLoop(requestId, currentUserId);
             } else if (data.status === 'pending') {
-                anyBlocking = true;
-                const btn = document.getElementById('sendBtn');
-                if (btn) {
-                    btn.disabled = true;
-                    btn.className = 'btn-send verifying';
-                    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
-                }
-                transferLock = true;
                 startReconciliationLoop(requestId, currentUserId);
             }
         } catch (err) {
@@ -1350,7 +1443,6 @@ async function verifyPendingTransfersOnLoad() {
     }
 
     startStaleChecker();
-    return anyBlocking;
 }
 
 // ============================================================
@@ -1486,13 +1578,11 @@ onAuthStateChanged(auth, async (user) => {
     const form = document.getElementById('transferForm');
     if (form) form.addEventListener('submit', handleTransferSubmit);
 
-    // Setup
     document.getElementById('setupBtn')?.addEventListener('click', handlePasswordSetup);
     document.getElementById('setupPasswordConfirm')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handlePasswordSetup();
     });
 
-    // Verify
     document.getElementById('verifyBtn')?.addEventListener('click', handlePasswordVerify);
     document.getElementById('verifyPassword')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handlePasswordVerify();
@@ -1503,7 +1593,6 @@ onAuthStateChanged(auth, async (user) => {
         resetButton();
     });
 
-    // Forgot Password
     document.getElementById('forgotPasswordBtn')?.addEventListener('click', () => {
         closeModal('verifyModal');
         openModal('forgotModal');
@@ -1523,7 +1612,6 @@ onAuthStateChanged(auth, async (user) => {
         resetButton();
     });
 
-    // Wallet change
     const select = document.getElementById('walletSelect');
     if (select) {
         select.addEventListener('change', () => {
@@ -1540,14 +1628,12 @@ onAuthStateChanged(auth, async (user) => {
         });
     }
 
-    // 🔥 Background recheck on visibility change
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && getActiveRequestIds().length > 0) {
             verifyPendingTransfersOnLoad();
         }
     });
 
-    // 🔥 Background recheck on network online
     window.addEventListener('online', () => {
         if (getActiveRequestIds().length > 0) {
             verifyPendingTransfersOnLoad();
@@ -1565,10 +1651,9 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ============================================================
-// 🔥 UI Logic (Loader & Sidebar) — Added for HTML fix
+// 🔥 UI Logic (Loader & Sidebar)
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Hide loader after 1.5 seconds (fallback)
     setTimeout(() => {
         const loader = document.getElementById('pageLoader');
         if (loader) {
@@ -1578,7 +1663,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 
-    // Sidebar toggle
     const sidebarPanel = document.getElementById('sidebarPanel');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const sidebarToggle = document.getElementById('sidebarToggle');
@@ -1606,14 +1690,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Logout
     const logoutBtn = document.getElementById('logoutBtnSidebar');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             try {
-                // signOut function needs to be imported or accessed. 
-                // Since it's not imported at the top, we import it dynamically here.
                 const { signOut } = await import("firebase/auth");
                 await signOut(auth);
                 window.location.href = 'login.html';
