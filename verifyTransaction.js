@@ -1,7 +1,9 @@
+
 // ============================================================
-// verifyTransaction.js — v3.0 SECURE
-// All critical bugs fixed
+// verifyTransaction.js — v3.1
+// Safer USDT BEP20 deposit verification and processing
 // ============================================================
+
 import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
 import { WALLET_CONFIG } from "./wallet.js";
 import {
@@ -14,318 +16,713 @@ const ERC20_ABI = [
 
 const activeVerifications = new Map();
 
+const RELATIVE_TOLERANCE = 0.0001;
+const ABSOLUTE_TOLERANCE = 0.001;
+
+function normalizeTxHash(txHash) {
+    if (typeof txHash !== "string") return null;
+    const value = txHash.trim();
+    return /^0x[a-fA-F0-9]{64}$/.test(value) ? value.toLowerCase() : null;
+}
+
+function makeToken() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+}
+
+function safeNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 // ============================================================
-// 🔥 AMOUNT TOLERANCE (Tightened)
+// AMOUNT CHECK
 // ============================================================
-const RELATIVE_TOLERANCE = 0.0001;  // 0.01% (very tight)
-const ABSOLUTE_TOLERANCE = 0.001;   // 0.001 USDT floor
 
 export function amountsMatch(userAmount, chainAmount) {
-    const a = Number(userAmount);
-    const b = Number(chainAmount);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-    if (a <= 0 || b <= 0) return false;
+    const a = safeNumber(userAmount);
+    const b = safeNumber(chainAmount);
+
+    if (a === null || b === null || a <= 0 || b <= 0) {
+        return false;
+    }
 
     const diff = Math.abs(a - b);
-    const tolerance = Math.max(b * RELATIVE_TOLERANCE, ABSOLUTE_TOLERANCE);
+    const tolerance = Math.max(
+        b * RELATIVE_TOLERANCE,
+        ABSOLUTE_TOLERANCE
+    );
+
     return diff <= tolerance;
 }
 
 // ============================================================
-// 🔒 GET RPC PROVIDER WITH FAILOVER
+// RPC PROVIDER WITH FAILOVER AND TIMEOUT
 // ============================================================
+
 async function getProvider() {
     let lastError = null;
-    for (const rpcUrl of WALLET_CONFIG.RPC_ENDPOINTS) {
+
+    for (const rpcUrl of WALLET_CONFIG.RPC_ENDPOINTS || []) {
+        let provider = null;
+        let timeoutId = null;
+
         try {
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
-            provider.timeout = WALLET_CONFIG.RPC_TIMEOUT;
-            await Promise.race([
+            provider = new ethers.JsonRpcProvider(rpcUrl);
+
+            const timeoutMs = Number(WALLET_CONFIG.RPC_TIMEOUT) || 10000;
+
+            const blockNumber = await Promise.race([
                 provider.getBlockNumber(),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('RPC timeout')), WALLET_CONFIG.RPC_TIMEOUT)
-                )
+                new Promise((_, reject) => {
+                    timeoutId = setTimeout(
+                        () => reject(new Error("RPC timeout")),
+                        timeoutMs
+                    );
+                })
             ]);
+
+            if (!Number.isFinite(Number(blockNumber))) {
+                throw new Error("Invalid RPC block response");
+            }
+
+            const network = await Promise.race([
+                provider.getNetwork(),
+                new Promise((_, reject) => {
+                    timeoutId = setTimeout(
+                        () => reject(new Error("RPC network timeout")),
+                        timeoutMs
+                    );
+                })
+            ]);
+
+            if (Number(network.chainId) !== 56) {
+                throw new Error("RPC endpoint is not BNB Smart Chain");
+            }
+
+            if (timeoutId) clearTimeout(timeoutId);
             return provider;
+
         } catch (error) {
             lastError = error;
+
+            if (timeoutId) clearTimeout(timeoutId);
+
+            if (provider) {
+                try {
+                    provider.destroy();
+                } catch (_) {}
+            }
+
             console.warn(`RPC ${rpcUrl} failed:`, error.message);
-            continue;
         }
     }
-    throw new Error(`All RPC endpoints failed. Last error: ${lastError?.message}`);
+
+    throw new Error(
+        `All BSC RPC endpoints failed. ${lastError?.message || ""}`
+    );
 }
 
 // ============================================================
-// 🔒 PROCESSING LOCK (with UID ownership check)
+// PROCESSING LOCK WITH OWNERSHIP TOKEN
 // ============================================================
+
 async function acquireProcessingLock(txHash, uid, amount) {
     const lockRef = ref(db, `processingTransactions/${txHash}`);
+    const claimToken = makeToken();
 
     try {
         const result = await runTransaction(lockRef, (currentData) => {
             const now = Date.now();
+            const staleTime = Number(WALLET_CONFIG.STALE_LOCK_TIMEOUT) || 600000;
 
             if (currentData !== null) {
-                const lockTime = currentData.timestamp || 0;
-                const lockUid = currentData.uid;
+                const lockTime = Number(currentData.timestamp) || 0;
 
-                // 🔥 Same user + active lock → ABORT (double-click protection)
-                if (lockUid === uid && (now - lockTime) < WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
-                    return; // abort
+                if (now - lockTime <= staleTime) {
+                    return;
                 }
-
-                // Stale lock → take over
-                if (now - lockTime > WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
-                    return { uid, timestamp: now, status: 'processing', amount };
-                }
-
-                // Different user, active lock → abort
-                return;
             }
 
-            return { uid, timestamp: now, status: 'processing', amount };
+            return {
+                uid,
+                amount: Number(amount),
+                timestamp: now,
+                status: "processing",
+                claimToken
+            };
+        });
+
+        if (!result.committed) return null;
+
+        const saved = result.snapshot.val();
+
+        if (!saved || saved.claimToken !== claimToken) {
+            return null;
+        }
+
+        return claimToken;
+
+    } catch (error) {
+        console.error("Error acquiring processing lock:", error);
+        return null;
+    }
+}
+
+async function releaseProcessingLock(txHash, claimToken) {
+    if (!claimToken) return false;
+
+    const lockRef = ref(db, `processingTransactions/${txHash}`);
+
+    try {
+        const result = await runTransaction(lockRef, (currentData) => {
+            if (!currentData || currentData.claimToken !== claimToken) {
+                return;
+            }
+            return null;
         });
 
         return result.committed;
+
     } catch (error) {
-        console.error('Error acquiring processing lock:', error);
+        console.error("Error releasing processing lock:", error);
         return false;
     }
 }
 
-async function releaseProcessingLock(txHash) {
+async function refreshProcessingLock(txHash, claimToken) {
+    if (!claimToken) return false;
+
+    const lockRef = ref(db, `processingTransactions/${txHash}`);
+
     try {
-        await remove(ref(db, `processingTransactions/${txHash}`));
-        return true;
+        const result = await runTransaction(lockRef, (currentData) => {
+            if (!currentData || currentData.claimToken !== claimToken) {
+                return;
+            }
+
+            return {
+                ...currentData,
+                timestamp: Date.now()
+            };
+        });
+
+        return result.committed;
+
     } catch (error) {
-        console.error('Error releasing processing lock:', error);
+        console.error("Error refreshing processing lock:", error);
         return false;
     }
 }
 
 // ============================================================
-// 🔒 CHECK DUPLICATE (cross-user safe)
+// DUPLICATE TRANSACTION CHECK — FAIL CLOSED
 // ============================================================
+
 export async function checkDuplicateTransaction(txHash) {
+    const normalizedHash = normalizeTxHash(txHash);
+
+    if (!normalizedHash) {
+        return {
+            isDuplicate: true,
+            error: "Invalid transaction hash."
+        };
+    }
+
     try {
-        const snap = await get(ref(db, `usedTransactions/${txHash}`));
+        const snap = await get(
+            ref(db, `usedTransactions/${normalizedHash}`)
+        );
+
         if (snap.exists()) {
-            return { isDuplicate: true, data: snap.val() };
+            return {
+                isDuplicate: true,
+                data: snap.val()
+            };
         }
+
         return { isDuplicate: false };
+
     } catch (error) {
         console.error("Error checking duplicate:", error);
-        return { isDuplicate: false };
+
+        return {
+            isDuplicate: true,
+            error: "Could not check transaction history. Please try again."
+        };
     }
 }
 
 // ============================================================
-// 🔥 PARSE USDT TRANSFER
+// PARSE USDT TRANSFERS TO OUR DEPOSIT WALLET
+// Select only incoming transfers to the configured wallet.
+// If different senders are found, reject as ambiguous.
 // ============================================================
+
 function parseTransferFromReceipt(receipt) {
     const iface = new ethers.Interface(ERC20_ABI);
-    let transferEvent = null;
-    let fromAddress = null;
-    let toAddress = null;
-    let transferAmount = null;
-    let tokenContract = null;
+    const expectedToken = WALLET_CONFIG.USDT_CONTRACT.toLowerCase();
+    const expectedWallet = WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase();
 
-    for (const log of receipt.logs) {
-        if (log.address.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) continue;
+    const incoming = [];
+
+    for (const log of receipt.logs || []) {
+        if (!log.address || log.address.toLowerCase() !== expectedToken) {
+            continue;
+        }
+
         try {
             const parsedLog = iface.parseLog(log);
-            if (parsedLog && parsedLog.name === 'Transfer') {
-                fromAddress = parsedLog.args.from;
-                toAddress = parsedLog.args.to;
-                transferAmount = parsedLog.args.value;
-                tokenContract = log.address;
-                transferEvent = parsedLog;
-                break;
+
+            if (!parsedLog || parsedLog.name !== "Transfer") {
+                continue;
             }
-        } catch (e) { continue; }
+
+            const from = parsedLog.args.from;
+            const to = parsedLog.args.to;
+            const value = parsedLog.args.value;
+
+            if (!from || !to || typeof value !== "bigint" || value <= 0n) {
+                continue;
+            }
+
+            if (to.toLowerCase() !== expectedWallet) {
+                continue;
+            }
+
+            incoming.push({
+                from,
+                to,
+                value,
+                tokenContract: log.address
+            });
+
+        } catch (_) {
+            continue;
+        }
     }
-    return { transferEvent, fromAddress, toAddress, transferAmount, tokenContract };
+
+    if (incoming.length === 0) {
+        return {
+            transferEvent: null,
+            fromAddress: null,
+            toAddress: null,
+            transferAmount: null,
+            tokenContract: null,
+            ambiguousIncoming: false
+        };
+    }
+
+    const senders = [
+        ...new Set(incoming.map(item => item.from.toLowerCase()))
+    ];
+
+    // Do not combine funds from different senders into one deposit.
+    if (senders.length !== 1) {
+        return {
+            transferEvent: null,
+            fromAddress: null,
+            toAddress: expectedWallet,
+            transferAmount: null,
+            tokenContract: WALLET_CONFIG.USDT_CONTRACT,
+            ambiguousIncoming: true
+        };
+    }
+
+    const totalAmount = incoming.reduce(
+        (sum, item) => sum + item.value,
+        0n
+    );
+
+    return {
+        transferEvent: incoming[0],
+        fromAddress: incoming[0].from,
+        toAddress: incoming[0].to,
+        transferAmount: totalAmount,
+        tokenContract: incoming[0].tokenContract,
+        ambiguousIncoming: false
+    };
 }
 
 // ============================================================
-// 🔒 VERIFY TRANSACTION
+// VERIFY TRANSACTION ON BNB SMART CHAIN
 // ============================================================
+
 export async function verifyTransaction(txHash, expectedAmount) {
-    if (activeVerifications.has(txHash)) {
-        return { success: false, error: "This transaction is already being verified. Please wait." };
+    const normalizedHash = normalizeTxHash(txHash);
+
+    if (!normalizedHash) {
+        return {
+            success: false,
+            error: "Invalid TXID. Please enter the complete 66-character transaction hash."
+        };
     }
 
-    activeVerifications.set(txHash, Date.now());
+    if (activeVerifications.has(normalizedHash)) {
+        return {
+            success: false,
+            error: "This transaction is already being verified. Please wait."
+        };
+    }
+
+    activeVerifications.set(normalizedHash, Date.now());
+
+    let provider = null;
 
     try {
-        const provider = await getProvider();
+        provider = await getProvider();
 
-        // Get receipt with retry
         let receipt = null;
         let retries = 3;
+
         while (retries > 0 && !receipt) {
             try {
-                receipt = await provider.getTransactionReceipt(txHash);
+                receipt = await provider.getTransactionReceipt(normalizedHash);
+
                 if (!receipt) {
-                    await new Promise(r => setTimeout(r, 2000));
                     retries--;
-                } else break;
-            } catch (e) {
+                    if (retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+
+            } catch (error) {
                 retries--;
-                if (retries === 0) throw e;
-                await new Promise(r => setTimeout(r, 1000));
+
+                if (retries === 0) throw error;
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
         if (!receipt) {
             return {
                 success: false,
-                error: "Transaction not found. यह TXID BSC पर नहीं मिला। Check करें या 1-2 minute बाद try करें।"
+                error: "Transaction not found on BNB Smart Chain. Please check the TXID or try again later."
             };
         }
 
         if (receipt.status !== 1) {
-            return { success: false, error: "Transaction failed on blockchain. यह transaction BSC पर fail हो चुका है।" };
+            return {
+                success: false,
+                error: "Transaction failed on BNB Smart Chain."
+            };
         }
 
-        // Parse USDT transfer
         const parsed = parseTransferFromReceipt(receipt);
 
+        if (parsed.ambiguousIncoming) {
+            return {
+                success: false,
+                error: "This TXID contains incoming USDT transfers from multiple wallets. Please contact support for manual verification."
+            };
+        }
+
         if (!parsed.transferEvent) {
-            return { success: false, error: "No USDT transfer found in this transaction. सही USDT (BEP20) TXID use करें।" };
-        }
-
-        if (parsed.tokenContract?.toLowerCase() !== WALLET_CONFIG.USDT_CONTRACT.toLowerCase()) {
             return {
                 success: false,
-                error: `Invalid token. Expected USDT (${WALLET_CONFIG.USDT_CONTRACT}) but got ${parsed.tokenContract || 'unknown'}.`
+                error: "No USDT transfer to the configured deposit wallet was found in this transaction."
             };
         }
 
-        if (parsed.toAddress?.toLowerCase() !== WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()) {
+        if (
+            parsed.tokenContract?.toLowerCase() !==
+            WALLET_CONFIG.USDT_CONTRACT.toLowerCase()
+        ) {
             return {
                 success: false,
-                error: `Wrong receiver wallet. Expected ${WALLET_CONFIG.DEPOSIT_WALLET} but got ${parsed.toAddress}.`
+                error: "Invalid USDT token contract."
             };
         }
 
-        // Amount check (BEFORE confirmations)
-        const actualAmount = parseFloat(ethers.formatUnits(parsed.transferAmount, 18));
+        if (
+            parsed.toAddress?.toLowerCase() !==
+            WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()
+        ) {
+            return {
+                success: false,
+                error: `Wrong receiver wallet. Expected ${WALLET_CONFIG.DEPOSIT_WALLET}.`
+            };
+        }
 
-        if (expectedAmount && Number(expectedAmount) > 0) {
-            if (!amountsMatch(expectedAmount, actualAmount)) {
+        // BNB Smart Chain USDT uses 18 decimals.
+        const exactAmount = ethers.formatUnits(parsed.transferAmount, 18);
+        const actualAmount = Number(exactAmount);
+
+        if (!Number.isFinite(actualAmount) || actualAmount <= 0) {
+            return {
+                success: false,
+                error: "Invalid USDT amount found on blockchain."
+            };
+        }
+
+        if (
+            expectedAmount !== undefined &&
+            expectedAmount !== null &&
+            String(expectedAmount).trim() !== ""
+        ) {
+            const enteredAmount = Number(expectedAmount);
+
+            if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) {
                 return {
                     success: false,
-                    error: `Amount mismatch. You entered ${Number(expectedAmount)} USDT but blockchain shows ${actualAmount} USDT.`,
+                    error: "Please enter a valid deposit amount."
+                };
+            }
+
+            if (!amountsMatch(enteredAmount, actualAmount)) {
+                return {
+                    success: false,
+                    error: `Amount mismatch. You entered ${enteredAmount} USDT but blockchain shows ${exactAmount} USDT.`,
                     amountMismatch: true,
-                    blockchainAmount: actualAmount,
-                    userAmount: Number(expectedAmount)
+                    blockchainAmount: exactAmount,
+                    userAmount: enteredAmount
                 };
             }
         }
 
-        // Confirmations check
         const currentBlock = await provider.getBlockNumber();
-        const confirmations = currentBlock - receipt.blockNumber;
+
+        // Include the block containing the transaction.
+        const confirmations = currentBlock - receipt.blockNumber + 1;
 
         if (confirmations < WALLET_CONFIG.MIN_CONFIRMATIONS) {
             return {
                 success: false,
                 error: `Waiting for confirmations... (${confirmations}/${WALLET_CONFIG.MIN_CONFIRMATIONS})`,
                 pending: true,
-                confirmations: confirmations,
-                currentBlock: currentBlock,
+                confirmations,
+                currentBlock,
                 blockNumber: receipt.blockNumber,
-                blockchainAmount: actualAmount
+                blockchainAmount: exactAmount
             };
         }
 
-        // ✅ ALL PASS
         return {
             success: true,
             verified: true,
             receipt: {
                 blockNumber: receipt.blockNumber,
-                confirmations: confirmations,
+                confirmations,
                 from: parsed.fromAddress,
                 to: parsed.toAddress,
                 amount: actualAmount,
+                exactAmount,
                 tokenContract: parsed.tokenContract,
-                txHash: txHash,
+                txHash: normalizedHash,
                 blockHash: receipt.blockHash,
-                gasUsed: receipt.gasUsed.toString(),
+                gasUsed: receipt.gasUsed?.toString() || "0",
                 status: receipt.status
             }
         };
 
     } catch (error) {
         console.error("Verification error:", error);
-        return { success: false, error: `Verification failed: ${error.message}` };
+
+        return {
+            success: false,
+            error: `Verification failed: ${error.message || "Unknown error"}`
+        };
+
     } finally {
-        activeVerifications.delete(txHash);
+        activeVerifications.delete(normalizedHash);
+
+        if (provider) {
+            try {
+                provider.destroy();
+            } catch (_) {}
+        }
     }
 }
 
 // ============================================================
-// 🔥🔥🔥 CRITICAL FIX: processDeposit — DUPLICATE CHECK NOW WORKS
+// RELEASE ONLY OUR OWN INCOMPLETE CLAIM
 // ============================================================
-export async function processDeposit(uid, txHash, amount, receipt) {
-    try {
-        const finalAmount = (receipt && receipt.amount) ? Number(receipt.amount) : Number(amount);
 
-        // ============================================================
-        // 🔥 STEP 0: ATOMIC usedTransactions CLAIM (cross-user safe)
-        // ============================================================
-        const usedRef = ref(db, `usedTransactions/${txHash}`);
-        const claimResult = await runTransaction(usedRef, (currentData) => {
-            if (currentData !== null) {
-                return; // abort — already used
+async function releaseUsedClaim(txHash, claimToken) {
+    if (!claimToken) return false;
+
+    const usedRef = ref(db, `usedTransactions/${txHash}`);
+
+    try {
+        const result = await runTransaction(usedRef, (currentData) => {
+            if (
+                !currentData ||
+                currentData.claimToken !== claimToken ||
+                currentData.status !== "claimed"
+            ) {
+                return;
             }
-            return {
-                uid: uid,
-                amount: finalAmount,
-                timestamp: Date.now(),
-                blockNumber: receipt.blockNumber,
-                status: 'claimed'
-            };
+
+            return null;
         });
 
-        if (!claimResult.committed) {
-            // Already used by someone (or same user)
-            const existing = claimResult.snapshot.val();
-            if (existing && existing.uid === uid && existing.status === 'completed') {
-                return { success: false, error: "This transaction was already credited to your account.", alreadyCredited: true };
+        return result.committed;
+
+    } catch (error) {
+        console.error("Could not release used transaction claim:", error);
+        return false;
+    }
+}
+
+// ============================================================
+// PROCESS DEPOSIT — CLAIM, CREDIT, COMPLETE
+// ============================================================
+
+export async function processDeposit(uid, txHash, amount, receipt) {
+    const normalizedHash = normalizeTxHash(txHash);
+
+    if (!normalizedHash) {
+        return {
+            success: false,
+            error: "Invalid transaction hash."
+        };
+    }
+
+    if (!uid || !receipt || receipt.status !== 1) {
+        return {
+            success: false,
+            error: "Invalid user or unverified transaction receipt."
+        };
+    }
+
+    const finalAmount = Number(receipt.amount || amount);
+
+    if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
+        return {
+            success: false,
+            error: "Invalid deposit amount."
+        };
+    }
+
+    if (
+        receipt.to?.toLowerCase() !==
+        WALLET_CONFIG.DEPOSIT_WALLET.toLowerCase()
+    ) {
+        return {
+            success: false,
+            error: "Deposit receiver does not match the configured wallet."
+        };
+    }
+
+    if (
+        receipt.tokenContract?.toLowerCase() !==
+        WALLET_CONFIG.USDT_CONTRACT.toLowerCase()
+    ) {
+        return {
+            success: false,
+            error: "Deposit token contract does not match configured USDT."
+        };
+    }
+
+    const usedRef = ref(db, `usedTransactions/${normalizedHash}`);
+    const claimToken = makeToken();
+    let claimOwned = false;
+
+    try {
+        // STEP 1: Atomically claim this TXID.
+        const claimResult = await runTransaction(
+            usedRef,
+            (currentData) => {
+                const now = Date.now();
+                const staleTime =
+                    Number(WALLET_CONFIG.STALE_LOCK_TIMEOUT) || 600000;
+
+                if (currentData !== null) {
+                    if (currentData.status === "completed") {
+                        return;
+                    }
+
+                    const claimTime = Number(currentData.timestamp) || 0;
+
+                    // Another active claim must not be overwritten.
+                    if (now - claimTime <= staleTime) {
+                        return;
+                    }
+                }
+
+                return {
+                    uid,
+                    amount: finalAmount,
+                    timestamp: now,
+                    blockNumber: receipt.blockNumber,
+                    txHash: normalizedHash,
+                    status: "claimed",
+                    claimToken
+                };
             }
-            return { success: false, error: "❌ This transaction hash has already been used. Duplicate deposits are not allowed." };
+        );
+
+        if (!claimResult.committed) {
+            const existing = claimResult.snapshot.val();
+
+            if (
+                existing &&
+                existing.uid === uid &&
+                existing.status === "completed"
+            ) {
+                return {
+                    success: false,
+                    error: "This transaction was already credited to your account.",
+                    alreadyCredited: true
+                };
+            }
+
+            return {
+                success: false,
+                error: "This transaction is already used or being processed. Please try again later."
+            };
         }
 
-        // ============================================================
-        // 🔥 STEP 1: Credit user balance (atomic)
-        // ============================================================
+        claimOwned = true;
+
+        // STEP 2: Atomically credit the user's balance.
         const userRef = ref(db, `users/${uid}`);
+
         const result = await runTransaction(userRef, (currentData) => {
-            if (!currentData) return currentData;
+            if (!currentData) {
+                return;
+            }
 
-            const transactions = currentData.transactions || {};
+            const transactions = {
+                ...(currentData.transactions || {})
+            };
 
-            // Secondary duplicate guard (in case of race)
-            for (let key in transactions) {
+            // Secondary duplicate guard.
+            for (const key of Object.keys(transactions)) {
                 const tx = transactions[key];
-                if (tx.type === 'deposit' && tx.txHash === txHash && tx.status === 'success') {
-                    return; // ✅ ABORT (not return currentData)
+
+                if (
+                    tx &&
+                    tx.type === "deposit" &&
+                    String(tx.txHash || "").toLowerCase() === normalizedHash &&
+                    tx.status === "success"
+                ) {
+                    return;
                 }
             }
 
             const currentBalance = Number(currentData.depositWallet) || 0;
+
+            if (!Number.isFinite(currentBalance) || currentBalance < 0) {
+                return;
+            }
+
             const newBalance = currentBalance + finalAmount;
 
-            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            const txId =
+                "tx_" +
+                Date.now() +
+                "_" +
+                Math.random().toString(36).slice(2, 10);
+
             transactions[txId] = {
-                type: 'deposit',
-                status: 'success',
+                type: "deposit",
+                status: "success",
                 amount: finalAmount,
-                txHash: txHash,
+                txHash: normalizedHash,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
                 to: receipt.to,
@@ -333,51 +730,105 @@ export async function processDeposit(uid, txHash, amount, receipt) {
                 confirmations: receipt.confirmations,
                 timestamp: Date.now(),
                 date: new Date().toDateString(),
-                description: `Deposit of ${finalAmount.toFixed(6)} USDT verified on blockchain`
+                description:
+                    `Deposit of ${finalAmount.toFixed(6)} USDT verified on blockchain`
             };
 
             return {
                 ...currentData,
                 depositWallet: newBalance,
-                transactions: transactions
+                transactions
             };
         });
 
         if (!result.committed) {
-            // Balance already credited earlier — release the claim
-            await update(usedRef, { status: 'completed', alreadyApplied: true }).catch(() => {});
-            return { success: false, error: "Deposit already processed for this user.", alreadyCredited: true };
+            // Check whether the TX was already credited.
+            const latestUserSnap = await get(userRef);
+
+            if (!latestUserSnap.exists()) {
+                await releaseUsedClaim(normalizedHash, claimToken);
+                claimOwned = false;
+
+                return {
+                    success: false,
+                    error: "User account was not found. Deposit was not credited."
+                };
+            }
+
+            const latestUser = latestUserSnap.val();
+            const transactions = latestUser.transactions || {};
+
+            const alreadyCredited = Object.values(transactions).some(tx =>
+                tx &&
+                tx.type === "deposit" &&
+                String(tx.txHash || "").toLowerCase() === normalizedHash &&
+                tx.status === "success"
+            );
+
+            if (alreadyCredited) {
+                await update(usedRef, {
+                    status: "completed",
+                    completedAt: Date.now(),
+                    alreadyApplied: true
+                });
+
+                return {
+                    success: false,
+                    error: "This transaction was already credited to your account.",
+                    alreadyCredited: true
+                };
+            }
+
+            await releaseUsedClaim(normalizedHash, claimToken);
+            claimOwned = false;
+
+            return {
+                success: false,
+                error: "Balance was not updated. Please retry verification."
+            };
         }
 
-        // ============================================================
-        // STEP 2: Mark claim as completed
-        // ============================================================
+        // STEP 3: Mark the TXID completed after balance credit.
         try {
-            await update(usedRef, {
-                status: 'completed',
-                completedAt: Date.now()
+            await runTransaction(usedRef, (currentData) => {
+                if (
+                    !currentData ||
+                    currentData.claimToken !== claimToken
+                ) {
+                    return;
+                }
+
+                return {
+                    ...currentData,
+                    status: "completed",
+                    completedAt: Date.now()
+                };
             });
-        } catch (err) {
-            console.warn('Could not update claim status:', err);
-            // Balance already credited — safe
+
+        } catch (error) {
+            // Balance is already credited. Do not delete the claim here.
+            console.error("Could not mark used TX as completed:", error);
         }
 
-        // ============================================================
-        // STEP 3: Deposit history
-        // ============================================================
+        // STEP 4: Save deposit history.
+        // This is a separate history record; balance credit has already happened.
         try {
-            const newHistoryRef = push(ref(db, `depositHistory`));
-            await set(newHistoryRef, {
-                uid, txHash,
+            const historyRef = push(ref(db, "depositHistory"));
+
+            await set(historyRef, {
+                uid,
+                txHash: normalizedHash,
                 amount: finalAmount,
                 blockNumber: receipt.blockNumber,
                 from: receipt.from,
                 to: receipt.to,
+                tokenContract: receipt.tokenContract,
                 timestamp: Date.now(),
-                status: 'success'
+                status: "success"
             });
-        } catch (err) {
-            console.warn('Could not save deposit history:', err);
+
+        } catch (error) {
+            console.error("Could not save deposit history:", error);
         }
 
         return {
@@ -389,209 +840,402 @@ export async function processDeposit(uid, txHash, amount, receipt) {
 
     } catch (error) {
         console.error("Error processing deposit:", error);
-        // Try to release claim so user can retry
-        try {
-            const usedSnap = await get(ref(db, `usedTransactions/${txHash}`));
-            if (usedSnap.exists() && usedSnap.val().status === 'claimed') {
-                await remove(ref(db, `usedTransactions/${txHash}`));
-            }
-        } catch (_) {}
-        throw error;
+
+        // Release only the claim created by this exact process.
+        // If balance was already credited, the user's transaction guard
+        // prevents the same TXID from being credited a second time.
+        if (claimOwned) {
+            await releaseUsedClaim(normalizedHash, claimToken);
+        }
+
+        return {
+            success: false,
+            error: error.message || "Failed to process deposit."
+        };
     }
 }
 
 // ============================================================
-// 🔒 COMPLETE DEPOSIT FLOW
+// COMPLETE DEPOSIT FLOW
 // ============================================================
-export async function completeDeposit(uid, txHash, amount, onPending, onSuccess, onError) {
-    console.log('🔒 Starting secure deposit flow...');
+
+export async function completeDeposit(
+    uid,
+    txHash,
+    amount,
+    onPending,
+    onSuccess,
+    onError
+) {
+    const normalizedHash = normalizeTxHash(txHash);
+
+    if (!normalizedHash) {
+        return {
+            success: false,
+            error: "Invalid TXID. Enter the complete transaction hash."
+        };
+    }
+
+    if (!uid) {
+        return {
+            success: false,
+            error: "Please login again before verifying your deposit."
+        };
+    }
+
+    console.log("Starting secure deposit verification...");
 
     try {
-        // STEP 1: Duplicate check
-        const duplicateCheck = await checkDuplicateTransaction(txHash);
-        if (duplicateCheck.isDuplicate) {
-            const d = duplicateCheck.data;
-            if (d && d.uid === uid && d.status === 'completed') {
-                return { success: false, error: "✅ This transaction was already credited to your account.", alreadyCredited: true };
-            }
+        // STEP 1: Check duplicate status.
+        const duplicateCheck =
+            await checkDuplicateTransaction(normalizedHash);
+
+        if (duplicateCheck.error) {
             return {
                 success: false,
-                error: "❌ This transaction hash has already been used. Duplicate deposits are not allowed."
+                error: duplicateCheck.error
             };
         }
 
-        // STEP 2: Acquire lock
-        const lockAcquired = await acquireProcessingLock(txHash, uid, amount);
-        if (!lockAcquired) {
-            return { success: false, error: "⏳ This transaction is already being processed. Please wait." };
+        if (duplicateCheck.isDuplicate) {
+            const d = duplicateCheck.data;
+
+            if (
+                d &&
+                d.uid === uid &&
+                d.status === "completed"
+            ) {
+                return {
+                    success: false,
+                    error: "This transaction was already credited to your account.",
+                    alreadyCredited: true
+                };
+            }
+
+            return {
+                success: false,
+                error: "This transaction hash has already been used. Duplicate deposits are not allowed."
+            };
         }
 
-        try {
-            // STEP 3: Verify
-            const verification = await verifyTransaction(txHash, amount);
-            console.log('Verification result:', verification);
+        // STEP 2: Acquire processing lock.
+        const lockToken = await acquireProcessingLock(
+            normalizedHash,
+            uid,
+            amount
+        );
 
-            // Amount mismatch
-            if (verification.amountMismatch) {
-                await releaseProcessingLock(txHash);
-                return verification;
-            }
-
-            // Pending (await confirmations)
-            if (verification.pending) {
-                if (onPending) {
-                    onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
-                }
-                const pollingResult = await startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError);
-                await releaseProcessingLock(txHash);
-                return pollingResult;
-            }
-
-            if (!verification.success) {
-                await releaseProcessingLock(txHash);
-                return verification;
-            }
-
-            // Process deposit
-            try {
-                const result = await processDeposit(uid, txHash, amount, verification.receipt);
-                await releaseProcessingLock(txHash);
-
-                if (result.success && onSuccess) {
-                    onSuccess(result.newBalance, result.amountCredited, result.blockNumber);
-                }
-
-                return result;
-            } catch (error) {
-                await releaseProcessingLock(txHash);
-                return { success: false, error: error.message || "Failed to process deposit" };
-            }
-
-        } catch (error) {
-            await releaseProcessingLock(txHash);
-            throw error;
+        if (!lockToken) {
+            return {
+                success: false,
+                error: "This transaction is already being processed. Please wait."
+            };
         }
+
+        // STEP 3: Verify on blockchain.
+        const verification = await verifyTransaction(
+            normalizedHash,
+            amount
+        );
+
+        if (verification.amountMismatch) {
+            await releaseProcessingLock(normalizedHash, lockToken);
+            return verification;
+        }
+
+        if (verification.pending) {
+            if (onPending) {
+                onPending(
+                    verification.confirmations,
+                    verification.currentBlock,
+                    verification.blockNumber
+                );
+            }
+
+            const pollingResult = await startAutoPolling(
+                uid,
+                normalizedHash,
+                amount,
+                lockToken,
+                onPending,
+                onSuccess,
+                onError
+            );
+
+            // Keep the lock if still pending so the page can resume it.
+            if (!pollingResult.pending) {
+                await releaseProcessingLock(normalizedHash, lockToken);
+            }
+
+            return pollingResult;
+        }
+
+        if (!verification.success) {
+            await releaseProcessingLock(normalizedHash, lockToken);
+            return verification;
+        }
+
+        // STEP 4: Process verified deposit.
+        const result = await processDeposit(
+            uid,
+            normalizedHash,
+            amount,
+            verification.receipt
+        );
+
+        await releaseProcessingLock(normalizedHash, lockToken);
+
+        if (result.success && onSuccess) {
+            onSuccess(
+                result.newBalance,
+                result.amountCredited,
+                result.blockNumber
+            );
+        }
+
+        return result;
 
     } catch (error) {
-        console.error('Complete deposit error:', error);
-        return { success: false, error: error.message || "Failed to complete deposit" };
+        console.error("Complete deposit error:", error);
+
+        if (onError) {
+            try {
+                onError(error.message);
+            } catch (_) {}
+        }
+
+        return {
+            success: false,
+            error: error.message || "Failed to complete deposit."
+        };
     }
 }
 
 // ============================================================
-// 🔒 AUTO-POLLING (memory-leak safe)
+// AUTO POLLING FOR CONFIRMATIONS
 // ============================================================
-async function startAutoPolling(uid, txHash, amount, onPending, onSuccess, onError) {
+
+async function startAutoPolling(
+    uid,
+    txHash,
+    amount,
+    lockToken,
+    onPending,
+    onSuccess,
+    onError
+) {
     let attempts = 0;
+
+    const maxAttempts =
+        Number(WALLET_CONFIG.MAX_POLLING_ATTEMPTS) || 60;
+
+    const intervalMs =
+        Number(WALLET_CONFIG.POLLING_INTERVAL) || 15000;
 
     return new Promise((resolve) => {
         let resolved = false;
+        let polling = false;
+
         const safeResolve = (value) => {
             if (resolved) return;
             resolved = true;
+            clearInterval(pollInterval);
             resolve(value);
         };
 
         const pollInterval = setInterval(async () => {
+            if (resolved || polling) return;
+
+            polling = true;
             attempts++;
+
             try {
-                const lockSnap = await get(ref(db, `processingTransactions/${txHash}`));
-                if (!lockSnap.exists()) {
-                    clearInterval(pollInterval);
-                    safeResolve({ success: false, error: "Processing was interrupted. Please try again." });
+                const lockSnap = await get(
+                    ref(db, `processingTransactions/${txHash}`)
+                );
+
+                if (
+                    !lockSnap.exists() ||
+                    lockSnap.val().claimToken !== lockToken
+                ) {
+                    safeResolve({
+                        success: false,
+                        error: "Processing lock expired or changed. Please verify the TXID again."
+                    });
                     return;
                 }
 
-                const verification = await verifyTransaction(txHash, amount);
+                await refreshProcessingLock(txHash, lockToken);
+
+                const verification = await verifyTransaction(
+                    txHash,
+                    amount
+                );
 
                 if (verification.amountMismatch) {
-                    clearInterval(pollInterval);
                     safeResolve(verification);
                     return;
                 }
 
                 if (verification.pending) {
                     if (onPending) {
-                        onPending(verification.confirmations, verification.currentBlock, verification.blockNumber);
+                        onPending(
+                            verification.confirmations,
+                            verification.currentBlock,
+                            verification.blockNumber
+                        );
                     }
-                    if (attempts >= WALLET_CONFIG.MAX_POLLING_ATTEMPTS) {
-                        clearInterval(pollInterval);
+
+                    if (attempts >= maxAttempts) {
                         safeResolve({
                             success: false,
-                            error: `Still waiting for confirmations. Please try again later.`,
+                            error: "Still waiting for confirmations. You can safely check this TXID again later.",
                             pending: true,
                             confirmations: verification.confirmations
                         });
                     }
+
                     return;
                 }
-
-                clearInterval(pollInterval);
 
                 if (!verification.success) {
                     safeResolve(verification);
                     return;
                 }
 
-                try {
-                    const result = await processDeposit(uid, txHash, amount, verification.receipt);
-                    if (result.success && onSuccess) {
-                        onSuccess(result.newBalance, result.amountCredited, result.blockNumber);
-                    }
-                    safeResolve(result);
-                } catch (error) {
-                    safeResolve({ success: false, error: error.message || "Failed to process deposit" });
+                const result = await processDeposit(
+                    uid,
+                    txHash,
+                    amount,
+                    verification.receipt
+                );
+
+                if (result.success && onSuccess) {
+                    onSuccess(
+                        result.newBalance,
+                        result.amountCredited,
+                        result.blockNumber
+                    );
                 }
+
+                safeResolve(result);
+
             } catch (error) {
-                clearInterval(pollInterval);
-                safeResolve({ success: false, error: error.message || "Polling failed" });
+                console.error("Polling error:", error);
+
+                safeResolve({
+                    success: false,
+                    error: error.message || "Polling failed."
+                });
+
+            } finally {
+                polling = false;
             }
-        }, WALLET_CONFIG.POLLING_INTERVAL);
+
+        }, intervalMs);
     });
 }
 
 // ============================================================
-// 🔒 CLEANUP STALE LOCKS
+// CLEANUP STALE PROCESSING LOCKS
 // ============================================================
+
 export async function cleanupStaleLocks() {
     try {
-        const locksSnap = await get(ref(db, 'processingTransactions'));
+        const locksSnap = await get(
+            ref(db, "processingTransactions")
+        );
+
         if (!locksSnap.exists()) return;
-        const locks = locksSnap.val();
+
+        const locks = locksSnap.val() || {};
         const now = Date.now();
+
+        const staleTime =
+            Number(WALLET_CONFIG.STALE_LOCK_TIMEOUT) || 600000;
+
         for (const [txHash, lockData] of Object.entries(locks)) {
-            if (now - lockData.timestamp > WALLET_CONFIG.STALE_LOCK_TIMEOUT) {
-                await remove(ref(db, `processingTransactions/${txHash}`));
-                console.log(`🧹 Cleaned up stale lock for ${txHash}`);
+            const timestamp = Number(lockData?.timestamp) || 0;
+
+            if (now - timestamp > staleTime) {
+                const lockRef = ref(
+                    db,
+                    `processingTransactions/${txHash}`
+                );
+
+                // Recheck timestamp atomically before removing.
+                await runTransaction(lockRef, (currentData) => {
+                    if (!currentData) return;
+
+                    const currentTime =
+                        Number(currentData.timestamp) || 0;
+
+                    if (now - currentTime <= staleTime) {
+                        return;
+                    }
+
+                    return null;
+                });
+
+                console.log(`Checked stale processing lock: ${txHash}`);
             }
         }
+
     } catch (error) {
-        console.error('Error cleaning up stale locks:', error);
+        console.error("Error cleaning up stale locks:", error);
     }
 }
 
 // ============================================================
-// 🔒 CHECK PENDING VERIFICATIONS
+// FIND PENDING VERIFICATIONS FOR LOGGED-IN USER
 // ============================================================
+
 export async function checkPendingVerifications(uid) {
+    if (!uid) return [];
+
     try {
-        const locksSnap = await get(ref(db, 'processingTransactions'));
+        const locksSnap = await get(
+            ref(db, "processingTransactions")
+        );
+
         if (!locksSnap.exists()) return [];
-        const locks = locksSnap.val();
+
+        const locks = locksSnap.val() || {};
         const pendingTxs = [];
+
         for (const [txHash, lockData] of Object.entries(locks)) {
-            if (lockData.uid === uid) {
-                const usedSnap = await get(ref(db, `usedTransactions/${txHash}`));
-                if (usedSnap.exists()) {
-                    await remove(ref(db, `processingTransactions/${txHash}`));
+            if (!lockData || lockData.uid !== uid) continue;
+
+            const usedSnap = await get(
+                ref(db, `usedTransactions/${txHash}`)
+            );
+
+            if (usedSnap.exists()) {
+                const usedData = usedSnap.val();
+
+                // Remove the processing lock only when the deposit
+                // is confirmed as completed.
+                if (usedData?.status === "completed") {
+                    await remove(
+                        ref(db, `processingTransactions/${txHash}`)
+                    );
                     continue;
                 }
-                pendingTxs.push({ txHash, lockData });
+
+                // A claimed transaction may need recovery.
+                // Do not delete its lock or claim automatically.
             }
+
+            pendingTxs.push({
+                txHash,
+                lockData
+            });
         }
+
         return pendingTxs;
+
     } catch (error) {
-        console.error('Error checking pending verifications:', error);
+        console.error("Error checking pending verifications:", error);
         return [];
     }
 }
