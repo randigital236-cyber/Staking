@@ -214,9 +214,14 @@
             </div>
             <i class="bi bi-database" style="font-size: 2rem; color: #60a5fa; opacity: 0.6;"></i>
         </div>
-<select id="toWallet">
-    <option value="depositWallet">Deposit Wallet</option>
-</select>
+<!-- Hidden input जो जावास्क्रिप्ट के लिए value रखेगा -->
+<input type="hidden" id="toWallet" value="depositWallet">
+
+<!-- यह बॉक्स सिर्फ दिखाने के लिए है (Read-only) -->
+<div class="form-control-custom d-flex justify-content-between align-items-center" style="background-color: #1a2235; border: 1px solid #2a3550; color: #fff; padding: 12px 15px; border-radius: 8px; cursor: not-allowed;">
+    <span style="color: #a0aec0; font-size: 14px;">Destination Wallet</span>
+    <span style="font-weight: 600; color: #fff;">Deposit Wallet</span>
+</div>
         </div>
 
         <!-- Amount Input -->
