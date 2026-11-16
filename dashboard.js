@@ -2,20 +2,9 @@
 // RND STAKING PLATFORM - DASHBOARD.JS (v12 - UID = REFERRAL CODE)
 // ============================================================
 // ✅ Daily release (unchanged, working)
-// ✅ Referral chain FIXED:
-//    1. Chain अब user के referredBy (upline) से शुरू होती है (पहले अपने ही code से शुरू होती थी)
-//    2. Username में "." जैसे characters होने पर lookup टूटता था - FIXED
-//    3. Network/lookup error पर chain चुपचाप टूट कर "processed" हो जाती थी - अब retry होगा
-//    4. commissionProcessing अटक जाने (stuck) की समस्या - FIXED (stale lock 2 मिनट बाद खुल जाता है)
-//    5. एक साथ कई packages होने पर बाकी skip हो जाते थे - अब एक-एक करके process होते हैं
-//    6. Double-claim (दो tab) से बचाव - proper claim token
-//    7. Duplicate payment से बचाव - पहले से मिली commission दोबारा नहीं दी जाएगी
-// ✅ v12: Firebase UID ही User ID + Referral Code है (register.html के हिसाब से)
-//    8. Referrer lookup अब सबसे पहले सीधे UID से (तेज़ और सटीक)
-//    9. Recovery में भी username = referralCode = UID बनता है (पहले email-prefix / 8-letter code बनता था)
-//   10. Dashboard पर User ID और Referral link में पूरा UID आता है; Copy पूरा UID कॉपी करता है
-//   11. Name / ID / error text अब escape होकर दिखता है (XSS से बचाव)
-// ⚠️ Firebase config / database structure में कोई बदलाव नहीं
+// ✅ Referral chain FIXED
+// ✅ v12: Firebase UID ही User ID + Referral Code है
+// ✅ FIXED: Rank calculation exactly matches Rank Reward page
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -83,8 +72,19 @@ const COMMISSION_LEVELS = [
     { level: 4, percent: 0.01 },
     { level: 5, percent: 0.01 }
 ];
-// अगर "processing" flag इतने समय से अटका है तो उसे stale मानकर दोबारा try करेंगे
 const COMMISSION_STALE_MS = 2 * 60 * 1000;
+
+// ============================================================
+// RANK SETTINGS (Matching exactly with Rank Reward Page)
+// ============================================================
+const RANK_LEVELS = [
+    { rank: 'Member', minBusiness: 0 },
+    { rank: 'Executive', minBusiness: 3000 },
+    { rank: 'Senior Executive', minBusiness: 10000 },
+    { rank: 'Manager', minBusiness: 25000 },
+    { rank: 'Senior Manager', minBusiness: 50000 },
+    { rank: 'Diamond', minBusiness: 100000 }
+];
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -126,7 +126,6 @@ function generateBackupId() {
 }
 
 function getTodayDate() {
-    // Always use LOCAL date to avoid timezone mismatch
     const d = new Date();
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -176,12 +175,10 @@ function normalizeTransferHistory(raw) {
     return Object.values(raw).filter(Boolean);
 }
 
-// Firebase key में ये characters allowed नहीं हैं
 function isValidFirebaseKey(key) {
     return typeof key === 'string' && key.length > 0 && !/[.#$\[\]\/]/.test(key);
 }
 
-// HTML में डालने से पहले text को सुरक्षित करता है
 function escapeHtml(value) {
     return String(value === null || value === undefined ? '' : value)
         .replace(/&/g, '&amp;')
@@ -189,6 +186,20 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// RANK CALCULATOR (Matches Rank Reward Page exactly)
+// ============================================================
+function calculateRank(teamBusiness) {
+    const business = Number(teamBusiness) || 0;
+    let current = RANK_LEVELS[0];
+    for (let level of RANK_LEVELS) {
+        if (business >= level.minBusiness) {
+            current = level;
+        }
+    }
+    return current.rank;
 }
 
 // ============================================================
@@ -248,7 +259,7 @@ async function fetchLiveRate() {
 }
 
 // ============================================================
-// GET USER BY IDENTIFIER (transfer / recovery के लिए)
+// GET USER BY IDENTIFIER
 // ============================================================
 async function getUserByIdentifier(identifier) {
     try {
@@ -288,7 +299,7 @@ async function getUserByIdentifier(identifier) {
 }
 
 // ============================================================
-// ✅ NEW: STRICT REFERRER RESOLVER (commission chain के लिए)
+// STRICT REFERRER RESOLVER
 // ============================================================
 async function resolveReferrer(identifier) {
     if (!identifier || typeof identifier !== 'string') return null;
@@ -296,7 +307,6 @@ async function resolveReferrer(identifier) {
     if (!id) return null;
     const usersRef = ref(db, 'users');
 
-    // 1) UID (referralCode = UID) - सीधा और तेज़
     if (isValidFirebaseKey(id)) {
         const uidSnap = await get(ref(db, 'users/' + id));
         if (uidSnap.exists()) {
@@ -304,7 +314,6 @@ async function resolveReferrer(identifier) {
         }
     }
 
-    // 2) referralCode (पुराने यूज़र्स के short codes के लिए)
     const codeCandidates = [id];
     if (id.toUpperCase() !== id) codeCandidates.push(id.toUpperCase());
     for (const code of codeCandidates) {
@@ -317,7 +326,6 @@ async function resolveReferrer(identifier) {
         }
     }
 
-    // 3) username
     const unameSnap = await get(query(usersRef, orderByChild('username'), equalTo(id)));
     if (unameSnap.exists()) {
         const data = unameSnap.val();
@@ -663,7 +671,7 @@ async function processDailyRelease(userId) {
 }
 
 // ============================================================
-// ✅ FIXED: ATOMIC COMMISSION PROCESSING
+// ATOMIC COMMISSION PROCESSING
 // ============================================================
 async function processReferralCommission(userId, packageId) {
     const pkgRef = ref(db, `users/${userId}/packages/${packageId}`);
@@ -671,14 +679,13 @@ async function processReferralCommission(userId, packageId) {
     let claimed = false;
 
     try {
-        // ---------- STEP 1: Claim (lock) ----------
         const claimResult = await runTransaction(pkgRef, (pkg) => {
-            if (!pkg) return pkg;                       // first run (cache खाली) - server से retry होगा
-            if (pkg.commissionProcessed === true) return;   // abort
-            if (pkg.status !== 'active' && pkg.status !== 'completed') return; // abort
+            if (!pkg) return pkg;
+            if (pkg.commissionProcessed === true) return;
+            if (pkg.status !== 'active' && pkg.status !== 'completed') return;
             if (pkg.commissionProcessing === true) {
                 const age = Date.now() - (pkg.commissionProcessingAt || 0);
-                if (age < COMMISSION_STALE_MS) return;  // कोई और चला रहा है - abort
+                if (age < COMMISSION_STALE_MS) return;
             }
             pkg.commissionProcessing = true;
             pkg.commissionProcessingAt = Date.now();
@@ -687,11 +694,11 @@ async function processReferralCommission(userId, packageId) {
         });
 
         if (!claimResult.committed) {
-            return null; // पहले से processed / कोई और कर रहा है
+            return null;
         }
         const claimedPkg = claimResult.snapshot.val();
         if (!claimedPkg || claimedPkg.commissionClaimToken !== claimToken) {
-            return null; // lock हमें नहीं मिला
+            return null;
         }
         claimed = true;
 
@@ -701,7 +708,6 @@ async function processReferralCommission(userId, packageId) {
             return null;
         }
 
-        // ---------- STEP 2: Buyer का data ----------
         const userSnapshot = await get(ref(db, 'users/' + userId));
         if (!userSnapshot.exists()) {
             await releaseClaim(pkgRef, claimToken);
@@ -710,7 +716,6 @@ async function processReferralCommission(userId, packageId) {
         const userData = userSnapshot.val();
         const fromUserName = userData.username || userData.referralCode || userId;
 
-        // ---------- STEP 3: Upline chain (referredBy से शुरू) ----------
         let currentRefCode = userData.referredBy || null;
         let level = 1;
         const visited = new Set([userId]);
@@ -718,7 +723,7 @@ async function processReferralCommission(userId, packageId) {
         let chainNote = '';
 
         while (currentRefCode && level <= 5) {
-            const refResult = await resolveReferrer(currentRefCode); // error आए तो throw
+            const refResult = await resolveReferrer(currentRefCode);
             if (!refResult) {
                 chainNote = `Referrer not found at level ${level}: ${currentRefCode}`;
                 console.warn('⚠️', chainNote);
@@ -747,7 +752,6 @@ async function processReferralCommission(userId, packageId) {
                         : normalizeTransferHistory(currentData.commissionHistory);
                     const transactions = currentData.transactions || {};
 
-                    // ✅ Duplicate check
                     const alreadyPaid =
                         transactions[commissionTxId] ||
                         commissionHistory.some(h => h && (
@@ -810,7 +814,6 @@ async function processReferralCommission(userId, packageId) {
                     return currentData;
                 });
 
-                // ✅ Verify
                 const after = txResult.snapshot && txResult.snapshot.exists() ? txResult.snapshot.val() : null;
                 const written = !!(txResult.committed && after && after.transactions && after.transactions[commissionTxId]);
                 const paidEarlierOtherId = !!(after && Array.isArray(after.commissionHistory) &&
@@ -827,10 +830,9 @@ async function processReferralCommission(userId, packageId) {
             level++;
         }
 
-        // ---------- STEP 4: Package को processed mark करो ----------
         const finalizeResult = await runTransaction(pkgRef, (pkg) => {
             if (!pkg) return pkg;
-            if (pkg.commissionClaimToken && pkg.commissionClaimToken !== claimToken) return; // किसी और ने lock ले लिया
+            if (pkg.commissionClaimToken && pkg.commissionClaimToken !== claimToken) return;
             pkg.commissionProcessed = true;
             pkg.commissionProcessedAt = Date.now();
             pkg.commissionProcessing = false;
@@ -858,7 +860,7 @@ async function processReferralCommission(userId, packageId) {
 async function releaseClaim(pkgRef, claimToken) {
     await runTransaction(pkgRef, (pkg) => {
         if (!pkg) return pkg;
-        if (pkg.commissionClaimToken !== claimToken) return; // हमारा lock नहीं है - छेड़ो मत
+        if (pkg.commissionClaimToken !== claimToken) return;
         pkg.commissionProcessing = false;
         pkg.commissionClaimToken = null;
         return pkg;
@@ -1192,17 +1194,7 @@ function renderDashboard(u) {
     const safeName = escapeHtml(name);
     
     const teamBusinessForRank = u.teamBusiness || 0;
-    let rank = 'Member';
-    const rankThresholds = [
-        { min: 100000, rank: 'Diamond' },
-        { min: 50000, rank: 'Senior Manager' },
-        { min: 25000, rank: 'Manager' },
-        { min: 10000, rank: 'Senior Executive' },
-        { min: 3000, rank: 'Executive' }
-    ];
-    for (let level of rankThresholds) {
-        if (teamBusinessForRank >= level.min) rank = level.rank;
-    }
+    const rank = calculateRank(teamBusinessForRank); // ✅ Using fixed rank calculator
     
     const isMember = rank === 'Member' || rank === 'member' || !rank;
     const teamStructure = u.teamStructure || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 };
