@@ -1,238 +1,269 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { getDatabase, ref, set, get, update } from "firebase/database";
+// ============================================================
+// RND STAKING - REGISTER.JS (v2 - REFERRAL CHAIN FIX)
+// ============================================================
+// ✅ पूरे "users" node को डाउनलोड करना बंद (पहले हर रजिस्ट्रेशन पर सारे यूज़र लोड होते थे)
+// ✅ Referrer को पहले सीधे UID से ढूँढता है (तेज़), फिर referralCode, फिर username से
+// ✅ गलत / अधूरा referral code अब चुपचाप नज़रअंदाज़ नहीं होगा - साफ error दिखेगा
+// ✅ Counts अब increment() से बढ़ते हैं (एक साथ कई signup होने पर भी गिनती नहीं खोएगी)
+// ✅ directReferrals पूरा overwrite नहीं होता, सिर्फ़ नया entry जुड़ता है
+// ✅ नया यूज़र + सभी upline के counts = एक ही atomic update (या सब होगा, या कुछ नहीं)
+// ✅ Update fail हो तो बना हुआ Auth account वापस हटा दिया जाता है (अधूरा account नहीं बचेगा)
+// ✅ referredBy में referrer का सही referralCode सेव होता है (dashboard के commission के लिए)
+// ✅ Name से < > हटाए जाते हैं और toast में innerHTML नहीं (XSS से बचाव)
+// ✅ पूरा referral link paste करने पर भी code अपने आप निकल आता है
+// ⚠️ Firebase config / database structure / पुराने यूज़र का data - कुछ नहीं बदला
+// ============================================================
 
-// Firebase Config
+import { initializeApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, updateProfile, deleteUser } from "firebase/auth";
+import { getDatabase, ref, get, update, query, orderByChild, equalTo, increment } from "firebase/database";
+
 const firebaseConfig = {
-    apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
-    authDomain: "rnd2-70080.firebaseapp.com",
-    databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "rnd2-70080",
-    storageBucket: "rnd2-70080.firebasestorage.app",
-    messagingSenderId: "468625887938",
-    appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
-    measurementId: "G-ELVJD5NQKB"
+  apiKey: "AIzaSyAz-TLmOhiy-_vHHmIjW8gyIOqTR_PT9o0",
+  authDomain: "rnd2-70080.firebaseapp.com",
+  databaseURL: "https://rnd2-70080-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "rnd2-70080",
+  storageBucket: "rnd2-70080.firebasestorage.app",
+  messagingSenderId: "468625887938",
+  appId: "1:468625887938:web:5cb4ddbcf31b6fc0a4615b",
+  measurementId: "G-ELVJD5NQKB"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+const MAX_LEVELS = 5;
+
 // ============================================================
-// 🔥 TOAST SYSTEM
+// TOAST SYSTEM (innerHTML में user text नहीं डालते)
 // ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
+
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger';
-    toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
+
+    const icon = document.createElement('i');
+    icon.className = 'bi ' + (type === 'success'
+        ? 'bi-check-circle-fill text-success'
+        : 'bi-exclamation-triangle-fill text-danger');
+
+    const msg = document.createElement('span');
+    msg.className = 'toast-msg';
+    msg.textContent = message;
+
+    toast.appendChild(icon);
+    toast.appendChild(msg);
     container.appendChild(toast);
+
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateX(120%)';
+        toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
     }, 6000);
 }
 
 // ============================================================
-// 🔥 PASSWORD VISIBILITY TOGGLE
+// HELPERS
 // ============================================================
-document.getElementById('togglePassword').addEventListener('click', function() {
-    const passwordInput = document.getElementById('regPassword');
-    const isPassword = passwordInput.type === 'password';
-    passwordInput.type = isPassword ? 'text' : 'password';
-    this.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
-});
+function sanitizeName(raw) {
+    return (raw || '')
+        .replace(/[<>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60);
+}
+
+// Firebase key में ये characters allowed नहीं हैं
+function isValidFirebaseKey(key) {
+    return typeof key === 'string' && key.length > 0 && !/[.#$\[\]\/]/.test(key);
+}
+
+// पूरा link paste हो तो उसमें से ?ref= निकाल लेता है
+function extractRefCode(raw) {
+    let value = (raw || '').trim();
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) {
+        try {
+            const u = new URL(value);
+            const r = u.searchParams.get('ref');
+            if (r) value = r.trim();
+        } catch (_) { /* ignore */ }
+    }
+    return value;
+}
+
+function appError(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
 
 // ============================================================
-// 🔥 GET REFERRAL CODE FROM URL
+// REFERRAL FROM URL
 // ============================================================
 let referralCodeFromURL = '';
+const urlParams = new URLSearchParams(window.location.search);
+const refFromURL = urlParams.get('ref');
 
-function getReferralFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const ref = urlParams.get('ref');
-    console.log('🔍 URL Referral Code Found:', ref);
-    if (ref) {
-        referralCodeFromURL = ref;
-        return ref;
-    }
-    return '';
-}
-
-// Auto-fill referral from URL
-const refFromURL = getReferralFromURL();
 if (refFromURL) {
-    document.getElementById('regRef').value = refFromURL;
+    referralCodeFromURL = refFromURL.trim();
+    document.getElementById('regRef').value = referralCodeFromURL;
     document.getElementById('referralNoticeText').textContent = '✅ Referral code auto-filled from link!';
     document.getElementById('referralNotice').className = 'referral-notice active';
-    console.log('✅ Referral code auto-filled:', refFromURL);
 }
 
-// Real-time referral input update
-document.getElementById('regRef').addEventListener('input', function() {
+document.getElementById('regRef').addEventListener('input', function () {
     const val = this.value.trim();
+    const noticeText = document.getElementById('referralNoticeText');
+    const notice = document.getElementById('referralNotice');
     if (val) {
-        document.getElementById('referralNoticeText').textContent = '📌 Referral code: ' + val;
-        document.getElementById('referralNotice').className = 'referral-notice active';
+        noticeText.textContent = '📌 Referral code: ' + val;
+        notice.className = 'referral-notice active';
     } else {
-        document.getElementById('referralNoticeText').textContent = 'Enter referrer\'s User ID if you have one';
-        document.getElementById('referralNotice').className = 'referral-notice';
+        noticeText.textContent = "Enter referrer's User ID if you have one";
+        notice.className = 'referral-notice';
     }
 });
 
 // ============================================================
-// 🔥 UPDATE 5 LEVEL REFERRAL SYSTEM
+// REFERRER LOOKUP
+// - मिल गया      => { uid, data }
+// - नहीं मिला    => null
+// - network/permission error => THROW (ताकि चेन चुपचाप न टूटे)
+// क्रम: UID (सबसे तेज़) -> referralCode -> username
 // ============================================================
-async function update5LevelReferral(referralCode, newUserUid, newUserName, newUserEmail) {
-    try {
-        console.log('🔍 ===== STARTING REFERRAL UPDATE =====');
-        const allUsersSnap = await get(ref(db, 'users'));
-        if (!allUsersSnap.exists()) return;
-        
-        const allUsers = allUsersSnap.val();
-        let referrerUid = null;
-        let referrerData = null;
-        
-        for (let key in allUsers) {
-            if (allUsers[key].referralCode === referralCode) {
-                referrerUid = key;
-                referrerData = allUsers[key];
-                break;
-            }
+async function resolveUser(identifier) {
+    const id = (identifier || '').trim();
+    if (!id) return null;
+
+    // 1) सीधे UID से (नए यूज़र्स में referralCode = UID होता है)
+    if (isValidFirebaseKey(id)) {
+        const snap = await get(ref(db, 'users/' + id));
+        if (snap.exists()) {
+            return { uid: id, data: snap.val() };
         }
-        
-        if (!referrerUid) {
-            console.log('❌ REFERRER NOT FOUND with code:', referralCode);
-            return;
-        }
-        
-        // Add to direct referrals (Level 1)
-        const directRefs = referrerData.directReferrals || {};
-        directRefs[newUserUid] = {
-            uid: newUserUid,
-            name: newUserName,
-            email: newUserEmail,
-            joinedAt: Date.now(),
-            level: 1
-        };
-        
-        const currentLevel1 = referrerData.teamStructure?.level1 || 0;
-        await update(ref(db, 'users/' + referrerUid), {
-            totalReferrals: (referrerData.totalReferrals || 0) + 1,
-            downline: (referrerData.downline || 0) + 1,
-            directReferrals: directRefs,
-            'teamStructure/level1': currentLevel1 + 1
-        });
-        
-        // --- Level 2 ---
-        const level2RefCode = referrerData.referredBy;
-        if (level2RefCode && level2RefCode !== '') {
-            for (let key in allUsers) {
-                if (allUsers[key].referralCode === level2RefCode) {
-                    const l2User = allUsers[key];
-                    await update(ref(db, 'users/' + key), {
-                        totalReferrals: (l2User.totalReferrals || 0) + 1,
-                        downline: (l2User.downline || 0) + 1,
-                        'teamStructure/level2': (l2User.teamStructure?.level2 || 0) + 1
-                    });
-                    
-                    // --- Level 3 ---
-                    const level3RefCode = l2User.referredBy;
-                    if (level3RefCode && level3RefCode !== '') {
-                        for (let k3 in allUsers) {
-                            if (allUsers[k3].referralCode === level3RefCode) {
-                                const l3User = allUsers[k3];
-                                await update(ref(db, 'users/' + k3), {
-                                    totalReferrals: (l3User.totalReferrals || 0) + 1,
-                                    downline: (l3User.downline || 0) + 1,
-                                    'teamStructure/level3': (l3User.teamStructure?.level3 || 0) + 1
-                                });
-                                
-                                // --- Level 4 ---
-                                const level4RefCode = l3User.referredBy;
-                                if (level4RefCode && level4RefCode !== '') {
-                                    for (let k4 in allUsers) {
-                                        if (allUsers[k4].referralCode === level4RefCode) {
-                                            const l4User = allUsers[k4];
-                                            await update(ref(db, 'users/' + k4), {
-                                                totalReferrals: (l4User.totalReferrals || 0) + 1,
-                                                downline: (l4User.downline || 0) + 1,
-                                                'teamStructure/level4': (l4User.teamStructure?.level4 || 0) + 1
-                                            });
-                                            
-                                            // --- Level 5 ---
-                                            const level5RefCode = l4User.referredBy;
-                                            if (level5RefCode && level5RefCode !== '') {
-                                                for (let k5 in allUsers) {
-                                                    if (allUsers[k5].referralCode === level5RefCode) {
-                                                        const l5User = allUsers[k5];
-                                                        await update(ref(db, 'users/' + k5), {
-                                                            totalReferrals: (l5User.totalReferrals || 0) + 1,
-                                                            downline: (l5User.downline || 0) + 1,
-                                                            'teamStructure/level5': (l5User.teamStructure?.level5 || 0) + 1
-                                                        });
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        console.log('✅ ===== REFERRAL SYSTEM FULLY UPDATED =====');
-    } catch (error) {
-        console.error('❌ Error updating referral system:', error);
     }
+
+    const usersRef = ref(db, 'users');
+
+    // 2) referralCode (पुराने यूज़र्स के short codes के लिए)
+    const codeCandidates = [id];
+    if (id.toUpperCase() !== id) codeCandidates.push(id.toUpperCase());
+    for (const code of codeCandidates) {
+        const snap = await get(query(usersRef, orderByChild('referralCode'), equalTo(code)));
+        if (snap.exists()) {
+            const found = snap.val();
+            const uids = Object.keys(found);
+            if (uids.length > 1) console.warn('⚠️ Duplicate referralCode:', code, uids);
+            return { uid: uids[0], data: found[uids[0]] };
+        }
+    }
+
+    // 3) username
+    const unameSnap = await get(query(usersRef, orderByChild('username'), equalTo(id)));
+    if (unameSnap.exists()) {
+        const found = unameSnap.val();
+        const uids = Object.keys(found);
+        if (uids.length > 1) console.warn('⚠️ Duplicate username:', id, uids);
+        return { uid: uids[0], data: found[uids[0]] };
+    }
+
+    return null;
+}
+
+// Direct referrer से ऊपर की चेन बनाता है (अधिकतम 5 level)
+async function buildUplineChain(firstReferrer, newUid) {
+    const chain = [firstReferrer];
+    const visited = new Set([newUid, firstReferrer.uid]);
+    let current = firstReferrer;
+
+    while (chain.length < MAX_LEVELS) {
+        const nextId = current.data && current.data.referredBy;
+        if (!nextId) break;
+
+        const next = await resolveUser(nextId); // error आए तो throw -> registration rollback
+        if (!next) {
+            console.warn('⚠️ Upline not found, chain stops at level', chain.length, '| id:', nextId);
+            break;
+        }
+        if (visited.has(next.uid)) {
+            console.warn('⚠️ Loop detected in referral chain, stopping');
+            break;
+        }
+        visited.add(next.uid);
+        chain.push(next);
+        current = next;
+    }
+    return chain;
 }
 
 // ============================================================
-// 🔥 EMAIL REGISTRATION
+// REGISTRATION SUBMIT
 // ============================================================
+let isSubmitting = false;
+
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
-    const name = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
+    if (isSubmitting) return;
+
+    const name = sanitizeName(document.getElementById('regName').value);
+    const email = document.getElementById('regEmail').value.trim().toLowerCase();
     const pass = document.getElementById('regPassword').value;
-    const refCode = document.getElementById('regRef').value.trim();
+    const typedRef = extractRefCode(document.getElementById('regRef').value);
     const registerBtn = document.getElementById('registerBtn');
-    
-    // Validation
+
     if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
-    if (!email || !email.includes('@')) { showToast('❌ Please enter a valid email address', 'error'); return; }
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) { showToast('❌ Please enter a valid email address', 'error'); return; }
     if (pass.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
-    
-    // Lock UI
+
+    isSubmitting = true;
     registerBtn.disabled = true;
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
 
+    let createdUser = null;
+
     try {
-        // 1. Create Auth User
+        // 1. Firebase Auth में account बनाओ
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        createdUser = cred.user;
         const uid = cred.user.uid;
-        await updateProfile(auth.currentUser, { displayName: name });
-        
-        // 2. Determine Referral Code (Input > URL)
-        const finalRefCode = refCode || referralCodeFromURL || '';
-        
-        // 3. Build User Data
+
+        try {
+            await updateProfile(cred.user, { displayName: name });
+        } catch (profileErr) {
+            console.warn('updateProfile failed (non-fatal):', profileErr);
+        }
+
+        // 2. Referrer और उसकी upline चेन तैयार करो
+        const finalRefCode = typedRef || referralCodeFromURL || '';
+        let chain = [];
+        let referredByValue = '';
+
+        if (finalRefCode) {
+            const referrer = await resolveUser(finalRefCode);
+            if (!referrer) {
+                throw appError('app/invalid-referral',
+                    '❌ Referral code not found. Please check it or leave it empty.');
+            }
+            if (referrer.uid === uid) {
+                throw appError('app/invalid-referral', '❌ You cannot refer yourself.');
+            }
+            chain = await buildUplineChain(referrer, uid);
+            // dashboard / commission के लिए referrer का सही code सेव करो
+            referredByValue = referrer.data.referralCode || referrer.uid;
+        }
+
+        // 3. नया यूज़र (structure पहले जैसा ही)
         const userData = {
             uid: uid,
             username: uid,
             name: name,
             email: email,
-            referralCode: uid, // User's own code is their UID
-            referredBy: finalRefCode,
+            referralCode: uid,
+            referredBy: referredByValue,
             rank: 'Member',
             role: 'user',
             banned: false,
@@ -262,32 +293,74 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             packages: {},
             transferHistory: []
         };
-        
-        // 4. Save to Database
-        await set(ref(db, 'users/' + uid), userData);
-        await set(ref(db, 'usernames/' + uid), uid);
 
-        // 5. Update Referrers
-        if (finalRefCode) {
-            await update5LevelReferral(finalRefCode, uid, name, email);
-        }
-        
+        // 4. ✅ एक ही atomic update: नया यूज़र + usernames + सभी upline के counts
+        const updates = {};
+        updates[`users/${uid}`] = userData;
+        updates[`usernames/${uid}`] = uid;
+
+        const joinedAt = Date.now();
+        chain.forEach((node, index) => {
+            const level = index + 1;
+            const base = `users/${node.uid}`;
+
+            updates[`${base}/totalReferrals`] = increment(1);
+            updates[`${base}/downline`] = increment(1);
+            updates[`${base}/teamStructure/level${level}`] = increment(1);
+
+            if (level === 1) {
+                // पूरा directReferrals overwrite नहीं - सिर्फ़ नया child जुड़ता है
+                updates[`${base}/directReferrals/${uid}`] = {
+                    uid: uid,
+                    name: name,
+                    email: email,
+                    joinedAt: joinedAt,
+                    level: 1
+                };
+            }
+        });
+
+        await update(ref(db), updates);
+        console.log(`✅ Registered. Upline levels updated: ${chain.length}`);
+
         showToast('✅ Account created successfully! Welcome ' + name + '!', 'success');
-        
-        // Wait 2s for DB sync, then redirect
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        window.location.href = 'dashboard.html';
-        
+
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
+
     } catch (err) {
         console.error('❌ Registration Error:', err);
+
+        // अधूरा account न बचे - बना हुआ Auth user हटा दो ताकि दोबारा कोशिश हो सके
+        let rollbackFailed = false;
+        if (createdUser) {
+            try {
+                await deleteUser(createdUser);
+            } catch (delErr) {
+                rollbackFailed = true;
+                console.error('Rollback (delete auth user) failed:', delErr);
+            }
+        }
+
         let msg = 'Registration failed. Please try again.';
-        if (err.code === 'auth/email-already-in-use') msg = '❌ This email is already registered.';
-        else if (err.code === 'auth/weak-password') msg = '❌ Password must be at least 6 characters.';
-        else if (err.code === 'auth/invalid-email') msg = '❌ Please enter a valid email address.';
+        if (err.code === 'auth/email-already-in-use') {
+            msg = '❌ This email is already registered. Please login instead.';
+        } else if (err.code === 'auth/weak-password') {
+            msg = '❌ Password must be at least 6 characters.';
+        } else if (err.code === 'auth/invalid-email') {
+            msg = '❌ Please enter a valid email address.';
+        } else if (err.code === 'auth/network-request-failed') {
+            msg = '❌ Network problem. Please check your internet and try again.';
+        } else if (err.code === 'app/invalid-referral') {
+            msg = err.message;
+        } else if (rollbackFailed) {
+            msg = '❌ Account setup could not be completed. Please try logging in, or contact support.';
+        }
+
         showToast(msg, 'error');
-        
-        // Reset button ONLY on error
+        isSubmitting = false;
         registerBtn.disabled = false;
-        registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-1"></i>';
+        registerBtn.innerHTML = 'Create Account <i class="bi bi-arrow-right ms-2"></i>';
     }
 });
