@@ -1,17 +1,5 @@
 // ============================================================
-// RND STAKING - REGISTER.JS (v2 - REFERRAL CHAIN FIX)
-// ============================================================
-// ✅ पूरे "users" node को डाउनलोड करना बंद (पहले हर रजिस्ट्रेशन पर सारे यूज़र लोड होते थे)
-// ✅ Referrer को पहले सीधे UID से ढूँढता है (तेज़), फिर referralCode, फिर username से
-// ✅ गलत / अधूरा referral code अब चुपचाप नज़रअंदाज़ नहीं होगा - साफ error दिखेगा
-// ✅ Counts अब increment() से बढ़ते हैं (एक साथ कई signup होने पर भी गिनती नहीं खोएगी)
-// ✅ directReferrals पूरा overwrite नहीं होता, सिर्फ़ नया entry जुड़ता है
-// ✅ नया यूज़र + सभी upline के counts = एक ही atomic update (या सब होगा, या कुछ नहीं)
-// ✅ Update fail हो तो बना हुआ Auth account वापस हटा दिया जाता है (अधूरा account नहीं बचेगा)
-// ✅ referredBy में referrer का सही referralCode सेव होता है (dashboard के commission के लिए)
-// ✅ Name से < > हटाए जाते हैं और toast में innerHTML नहीं (XSS से बचाव)
-// ✅ पूरा referral link paste करने पर भी code अपने आप निकल आता है
-// ⚠️ Firebase config / database structure / पुराने यूज़र का data - कुछ नहीं बदला
+// RND STAKING - REGISTER.JS (v3 - Strong Password + Confirm Password)
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -36,7 +24,7 @@ const db = getDatabase(app);
 const MAX_LEVELS = 5;
 
 // ============================================================
-// TOAST SYSTEM (innerHTML में user text नहीं डालते)
+// TOAST SYSTEM
 // ============================================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
@@ -76,12 +64,10 @@ function sanitizeName(raw) {
         .slice(0, 60);
 }
 
-// Firebase key में ये characters allowed नहीं हैं
 function isValidFirebaseKey(key) {
     return typeof key === 'string' && key.length > 0 && !/[.#$\[\]\/]/.test(key);
 }
 
-// पूरा link paste हो तो उसमें से ?ref= निकाल लेता है
 function extractRefCode(raw) {
     let value = (raw || '').trim();
     if (!value) return '';
@@ -99,6 +85,39 @@ function appError(code, message) {
     const err = new Error(message);
     err.code = code;
     return err;
+}
+
+// ============================================================
+// PASSWORD TOGGLE
+// ============================================================
+const togglePassword = document.getElementById('togglePassword');
+if (togglePassword) {
+    togglePassword.addEventListener('click', function () {
+        const input = document.getElementById('regPassword');
+        const icon = this.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+}
+
+const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+if (toggleConfirmPassword) {
+    toggleConfirmPassword.addEventListener('click', function () {
+        const input = document.getElementById('regConfirmPassword');
+        const icon = this.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
 }
 
 // ============================================================
@@ -130,16 +149,11 @@ document.getElementById('regRef').addEventListener('input', function () {
 
 // ============================================================
 // REFERRER LOOKUP
-// - मिल गया      => { uid, data }
-// - नहीं मिला    => null
-// - network/permission error => THROW (ताकि चेन चुपचाप न टूटे)
-// क्रम: UID (सबसे तेज़) -> referralCode -> username
 // ============================================================
 async function resolveUser(identifier) {
     const id = (identifier || '').trim();
     if (!id) return null;
 
-    // 1) सीधे UID से (नए यूज़र्स में referralCode = UID होता है)
     if (isValidFirebaseKey(id)) {
         const snap = await get(ref(db, 'users/' + id));
         if (snap.exists()) {
@@ -149,7 +163,6 @@ async function resolveUser(identifier) {
 
     const usersRef = ref(db, 'users');
 
-    // 2) referralCode (पुराने यूज़र्स के short codes के लिए)
     const codeCandidates = [id];
     if (id.toUpperCase() !== id) codeCandidates.push(id.toUpperCase());
     for (const code of codeCandidates) {
@@ -162,7 +175,6 @@ async function resolveUser(identifier) {
         }
     }
 
-    // 3) username
     const unameSnap = await get(query(usersRef, orderByChild('username'), equalTo(id)));
     if (unameSnap.exists()) {
         const found = unameSnap.val();
@@ -174,7 +186,6 @@ async function resolveUser(identifier) {
     return null;
 }
 
-// Direct referrer से ऊपर की चेन बनाता है (अधिकतम 5 level)
 async function buildUplineChain(firstReferrer, newUid) {
     const chain = [firstReferrer];
     const visited = new Set([newUid, firstReferrer.uid]);
@@ -184,7 +195,7 @@ async function buildUplineChain(firstReferrer, newUid) {
         const nextId = current.data && current.data.referredBy;
         if (!nextId) break;
 
-        const next = await resolveUser(nextId); // error आए तो throw -> registration rollback
+        const next = await resolveUser(nextId);
         if (!next) {
             console.warn('⚠️ Upline not found, chain stops at level', chain.length, '| id:', nextId);
             break;
@@ -212,13 +223,33 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const name = sanitizeName(document.getElementById('regName').value);
     const email = document.getElementById('regEmail').value.trim().toLowerCase();
     const pass = document.getElementById('regPassword').value;
+    const confirmPass = document.getElementById('regConfirmPassword').value;
     const typedRef = extractRefCode(document.getElementById('regRef').value);
     const registerBtn = document.getElementById('registerBtn');
 
-    if (!name || name.length < 2) { showToast('❌ Please enter your full name', 'error'); return; }
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) { showToast('❌ Please enter a valid email address', 'error'); return; }
-    if (pass.length < 6) { showToast('❌ Password must be at least 6 characters long!', 'error'); return; }
+    // ---------- VALIDATIONS ----------
+    if (!name || name.length < 2) { 
+        showToast('❌ Please enter your full name', 'error'); 
+        return; 
+    }
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) { 
+        showToast('❌ Please enter a valid email address', 'error'); 
+        return; 
+    }
 
+    // Strong Password Validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+    if (!passwordRegex.test(pass)) {
+        showToast('❌ Password must be at least 8 characters, include 1 uppercase, 1 lowercase, 1 number, and 1 special character (@#$% etc.)', 'error');
+        return;
+    }
+
+    if (pass !== confirmPass) {
+        showToast('❌ Passwords do not match!', 'error');
+        return;
+    }
+
+    // ---------- REGISTRATION PROCESS ----------
     isSubmitting = true;
     registerBtn.disabled = true;
     registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating Account...';
@@ -252,11 +283,10 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
                 throw appError('app/invalid-referral', '❌ You cannot refer yourself.');
             }
             chain = await buildUplineChain(referrer, uid);
-            // dashboard / commission के लिए referrer का सही code सेव करो
             referredByValue = referrer.data.referralCode || referrer.uid;
         }
 
-        // 3. नया यूज़र (structure पहले जैसा ही)
+        // 3. नया यूज़र
         const userData = {
             uid: uid,
             username: uid,
@@ -294,7 +324,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             transferHistory: []
         };
 
-        // 4. ✅ एक ही atomic update: नया यूज़र + usernames + सभी upline के counts
+        // 4. ✅ एक ही atomic update
         const updates = {};
         updates[`users/${uid}`] = userData;
         updates[`usernames/${uid}`] = uid;
@@ -309,7 +339,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             updates[`${base}/teamStructure/level${level}`] = increment(1);
 
             if (level === 1) {
-                // पूरा directReferrals overwrite नहीं - सिर्फ़ नया child जुड़ता है
                 updates[`${base}/directReferrals/${uid}`] = {
                     uid: uid,
                     name: name,
@@ -332,7 +361,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     } catch (err) {
         console.error('❌ Registration Error:', err);
 
-        // अधूरा account न बचे - बना हुआ Auth user हटा दो ताकि दोबारा कोशिश हो सके
         let rollbackFailed = false;
         if (createdUser) {
             try {
@@ -347,7 +375,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         if (err.code === 'auth/email-already-in-use') {
             msg = '❌ This email is already registered. Please login instead.';
         } else if (err.code === 'auth/weak-password') {
-            msg = '❌ Password must be at least 6 characters.';
+            msg = '❌ Password must be at least 8 characters.';
         } else if (err.code === 'auth/invalid-email') {
             msg = '❌ Please enter a valid email address.';
         } else if (err.code === 'auth/network-request-failed') {
