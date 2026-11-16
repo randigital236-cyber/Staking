@@ -147,8 +147,6 @@ a { color: inherit; }
 
 /* ============================================================
    3. NAVBAR
-   NOTE: .sidebar-panel / .sidebar-overlay को navbar के बाहर रखें
-   (backdrop-filter वाले parent के अंदर fixed elements टूट जाते हैं)।
    ============================================================ */
 .navbar-custom {
     background: rgba(5, 10, 18, 0.82);
@@ -238,7 +236,6 @@ a { color: inherit; }
 
 /* ============================================================
    5. SIDEBAR OVERLAY + PANEL
-   (visibility-based: बंद होने पर keyboard focus भी अंदर नहीं जाता)
    ============================================================ */
 .sidebar-overlay {
     position: fixed;
@@ -586,8 +583,6 @@ a { color: inherit; }
 
 /* ============================================================
    9. WALLET CARDS
-   हर card का accent उसके icon variant से अपने-आप सेट होता है
-   (:has() वाले browsers में); बाकी में default green।
    ============================================================ */
 .wallet-card {
     background: var(--bg-card);
@@ -604,7 +599,6 @@ a { color: inherit; }
     box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* ऊपर की accent लाइन — हमेशा हल्की दिखती है, hover पर पूरी */
 .wallet-card::before {
     content: '';
     position: absolute;
@@ -783,7 +777,6 @@ a { color: inherit; }
 
 /* ============================================================
    11. LEVEL STATS
-   (auto-fit: 5 से ज़्यादा या कम cards हों तो भी layout सही रहता है)
    ============================================================ */
 .level-stats {
     display: grid;
@@ -1057,7 +1050,6 @@ a { color: inherit; }
     box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12) !important;
 }
 
-/* Chrome autofill का सफेद/पीला background हटाना */
 .form-control-custom:-webkit-autofill,
 .form-control-custom:-webkit-autofill:hover,
 .form-control-custom:-webkit-autofill:focus {
@@ -1067,74 +1059,18 @@ a { color: inherit; }
     transition: background-color 9999s ease-out 0s;
 }
 
-/* Number input के spinner हटाना */
 .form-control-custom[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 .form-control-custom[type='number']::-webkit-outer-spin-button,
 .form-control-custom[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .form-select-custom option { background: var(--bg-dark-2); color: var(--text-primary); }
 
-/* iOS पर 16px से छोटे input पर zoom होता है — रोकने के लिए */
 @media (max-width: 768px) {
     .form-control-custom, .form-select-custom { font-size: 16px; }
 }
 
 /* ============================================================
-   16. TRANSFER HISTORY
-   ============================================================ */
-.transfer-history {
-    margin-top: 15px;
-    max-height: 260px;
-    overflow-y: auto;
-    padding-right: 6px;
-    overscroll-behavior: contain;
-}
-
-.transfer-item {
-    background: linear-gradient(135deg, rgba(6, 11, 20, 0.55), rgba(10, 18, 32, 0.45));
-    border-radius: 12px;
-    padding: 12px 16px;
-    border: 1px solid var(--border-neutral);
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    font-size: 0.85rem;
-    transition: border-color var(--t-fast), background var(--t-fast);
-    position: relative;
-    overflow: hidden;
-}
-
-.transfer-item:last-child { margin-bottom: 0; }
-
-.transfer-item::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-    background: var(--text-muted);
-    opacity: 0.5;
-}
-
-/* Sent / Received के हिसाब से side-line का रंग */
-.transfer-item:has(.sent)::before     { background: var(--red);  opacity: 0.8; }
-.transfer-item:has(.received)::before { background: var(--teal); opacity: 0.8; }
-
-.transfer-item .sent     { color: var(--red);  font-weight: 600; }
-.transfer-item .received { color: var(--teal); font-weight: 600; }
-.transfer-item .amount {
-    font-weight: 800;
-    font-family: ui-monospace, 'SF Mono', 'Courier New', monospace;
-    letter-spacing: -0.2px;
-    font-variant-numeric: tabular-nums;
-}
-.transfer-item .date { color: var(--text-muted); font-size: 0.72rem; }
-.transfer-item .user { color: var(--purple); font-weight: 600; overflow-wrap: anywhere; }
-
-/* ============================================================
-   17. TOAST NOTIFICATIONS
+   16. TOAST NOTIFICATIONS
    ============================================================ */
 .toast-container {
     position: fixed;
@@ -1183,7 +1119,7 @@ a { color: inherit; }
 }
 
 /* ============================================================
-   18. RND PRICE BADGE
+   17. MISC BADGES & HELPERS
    ============================================================ */
 .rnd-price-badge {
     background: rgba(46, 204, 113, 0.1);
@@ -1199,9 +1135,6 @@ a { color: inherit; }
     font-variant-numeric: tabular-nums;
 }
 
-/* ============================================================
-   19. COMMISSION ROWS
-   ============================================================ */
 .commission-row {
     display: flex;
     justify-content: space-between;
@@ -1222,9 +1155,6 @@ a { color: inherit; }
     text-align: right;
 }
 
-/* ============================================================
-   20. RELEASE INFO BOX
-   ============================================================ */
 .release-info-box {
     background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(52, 211, 153, 0.03));
     border: 1px solid rgba(52, 211, 153, 0.2);
@@ -1257,9 +1187,6 @@ a { color: inherit; }
     font-variant-numeric: tabular-nums;
 }
 
-/* ============================================================
-   21. DAYS REMAINING + STATUS BADGE
-   ============================================================ */
 .days-remaining {
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.22);
@@ -1292,37 +1219,7 @@ a { color: inherit; }
 }
 
 /* ============================================================
-   22. EXTRAS (नए, optional helpers)
-   ============================================================ */
-
-/* Loading skeleton — data आने तक placeholder:  <div class="skeleton" style="height:24px"></div> */
-.skeleton {
-    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
-    background-size: 200% 100%;
-    border-radius: 8px;
-    animation: shimmer 1.4s linear infinite;
-    color: transparent !important;
-    user-select: none;
-}
-
-@keyframes shimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-
-/* Empty state:  <div class="empty-state">कोई ट्रांज़ैक्शन नहीं मिला</div> */
-.empty-state {
-    text-align: center;
-    padding: 28px 16px;
-    color: var(--text-muted);
-    font-size: 0.88rem;
-    border: 1px dashed var(--border-neutral);
-    border-radius: 14px;
-}
-
-/* ============================================================
-   23. HOVER (सिर्फ़ mouse वाले devices पर)
-   Touch devices पर hover "चिपकता" नहीं।
+   18. HOVER (सिर्फ़ mouse वाले devices पर)
    ============================================================ */
 @media (hover: hover) and (pointer: fine) {
     .navbar-custom .navbar-brand:hover { transform: translateX(2px); }
@@ -1400,11 +1297,6 @@ a { color: inherit; }
     .form-control-custom:hover:not(:focus),
     .form-select-custom:hover:not(:focus) { border-color: rgba(46, 204, 113, 0.28) !important; }
 
-    .transfer-item:hover {
-        border-color: rgba(46, 204, 113, 0.22);
-        background: linear-gradient(135deg, rgba(6, 11, 20, 0.8), rgba(10, 18, 32, 0.75));
-    }
-
     .release-info-box:hover {
         border-color: rgba(52, 211, 153, 0.4);
         background: linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(52, 211, 153, 0.05));
@@ -1412,87 +1304,64 @@ a { color: inherit; }
 }
 
 /* ============================================================
-   24. RESPONSIVE
+   19. RESPONSIVE
    ============================================================ */
-
-/* Tablet */
 @media (max-width: 992px) {
     .dashboard-container { padding: 22px; padding-bottom: calc(22px + var(--safe-bottom)); }
     .welcome-section { padding: 24px 26px; }
 }
 
-/* Small tablet / large phone */
 @media (max-width: 768px) {
     .dashboard-container { padding: 16px; padding-bottom: calc(16px + var(--safe-bottom)); }
-
     .welcome-section { padding: 20px 22px; border-radius: var(--radius-lg); margin-bottom: 18px; }
     .welcome-section h2 { font-size: 1.3rem; }
-
     .network-stats { gap: 10px; margin-bottom: 18px; }
     .level-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-
     .sidebar-panel { width: 310px; }
-
     .wallet-card { padding: 18px 14px; }
     .wallet-card .wallet-icon { width: 44px; height: 44px; font-size: 1.2rem; }
-
     .network-stat-card { padding: 16px 10px; }
     .level-stat-card { padding: 12px 8px; }
-
     .card-glass { padding: 1.35rem; border-radius: var(--radius-md); }
-
     .toast-container { top: calc(12px + var(--safe-top)); right: 16px; }
 }
 
-/* Phone */
 @media (max-width: 480px) {
     .dashboard-container { padding: 12px; padding-bottom: calc(12px + var(--safe-bottom)); }
     .sidebar-panel { width: 100%; max-width: 100%; }
-
     .welcome-section { padding: 18px 18px; border-radius: var(--radius-md); }
     .welcome-section h2 { font-size: 1.15rem; }
     .welcome-section .user-id-badge { font-size: 0.72rem; padding: 5px 6px 5px 12px; }
-
     .network-stats { gap: 8px; margin-bottom: 16px; }
     .network-stat-card { padding: 14px 6px; border-radius: var(--radius-sm); }
     .network-stat-card .label { font-size: 0.6rem; letter-spacing: 0.2px; margin-top: 5px; }
-
     .level-stats { gap: 8px; margin-bottom: 16px; }
     .level-stat-card { padding: 12px 6px; border-radius: var(--radius-sm); }
     .level-stat-card .label { font-size: 0.6rem; letter-spacing: 0.2px; }
-
     .wallet-card { padding: 16px 12px; border-radius: var(--radius-sm); }
     .wallet-card .wallet-icon { width: 42px; height: 42px; font-size: 1.15rem; margin-bottom: 10px; }
     .wallet-card .wallet-label { font-size: 0.66rem; }
     .wallet-card .wallet-sub { font-size: 0.62rem; }
-
     .card-glass { padding: 1.1rem; }
     .card-glass .card-title { font-size: 0.92rem; margin-bottom: 14px; padding-bottom: 12px; }
-
     .release-info-box { flex-direction: column; text-align: center; padding: 12px 16px; }
-
     .navbar-custom .navbar-brand { font-size: 1.15rem; }
     .navbar-custom .navbar-brand::before { font-size: 1.25rem; }
     .navbar-custom { padding-top: calc(10px + var(--safe-top)); padding-bottom: 10px; }
     .sidebar-toggle { width: 40px; height: 40px; font-size: 1.1rem; }
     .live-indicator { font-size: 0.68rem; padding: 5px 10px; }
-
     .toast-container { right: 12px; left: 12px; width: auto; }
     .toast-custom { padding: 12px 16px; font-size: 0.82rem; gap: 10px; }
     .toast-custom i { font-size: 1.2rem; }
-
     .rank-badge { font-size: 0.74rem; padding: 6px 14px; }
     .rnd-price-badge { font-size: 0.76rem; padding: 5px 14px; }
-
     .btn-primary-custom, .btn-outline-custom { padding: 12px 20px; font-size: 0.88rem; }
     .btn-block-mobile { width: 100%; }
-
     .referral-box { flex-direction: column; align-items: stretch; }
     .referral-box code { font-size: 0.76rem; flex-basis: auto; }
     .copy-btn { width: 100%; }
 }
 
-/* Extra small phone (≤ 380px) */
 @media (max-width: 380px) {
     .dashboard-container { padding: 10px; }
     .welcome-section { padding: 14px; }
@@ -1505,14 +1374,13 @@ a { color: inherit; }
     .sidebar-panel .nav-item { padding: 11px 14px; font-size: 0.85rem; }
 }
 
-/* Landscape phone: sidebar header छोटा */
 @media (max-height: 480px) and (orientation: landscape) {
     .sidebar-panel .sidebar-header { padding: 12px 16px; }
     .user-profile-sidebar { padding: 12px 16px; }
 }
 
 /* ============================================================
-   25. REDUCED MOTION
+   20. REDUCED MOTION & PRINT
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
@@ -1523,9 +1391,6 @@ a { color: inherit; }
     }
 }
 
-/* ============================================================
-   26. PRINT
-   ============================================================ */
 @media print {
     .navbar-custom, .sidebar-toggle, .sidebar-panel, .sidebar-overlay, .toast-container { display: none !important; }
     body { background: #fff; color: #000; }
