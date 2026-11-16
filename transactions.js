@@ -3,10 +3,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import {
-    getDatabase, ref, get, onValue, query,
-    orderByChild, limitToLast, endAt
-} from "firebase/database";
+import { getDatabase, ref, get, onValue, off } from "firebase/database";
 
 // ============================================================
 // 🔥 FIREBASE CONFIG
@@ -32,12 +29,12 @@ const db = getDatabase(app);
 let currentFilter = 'all';
 let currentSearch = '';
 let allTransactions = [];
-const PAGE_SIZE = 10;
+let usersCache = {};
+let usersCacheLoaded = false;
 let unsubscribeListener = null;
+let unsubscribeUsers = null;
 let currentUid = null;
 let isInitialLoad = true;
-let hasMoreTransactions = false;
-let isLoadingMore = false;
 
 // ============================================================
 // 🔥 TOAST SYSTEM
@@ -291,98 +288,124 @@ function getStatusLabel(status) {
 }
 
 // ============================================================
-// LIMITED TRANSACTION LOADING (10 AT A TIME)
+// 🔥 LOAD ALL USERS CACHE
 // ============================================================
-function getUserNameFromCache(uid) {
-    // Avoid downloading the complete /users database for display names.
-    return 'Unknown';
+function loadUsersCache() {
+    if (unsubscribeUsers) {
+        unsubscribeUsers();
+        unsubscribeUsers = null;
+    }
+    
+    const usersRef = ref(db, 'users');
+    unsubscribeUsers = onValue(usersRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            usersCache = {};
+            Object.keys(data).forEach(uid => {
+                const user = data[uid];
+                const name = user.name || user.username || user.referralCode || user.fullName || 'User';
+                usersCache[uid] = name;
+            });
+            usersCacheLoaded = true;
+            
+            if (allTransactions.length > 0) {
+                allTransactions = enrichTransactionsFromCache(allTransactions);
+                renderTransactions(currentFilter, currentSearch);
+            }
+        }
+    }, (error) => {
+        console.warn('Users cache error:', error);
+    });
 }
 
+// ============================================================
+// 🔥 ENRICH TRANSACTIONS FROM CACHE
+// ============================================================
+function enrichTransactionsFromCache(transactions) {
+    return transactions.map(t => {
+        const enriched = { ...t };
+        
+        if (enriched.fromUser && !enriched.fromName) {
+            enriched.fromName = usersCache[enriched.fromUser] || 'Unknown';
+        }
+        if (enriched.fromUserId && !enriched.fromName) {
+            enriched.fromName = usersCache[enriched.fromUserId] || 'Unknown';
+        }
+        if (enriched.toUserId && !enriched.toName) {
+            enriched.toName = usersCache[enriched.toUserId] || 'Unknown';
+        }
+        if (enriched.referredUserId && !enriched.referredName) {
+            enriched.referredName = usersCache[enriched.referredUserId] || 'Unknown';
+        }
+        if (enriched.senderUid && !enriched.fromName) {
+            enriched.fromName = usersCache[enriched.senderUid] || 'Unknown';
+        }
+        if (enriched.receiverUid && !enriched.toName) {
+            enriched.toName = usersCache[enriched.receiverUid] || 'Unknown';
+        }
+        if (enriched.toUid && !enriched.toName) {
+            enriched.toName = usersCache[enriched.toUid] || 'Unknown';
+        }
+        if (enriched.fromUid && !enriched.fromName) {
+            enriched.fromName = usersCache[enriched.fromUid] || 'Unknown';
+        }
+        if (enriched.referralUid && !enriched.referredName) {
+            enriched.referredName = usersCache[enriched.referralUid] || 'Unknown';
+        }
+        
+        return enriched;
+    });
+}
+
+function getUserNameFromCache(uid) {
+    if (!uid) return 'Unknown';
+    return usersCache[uid] || 'Unknown';
+}
+
+// ============================================================
+// 🔥 REAL-TIME TRANSACTION LISTENER
+// ============================================================
 function setupRealTimeListener(uid) {
     if (unsubscribeListener) {
         unsubscribeListener();
         unsubscribeListener = null;
     }
-
+    
     currentUid = uid;
-    allTransactions = [];
-    hasMoreTransactions = false;
-    isInitialLoad = true;
-
-    const transactionsRef = ref(db, `users/${uid}/transactions`);
-    const latestQuery = query(transactionsRef, orderByChild('timestamp'), limitToLast(PAGE_SIZE));
-
-    unsubscribeListener = onValue(latestQuery, (snapshot) => {
-        const latest = [];
-        snapshot.forEach((child) => latest.push({ id: child.key, ...child.val() }));
-        latest.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        const existing = new Map(allTransactions.map(t => [t.id, t]));
-        latest.forEach(t => existing.set(t.id, t));
-        allTransactions = Array.from(existing.values())
-            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        hasMoreTransactions = latest.length === PAGE_SIZE;
+    const userRef = ref(db, 'users/' + uid);
+    
+    unsubscribeListener = onValue(userRef, (snapshot) => {
+        if (!snapshot.exists()) {
+            showToast('User data not found', 'error');
+            return;
+        }
+        
+        const userData = snapshot.val();
+        const transactions = userData.transactions || {};
+        
+        let txArray = Object.keys(transactions).map(key => ({
+            id: key,
+            ...transactions[key]
+        }));
+        
+        txArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        allTransactions = txArray;
+        
+        if (usersCacheLoaded) {
+            allTransactions = enrichTransactionsFromCache(allTransactions);
+        }
+        
         renderTransactions(currentFilter, currentSearch);
-
+        
         if (isInitialLoad) {
             isInitialLoad = false;
-            showToast(`Latest ${latest.length} transactions loaded`, 'success');
+            showToast(`✅ ${allTransactions.length} transactions loaded`, 'success');
         }
+        
     }, (error) => {
-        console.error('Transaction listener error:', error);
+        console.error('Listener error:', error);
         showToast('Error loading transactions: ' + error.message, 'error');
     });
-}
-
-async function loadMoreTransactions() {
-    if (isLoadingMore || !hasMoreTransactions || !currentUid) return;
-
-    const oldest = allTransactions.reduce((result, item) => {
-        if (!result || (item.timestamp || 0) < (result.timestamp || 0)) return item;
-        if ((item.timestamp || 0) === (result.timestamp || 0) && item.id < result.id) return item;
-        return result;
-    }, null);
-
-    if (!oldest || typeof oldest.timestamp !== 'number') {
-        showToast('Older records cannot be loaded: timestamp is missing.', 'error');
-        hasMoreTransactions = false;
-        renderTransactions(currentFilter, currentSearch);
-        return;
-    }
-
-    isLoadingMore = true;
-    renderTransactions(currentFilter, currentSearch);
-
-    try {
-        const transactionsRef = ref(db, `users/${currentUid}/transactions`);
-        const olderQuery = query(
-            transactionsRef,
-            orderByChild('timestamp'),
-            endAt(oldest.timestamp, oldest.id),
-            limitToLast(PAGE_SIZE + 2)
-        );
-
-        const snapshot = await get(olderQuery);
-        const older = [];
-        snapshot.forEach((child) => {
-            if (child.key !== oldest.id) older.push({ id: child.key, ...child.val() });
-        });
-
-        hasMoreTransactions = older.length > PAGE_SIZE;
-        const pageToAdd = older.slice(-PAGE_SIZE);
-        const existingIds = new Set(allTransactions.map(t => t.id));
-        pageToAdd.forEach(t => {
-            if (!existingIds.has(t.id)) allTransactions.push(t);
-        });
-        allTransactions.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    } catch (error) {
-        console.error('Load more error:', error);
-        showToast('Could not load older transactions: ' + error.message, 'error');
-    } finally {
-        isLoadingMore = false;
-        renderTransactions(currentFilter, currentSearch);
-    }
 }
 
 // ============================================================
@@ -696,7 +719,7 @@ function renderTransactions(filter = 'all', search = '') {
                         <div class="real-time-badge">
                             <span class="dot"></span> Real-time
                         </div>
-                        <span class="text-muted small">${totalTransactions} loaded</span>
+                        <span class="text-muted small">${totalTransactions} transactions</span>
                         <input type="text" class="search-box" id="searchInput" 
                                placeholder="Search transactions..." value="${search}" />
                     </div>
@@ -709,27 +732,27 @@ function renderTransactions(filter = 'all', search = '') {
                 <div class="summary-stats">
                     <div class="stat-box">
                         <div class="num green">${totalDeposits.toFixed(2)}</div>
-                        <div class="label">💰 Loaded Deposits</div>
+                        <div class="label">💰 Total Deposits</div>
                     </div>
                     <div class="stat-box">
                         <div class="num gold">${totalWithdrawals.toFixed(2)}</div>
-                        <div class="label">🏦 Loaded Withdrawals</div>
+                        <div class="label">🏦 Total Withdrawn</div>
                     </div>
                     <div class="stat-box">
                         <div class="num purple">${totalReferralIncome.toFixed(2)}</div>
-                        <div class="label">👥 Loaded Referral Income</div>
+                        <div class="label">👥 Referral Income</div>
                     </div>
                     <div class="stat-box">
                         <div class="num" style="color:#34d399;">${totalDailyRelease.toFixed(2)}</div>
-                        <div class="label">📈 Loaded Releases</div>
+                        <div class="label">📈 Total Release (Daily + Pending)</div>
                     </div>
                     <div class="stat-box">
                         <div class="num pink">${totalBonus.toFixed(2)}</div>
-                        <div class="label">🎁 Loaded Bonus</div>
+                        <div class="label">🎁 Bonus Received</div>
                     </div>
                     <div class="stat-box">
                         <div class="num blue">${totalTransactions}</div>
-                        <div class="label">📋 Loaded Transactions</div>
+                        <div class="label">📋 Total Transactions</div>
                     </div>
                 </div>
             </div>
@@ -743,18 +766,6 @@ function renderTransactions(filter = 'all', search = '') {
             <div class="col-12">
                 <div class="card-glass">
                     ${transactionsHtml}
-                </div>
-                <div class="text-center mt-3">
-                    ${hasMoreTransactions ? `
-                        <button id="loadMoreTransactionsBtn" class="btn btn-primary-custom"
-                            ${isLoadingMore ? 'disabled' : ''}
-                            style="padding:11px 28px;border-radius:30px;">
-                            ${isLoadingMore ? 'Loading...' : 'Show More (10)'}
-                        </button>
-                    ` : ''}
-                    <div class="text-muted small mt-2">
-                        Showing ${totalTransactions} loaded transactions. Older records load only when you select Show More.
-                    </div>
                 </div>
             </div>
 
@@ -787,8 +798,6 @@ function renderTransactions(filter = 'all', search = '') {
 // 🔥 ATTACH EVENT LISTENERS
 // ============================================================
 function attachEventListeners(currentFilter) {
-    document.getElementById('loadMoreTransactionsBtn')?.addEventListener('click', loadMoreTransactions);
-
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const filter = this.dataset.filter;
@@ -819,32 +828,27 @@ onAuthStateChanged(auth, async (user) => {
     }
     
     try {
-        // Read only small profile fields. The parent users/{uid} also contains
-        // the complete transactions history, so never download that parent.
-        const [
-            nameSnap, usernameSnap, referralCodeSnap,
-            totalReferralsSnap, directReferralsSnap
-        ] = await Promise.all([
-            get(ref(db, `users/${user.uid}/name`)),
-            get(ref(db, `users/${user.uid}/username`)),
-            get(ref(db, `users/${user.uid}/referralCode`)),
-            get(ref(db, `users/${user.uid}/totalReferrals`)),
-            get(ref(db, `users/${user.uid}/directReferrals`))
-        ]);
-
-        const name = nameSnap.val() || usernameSnap.val() || 'User';
-        const username = usernameSnap.val() || referralCodeSnap.val() || 'USER';
-
+        const userSnap = await get(ref(db, 'users/' + user.uid));
+        if (!userSnap.exists()) {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+        
+        const userData = userSnap.val();
+        const name = userData.name || userData.username || 'User';
+        const username = userData.username || userData.referralCode || 'USER';
+        
         document.getElementById('sidebarName').textContent = name;
         document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
         document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
         
         const badge = document.getElementById('referralBadge');
         if (badge) {
-            const totalRefs = totalReferralsSnap.val() || directReferralsSnap.val() || 0;
+            const totalRefs = userData.totalReferrals || userData.directReferrals || 0;
             badge.textContent = totalRefs;
         }
         
+        loadUsersCache();
         setupRealTimeListener(user.uid);
         
     } catch (error) {
@@ -868,6 +872,10 @@ window.addEventListener('beforeunload', () => {
     if (unsubscribeListener) {
         unsubscribeListener();
         unsubscribeListener = null;
+    }
+    if (unsubscribeUsers) {
+        unsubscribeUsers();
+        unsubscribeUsers = null;
     }
 });
 
