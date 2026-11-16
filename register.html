@@ -47,8 +47,19 @@
                 <label class="form-label">Password <span class="required">*</span></label>
                 <div class="input-wrapper">
                     <i class="bi bi-lock input-icon"></i>
-                    <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 6 characters" required minlength="6">
+                    <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min. 8 chars, 1 uppercase, 1 symbol" required minlength="8">
                     <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Confirm Password <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <i class="bi bi-lock-fill input-icon"></i>
+                    <input type="password" id="regConfirmPassword" class="form-control form-control-custom" placeholder="Re-enter your password" required>
+                    <button type="button" class="toggle-password" id="toggleConfirmPassword" aria-label="Show confirm password">
                         <i class="bi bi-eye"></i>
                     </button>
                 </div>
