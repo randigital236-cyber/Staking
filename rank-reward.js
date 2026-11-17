@@ -1,13 +1,14 @@
 // ============================================================
-// RANK REWARD - PRODUCTION READY v8 (TRUE ATOMIC MULTI-LOCATION)
-// ============================================================
+// RANK REWARD - v9
+// - एक ही atomic update में सारे eligible rank rewards + deposit wallet credit
+// - Wallet में increment() — पुराना balance overwrite होने का खतरा नहीं
+// - Firebase download बहुत कम (पूरा user node नहीं, सिर्फ छोटे fields/listeners)
+// - Rank transactions (users/{uid}/transactions) और rankRewards पहले जैसे ही बनते हैं
+//
 // RANK SYSTEM:
-// Member    → $0      → $0 reward
-// Executive → $3,000  → $100 reward  ✅
-// Senior Exec → $10,000 → $200 reward  ✅
-// Manager   → $25,000 → $500 reward  ✅
-// Sr. Manager → $50,000 → $1,000 reward  ✅
-// Diamond   → $100,000 → $2,500 reward  ✅
+// Executive → $3,000 → $100 | Senior Exec → $10,000 → $200
+// Manager → $25,000 → $500 | Sr. Manager → $50,000 → $1,000
+// Diamond → $100,000 → $2,500
 // ============================================================
 
 import { initializeApp } from "firebase/app";
@@ -16,10 +17,9 @@ import {
     getDatabase,
     ref,
     get,
-    runTransaction,
     onValue,
-    set,
-    update
+    update,
+    increment
 } from "firebase/database";
 
 // ============================================================
@@ -54,16 +54,27 @@ const RANK_LEVELS = [
 // ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
+function escapeHtml(v) {
+    return String(v ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast-custom ${type}`;
-    const icon = type === 'success' ? 'bi-check-circle-fill' :
-        type === 'error' ? 'bi-exclamation-triangle-fill' :
-        type === 'warning' ? 'bi-exclamation-triangle-fill' :
+    const iconName = type === 'success' ? 'bi-check-circle-fill' :
+        (type === 'error' || type === 'warning') ? 'bi-exclamation-triangle-fill' :
         'bi-info-circle-fill';
-    toast.innerHTML = `<i class="bi ${icon}"></i><span class="toast-msg">${message}</span>`;
+    const icon = document.createElement('i');
+    icon.className = 'bi ' + iconName;
+    const span = document.createElement('span');
+    span.className = 'toast-msg';
+    span.textContent = message;
+    toast.appendChild(icon);
+    toast.appendChild(span);
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
@@ -80,16 +91,13 @@ function formatCurrency(amount) {
 function formatDateTime(timestamp) {
     if (!timestamp) return '-';
     return new Date(timestamp).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
     });
 }
 
-function generateTxId() {
-    return 'rank_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+function generateTxId(suffix = '') {
+    return 'rank_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10) + (suffix ? '_' + suffix : '');
 }
 
 function getTodayDate() {
@@ -97,339 +105,188 @@ function getTodayDate() {
 }
 
 // ============================================================
-// CALCULATE RANK - BASED ONLY ON teamBusiness
+// RANK CALCULATION - BASED ONLY ON teamBusiness
 // ============================================================
 function calculateRank(teamBusiness) {
     const business = Number(teamBusiness) || 0;
     let current = RANK_LEVELS[0];
-    for (let level of RANK_LEVELS) {
-        if (business >= level.minBusiness) {
-            current = level;
-        }
+    for (const level of RANK_LEVELS) {
+        if (business >= level.minBusiness) current = level;
     }
     return current;
 }
 
 function getNextRank(teamBusiness) {
-    const business = Number(teamBusiness) || 0;
-    const current = calculateRank(business);
-    const currentIndex = RANK_LEVELS.findIndex(level => level.key === current.key);
-    if (currentIndex >= RANK_LEVELS.length - 1) {
-        return null;
-    }
-    return RANK_LEVELS[currentIndex + 1];
+    const current = calculateRank(teamBusiness);
+    const idx = RANK_LEVELS.findIndex(l => l.key === current.key);
+    return idx >= RANK_LEVELS.length - 1 ? null : RANK_LEVELS[idx + 1];
 }
 
-function getRankByKey(key) {
-    return RANK_LEVELS.find(r => r.key === key) || RANK_LEVELS[0];
+function isCompleted(rewards, key) {
+    return !!(rewards && rewards[key] && rewards[key].status === 'completed');
 }
 
-// ============================================================
-// GET RANK REWARD STATUS - SINGLE SOURCE OF TRUTH
-// ============================================================
-async function getRankRewardStatus(userId) {
-    try {
-        const refPath = ref(db, `rankRewards/${userId}`);
-        const snap = await get(refPath);
-        if (snap.exists()) {
-            return snap.val();
-        }
-        return {};
-    } catch (error) {
-        console.error('Error getting rank reward status:', error);
-        return {};
-    }
-}
-
-function calculateTotalRankReward(rankRewardStatus) {
+function calculateTotalRankReward(rewards) {
     let total = 0;
-    for (let key in rankRewardStatus) {
-        const reward = rankRewardStatus[key];
-        if (reward && reward.status === 'completed') {
-            total += Number(reward.rewardAmount) || 0;
-        }
+    for (const key in rewards) {
+        const r = rewards[key];
+        if (r && r.status === 'completed') total += Number(r.rewardAmount) || 0;
     }
     return total;
 }
 
 // ============================================================
-// 🔥🔥🔥 TRUE ATOMIC TRANSACTION WITH MULTI-PATH UPDATE 🔥🔥🔥
+// 🔥 CLAIM — सारे eligible ranks एक ही ATOMIC update में
 // ============================================================
-async function processSingleRankReward(userId, rankKey, teamBusiness) {
+let currentUserId = null;
+let profile = {};
+let teamBusiness = 0;
+let rewards = {};
+const ready = { tb: false, rw: false };
+let processing = false;
+let lastFailAt = 0;
+let rewardsErrorShown = false;
+const unsubscribers = [];
+
+async function processEligible() {
+    if (processing || !currentUserId) return;
+
+    const pending = RANK_LEVELS.filter(l =>
+        l.reward > 0 && teamBusiness >= l.minBusiness && !isCompleted(rewards, l.key)
+    );
+    if (pending.length === 0) return;
+    if (Date.now() - lastFailAt < 30000) return;   // fail होने पर बार-बार retry नहीं
+
+    processing = true;
+    const uid = currentUserId;
     try {
-        const rankInfo = getRankByKey(rankKey);
-        const rewardAmount = rankInfo.reward;
-        
-        if (rewardAmount <= 0) {
-            console.log(`ℹ️ ${rankInfo.rank} has no reward to claim`);
-            return { success: false, error: 'No reward for this rank' };
-        }
+        // पुराने flag (सिर्फ एक छोटा node)
+        const flagsSnap = await get(ref(db, `users/${uid}/_rankRewardsClaimed`));
+        const flags = flagsSnap.exists() ? (flagsSnap.val() || {}) : {};
 
-        // ============================================================
-        // Check if already claimed - SINGLE SOURCE OF TRUTH
-        // ============================================================
-        const rankRewardStatus = await getRankRewardStatus(userId);
-        if (rankRewardStatus[rankKey] && rankRewardStatus[rankKey].status === 'completed') {
-            console.log(`ℹ️ ${rankInfo.rank} already claimed (rankRewards record exists)`);
-            return { success: false, alreadyClaimed: true };
-        }
+        const now = Date.now();
+        const today = getTodayDate();
+        const updates = {};
+        let credit = 0;
+        const credited = [];
 
-        const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) {
-            return { success: false, error: 'User not found' };
-        }
-        
-        const userData = userSnap.val();
-        if (userData._rankRewardsClaimed && userData._rankRewardsClaimed[rankKey] === true) {
-            console.log(`ℹ️ ${rankInfo.rank} already claimed (legacy user flag exists)`);
-            // Repair: Create the rankRewards record if missing
-            await set(ref(db, `rankRewards/${userId}/${rankKey}`), {
-                rank: rankInfo.rank,
-                rankKey: rankKey,
-                requiredBusiness: rankInfo.minBusiness,
-                rewardAmount: rewardAmount,
+        for (const lvl of pending) {
+            const baseRecord = {
+                rank: lvl.rank,
+                rankKey: lvl.key,
+                requiredBusiness: lvl.minBusiness,
+                rewardAmount: lvl.reward,
                 teamBusinessAtReward: teamBusiness,
-                creditedAt: Date.now(),
-                creditedDate: getTodayDate(),
+                creditedAt: now,
+                creditedDate: today,
+                status: 'completed'
+            };
+
+            if (flags[lvl.key] === true) {
+                // पहले credit हो चुका था पर rankRewards record नहीं था → सिर्फ record repair (दोबारा पैसा नहीं)
+                updates[`rankRewards/${uid}/${lvl.key}`] = {
+                    ...baseRecord,
+                    transactionId: 'repaired_' + now,
+                    source: 'repair_system'
+                };
+                continue;
+            }
+
+            const txId = generateTxId(lvl.key);
+            credit += lvl.reward;
+            credited.push(lvl.rank);
+
+            updates[`users/${uid}/_rankRewardsClaimed/${lvl.key}`] = true;
+            updates[`users/${uid}/transactions/${txId}`] = {
+                type: 'rank_reward',
+                rank: lvl.rank,
+                rankKey: lvl.key,
+                amount: lvl.reward,
+                currency: 'USDT',
+                wallet: 'depositWallet',
+                requiredTeamBusiness: lvl.minBusiness,
+                teamBusinessAtReward: teamBusiness,
+                timestamp: now,
+                date: today,
                 status: 'completed',
-                transactionId: 'legacy_' + Date.now()
-            });
-            return { success: false, alreadyClaimed: true, repaired: true };
+                description: `🏆 ${lvl.rank} Rank Reward: $${lvl.reward} credited to Deposit Wallet`,
+                source: 'rank_reward_system_v9',
+                atomic: true
+            };
+            updates[`rankRewards/${uid}/${lvl.key}`] = {
+                ...baseRecord,
+                transactionId: txId,
+                source: 'rank_reward_system_v9',
+                atomic: true
+            };
         }
 
-        const txId = generateTxId();
-        const timestamp = Date.now();
-
-        // ============================================================
-        // 🔥🔥🔥 THE MAGIC: ATOMIC MULTI-PATH UPDATE 🔥🔥🔥
-        // This updates BOTH locations in a SINGLE ATOMIC operation!
-        // ============================================================
-        
-        // Prepare the multi-path update object
-        const multiPathUpdate = {};
-        
-        // 1. Update user's wallet and claim status
-        const currentWallet = Number(userData.depositWallet) || 0;
-        const newWallet = currentWallet + rewardAmount;
-        
-        // User path updates
-        multiPathUpdate[`users/${userId}/depositWallet`] = newWallet;
-        multiPathUpdate[`users/${userId}/rank`] = rankInfo.rank;
-        multiPathUpdate[`users/${userId}/_rankRewardsClaimed/${rankKey}`] = true;
-        multiPathUpdate[`users/${userId}/transactions/${txId}`] = {
-            type: 'rank_reward',
-            rank: rankInfo.rank,
-            rankKey: rankKey,
-            amount: rewardAmount,
-            currency: 'USDT',
-            wallet: 'depositWallet',
-            requiredTeamBusiness: rankInfo.minBusiness,
-            teamBusinessAtReward: teamBusiness,
-            timestamp: timestamp,
-            date: getTodayDate(),
-            status: 'completed',
-            description: `🏆 ${rankInfo.rank} Rank Reward: $${rewardAmount} credited to Deposit Wallet`,
-            source: 'rank_reward_system_v8',
-            atomic: true
-        };
-        
-        // 2. RankRewards record path
-        multiPathUpdate[`rankRewards/${userId}/${rankKey}`] = {
-            rank: rankInfo.rank,
-            rankKey: rankKey,
-            requiredBusiness: rankInfo.minBusiness,
-            rewardAmount: rewardAmount,
-            teamBusinessAtReward: teamBusiness,
-            creditedAt: timestamp,
-            creditedDate: getTodayDate(),
-            status: 'completed',
-            transactionId: txId,
-            source: 'rank_reward_system_v8',
-            atomic: true
-        };
-
-        // ============================================================
-        // 🔥🔥🔥 SINGLE ATOMIC UPDATE - ALL OR NOTHING 🔥🔥🔥
-        // ============================================================
-        console.log(`🔍 Attempting atomic multi-path update for ${rankInfo.rank}...`);
-        console.log(`   - Updating wallet: $${currentWallet} → $${newWallet}`);
-        console.log(`   - Setting claim flag for: ${rankKey}`);
-        console.log(`   - Creating rankRewards record for: ${rankKey}`);
-        console.log(`   - Creating transaction: ${txId}`);
-        
-        await update(ref(db), multiPathUpdate);
-        
-        console.log(`✅ TRUE ATOMIC transaction completed for ${rankInfo.rank}`);
-        console.log(`   - ALL writes succeeded together`);
-        console.log(`   - No partial updates possible`);
-        
-        showToast(`🏆 ${rankInfo.rank} Rank Reward: $${rewardAmount} credited to Deposit Wallet!`, 'success');
-        
-        // Verify the update was successful
-        const verifySnap = await get(ref(db, `rankRewards/${userId}/${rankKey}`));
-        if (verifySnap.exists()) {
-            console.log(`✅ Verification: rankRewards record exists for ${rankKey}`);
-        } else {
-            console.log(`⚠️ Warning: rankRewards record not found after atomic update`);
-            // This should never happen with a true atomic update
+        if (credit > 0) {
+            updates[`users/${uid}/depositWallet`] = increment(credit);
+            updates[`users/${uid}/rank`] = calculateRank(teamBusiness).rank;
         }
-        
-        return { 
-            success: true, 
-            alreadyClaimed: false, 
-            rank: rankInfo.rank, 
-            amount: rewardAmount, 
-            txId: txId,
-            atomic: true
-        };
 
+        if (Object.keys(updates).length === 0) return;
+
+        // All-or-nothing: या तो wallet + records + transactions सब, या कुछ नहीं
+        await update(ref(db), updates);
+
+        if (credited.length > 0) {
+            showToast(`🏆 ${credited.join(', ')} rank reward credited to Deposit Wallet!`, 'success');
+        }
+        // rewards listener अपने आप UI refresh कर देगा
     } catch (error) {
-        console.error('❌ Error in atomic transaction:', error);
-        
-        // ============================================================
-        // 🔥 With true atomic updates, we DON'T need reversal logic
-        // because either ALL writes succeed or NONE do.
-        // ============================================================
-        
-        // Check if any partial writes occurred (shouldn't happen with atomic)
-        try {
-            const checkRankReward = await get(ref(db, `rankRewards/${userId}/${rankKey}`));
-            const checkWallet = await get(ref(db, `users/${userId}/depositWallet`));
-            
-            if (checkRankReward.exists() || checkWallet.exists()) {
-                console.log('⚠️ Partial write detected despite atomic attempt - manual intervention may be needed');
-                // Log for monitoring
-                console.log(`🚨 MANUAL CHECK REQUIRED: User ${userId}, Rank ${rankKey}`);
-                console.log(`   - rankRewards exists: ${checkRankReward.exists()}`);
-                console.log(`   - wallet exists: ${checkWallet.exists()}`);
-            }
-        } catch (checkError) {
-            console.error('Error checking for partial writes:', checkError);
-        }
-        
-        return { success: false, error: error.message };
+        console.error('❌ Rank reward claim failed:', error);
+        lastFailAt = Date.now();
+        showToast('❌ Rank reward credit नहीं हुआ। कुछ नहीं कटा/जुड़ा। थोड़ी देर बाद पेज refresh करें।', 'error');
+    } finally {
+        processing = false;
     }
 }
 
 // ============================================================
-// CHECK AND PROCESS ALL ELIGIBLE RANK REWARDS
-// ============================================================
-async function checkAndProcessAllRankRewards(userId, teamBusiness) {
-    try {
-        const rankRewardStatus = await getRankRewardStatus(userId);
-        const userSnap = await get(ref(db, 'users/' + userId));
-        const userData = userSnap.exists() ? userSnap.val() : {};
-        const userClaimed = userData._rankRewardsClaimed || {};
-
-        const processed = [];
-        const errors = [];
-        let anyProcessed = false;
-
-        for (let level of RANK_LEVELS) {
-            if (level.reward === 0) continue;
-
-            const isClaimedInRankRewards = rankRewardStatus[level.key] && 
-                                          rankRewardStatus[level.key].status === 'completed';
-            const isClaimedInUser = userClaimed[level.key] === true;
-
-            if (isClaimedInRankRewards) {
-                continue;
-            }
-
-            if (isClaimedInUser && !isClaimedInRankRewards) {
-                // Repair missing rankRewards record
-                console.log(`🔧 Repairing missing rankRewards record for ${level.rank}`);
-                try {
-                    await set(ref(db, `rankRewards/${userId}/${level.key}`), {
-                        rank: level.rank,
-                        rankKey: level.key,
-                        requiredBusiness: level.minBusiness,
-                        rewardAmount: level.reward,
-                        teamBusinessAtReward: teamBusiness,
-                        creditedAt: Date.now(),
-                        creditedDate: getTodayDate(),
-                        status: 'completed',
-                        transactionId: 'repaired_' + Date.now(),
-                        source: 'repair_system'
-                    });
-                    console.log(`✅ Repaired rankRewards record for ${level.rank}`);
-                } catch (repairError) {
-                    console.error(`❌ Failed to repair ${level.rank}:`, repairError);
-                }
-                continue;
-            }
-
-            if (teamBusiness >= level.minBusiness) {
-                console.log(`🔍 Processing ${level.rank} reward with atomic update...`);
-                const result = await processSingleRankReward(
-                    userId,
-                    level.key,
-                    teamBusiness
-                );
-                
-                if (result.success) {
-                    processed.push(level.rank);
-                    anyProcessed = true;
-                } else if (result.alreadyClaimed) {
-                    console.log(`ℹ️ ${level.rank} was claimed by another process`);
-                } else if (result.error) {
-                    errors.push({ rank: level.rank, error: result.error });
-                }
-            }
-        }
-
-        return { processed, errors, anyProcessed };
-
-    } catch (error) {
-        console.error('Error checking rank rewards:', error);
-        return { processed: [], errors: [{ rank: 'System', error: error.message }], anyProcessed: false };
-    }
-}
-
-// ============================================================
-// RENDER UI (SAME AS BEFORE)
+// RENDER UI (design वही)
 // ============================================================
 function renderUI(userData, rankRewardStatus) {
-    const teamBusiness = Number(userData.teamBusiness) || 0;
-    const currentRank = calculateRank(teamBusiness);
-    const nextRank = getNextRank(teamBusiness);
+    const tb = Number(userData.teamBusiness) || 0;
+    const currentRank = calculateRank(tb);
+    const nextRank = getNextRank(tb);
     const name = userData.name || 'User';
-    const depositWallet = Number(userData.depositWallet) || 0;
-    const username = userData.username || userData.referralCode || 'USER';
+    const username = String(userData.username || userData.referralCode || 'USER');
 
     const totalRankReward = calculateTotalRankReward(rankRewardStatus);
     const rewardCount = Object.values(rankRewardStatus)
-        .filter(r => r.status === 'completed').length;
+        .filter(r => r && r.status === 'completed').length;
 
     document.getElementById('sidebarName').textContent = name;
     document.getElementById('sidebarEmail').textContent = userData.email || 'user@example.com';
     document.getElementById('sidebarUserId').textContent = 'ID: ' + username.substring(0, 20) + '...';
     document.getElementById('sidebarAvatar').textContent = name.charAt(0).toUpperCase();
 
-    document.getElementById('totalBusiness').textContent = formatCurrency(teamBusiness);
+    document.getElementById('totalBusiness').textContent = formatCurrency(tb);
     document.getElementById('currentRankDisplay').textContent = currentRank.rank;
-    document.getElementById('rankRewardDisplay').textContent = currentRank.reward > 0 ? 
+    document.getElementById('rankRewardDisplay').textContent = currentRank.reward > 0 ?
         `Reward: ${formatCurrency(currentRank.reward)}` : 'No reward for this rank';
     document.getElementById('totalRankReward').textContent = formatCurrency(totalRankReward);
     document.getElementById('rewardCount').textContent = rewardCount + ' rewards earned';
 
     document.getElementById('currentRankText').textContent = currentRank.rank + ' ' + currentRank.icon;
-    document.getElementById('currentBusinessDisplay').textContent = formatCurrency(teamBusiness);
+    document.getElementById('currentBusinessDisplay').textContent = formatCurrency(tb);
 
     const nextRankInfo = document.getElementById('nextRankInfo');
     const nextRankText = document.getElementById('nextRankText');
     const needForNext = document.getElementById('needForNext');
 
     if (nextRank && currentRank.key !== 'diamond') {
-        const remaining = Math.max(0, nextRank.minBusiness - teamBusiness);
-        const progress = Math.min(100, (teamBusiness / nextRank.minBusiness) * 100);
-        
+        const remaining = Math.max(0, nextRank.minBusiness - tb);
+        const progress = Math.min(100, (tb / nextRank.minBusiness) * 100);
+
         nextRankText.textContent = nextRank.rank + ' ' + nextRank.icon;
         needForNext.textContent = formatCurrency(remaining);
         nextRankInfo.style.display = 'block';
-        
+
         document.getElementById('rankProgressFill').style.width = progress + '%';
-        document.getElementById('progressCurrent').textContent = formatCurrency(teamBusiness);
+        document.getElementById('progressCurrent').textContent = formatCurrency(tb);
         document.getElementById('progressTarget').textContent = formatCurrency(nextRank.minBusiness);
         document.getElementById('progressPercent').textContent = progress.toFixed(1) + '%';
     } else if (currentRank.key === 'diamond') {
@@ -437,8 +294,8 @@ function renderUI(userData, rankRewardStatus) {
         needForNext.textContent = '$0';
         nextRankInfo.style.display = 'block';
         document.getElementById('rankProgressFill').style.width = '100%';
-        document.getElementById('progressCurrent').textContent = formatCurrency(teamBusiness);
-        document.getElementById('progressTarget').textContent = formatCurrency(teamBusiness);
+        document.getElementById('progressCurrent').textContent = formatCurrency(tb);
+        document.getElementById('progressTarget').textContent = formatCurrency(tb);
         document.getElementById('progressPercent').textContent = '100%';
     } else {
         nextRankInfo.style.display = 'none';
@@ -447,18 +304,16 @@ function renderUI(userData, rankRewardStatus) {
     const tableBody = document.getElementById('rankTableBody');
     let tableRows = '';
 
-    for (let level of RANK_LEVELS) {
-        const isAchieved = rankRewardStatus[level.key]?.status === 'completed';
+    for (const level of RANK_LEVELS) {
+        const isAchieved = isCompleted(rankRewardStatus, level.key);
         const isCurrent = level.key === currentRank.key;
-        const isEligible = !isAchieved && teamBusiness >= level.minBusiness && level.reward > 0;
+        const isEligible = !isAchieved && tb >= level.minBusiness && level.reward > 0;
 
         let statusBadge = '';
         if (isAchieved) {
             statusBadge = `<span class="badge-status achieved">✅ Achieved</span>`;
         } else if (isEligible) {
             statusBadge = `<span class="badge-status eligible">⏳ Eligible</span>`;
-        } else if (isCurrent && level.reward === 0) {
-            statusBadge = `<span class="badge-status current">Current</span>`;
         } else if (isCurrent) {
             statusBadge = `<span class="badge-status current">Current</span>`;
         } else {
@@ -477,12 +332,11 @@ function renderUI(userData, rankRewardStatus) {
             </tr>
         `;
     }
-
     tableBody.innerHTML = tableRows;
 
     const historyList = document.getElementById('historyList');
     const historyItems = Object.values(rankRewardStatus)
-        .filter(r => r.status === 'completed')
+        .filter(r => r && r.status === 'completed')
         .sort((a, b) => (b.creditedAt || 0) - (a.creditedAt || 0));
 
     if (historyItems.length === 0) {
@@ -496,15 +350,15 @@ function renderUI(userData, rankRewardStatus) {
         `;
     } else {
         let historyHTML = '';
-        for (let item of historyItems) {
+        for (const item of historyItems) {
             historyHTML += `
                 <div class="history-item">
                     <div class="h-left">
                         <div class="h-icon">🏆</div>
                         <div>
-                            <div class="h-rank">${item.rank}</div>
+                            <div class="h-rank">${escapeHtml(item.rank)}</div>
                             <div class="h-desc">Required: ${formatCurrency(item.requiredBusiness)}</div>
-                            <div class="h-desc" style="font-size:11px;color:rgba(255,255,255,0.2);">Tx: ${item.transactionId || 'N/A'}</div>
+                            <div class="h-desc" style="font-size:11px;color:rgba(255,255,255,0.2);">Tx: ${escapeHtml(item.transactionId || 'N/A')}</div>
                         </div>
                     </div>
                     <div class="h-right">
@@ -519,62 +373,66 @@ function renderUI(userData, rankRewardStatus) {
 }
 
 // ============================================================
-// LOAD RANK DATA
+// DATA: सिर्फ 2 छोटे listeners (teamBusiness + rankRewards)
 // ============================================================
-let currentUserId = null;
-let teamBusinessListenerOff = null;
-let isProcessing = false;
-let processingLock = false;
+function showContent() {
+    document.getElementById('loadingContainer').style.display = 'none';
+    document.getElementById('contentContainer').style.display = 'block';
+}
+
+function refresh() {
+    if (!(ready.tb && ready.rw)) return;
+    renderUI({ ...profile, teamBusiness }, rewards);
+    showContent();
+    processEligible();
+}
 
 async function loadRankData(userId) {
     try {
         document.getElementById('loadingContainer').style.display = 'flex';
         document.getElementById('contentContainer').style.display = 'none';
 
-        const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) {
+        // Profile के सिर्फ 4 छोटे fields (पूरा user node नहीं)
+        const fields = ['name', 'email', 'username', 'referralCode'];
+        const snaps = await Promise.all(fields.map(f => get(ref(db, `users/${userId}/${f}`))));
+        if (!snaps.some(s => s.exists())) {
             showToast('❌ User data not found', 'error');
-            return;
         }
+        profile = {};
+        fields.forEach((f, i) => { if (snaps[i].exists()) profile[f] = snaps[i].val(); });
 
-        const userData = userSnap.val();
-        const teamBusiness = Number(userData.teamBusiness) || 0;
+        unsubscribers.push(onValue(ref(db, `users/${userId}/teamBusiness`), (snap) => {
+            const n = Number(snap.val());
+            teamBusiness = Number.isFinite(n) ? n : 0;
+            ready.tb = true;
+            refresh();
+        }, (error) => {
+            console.error('teamBusiness listener error:', error);
+            ready.tb = true;
+            refresh();
+        }));
 
-        let rankRewardStatus = await getRankRewardStatus(userId);
-
-        if (!isProcessing && !processingLock) {
-            processingLock = true;
-            isProcessing = true;
-            try {
-                const processingResult = await checkAndProcessAllRankRewards(userId, teamBusiness);
-                if (processingResult && processingResult.anyProcessed) {
-                    rankRewardStatus = await getRankRewardStatus(userId);
-                    showToast(`✅ ${processingResult.processed.join(', ')} rank rewards earned!`, 'success');
-                }
-                if (processingResult && processingResult.errors && processingResult.errors.length > 0) {
-                    console.error('Errors during processing:', processingResult.errors);
-                }
-            } catch (error) {
-                console.error('Error processing rewards:', error);
-            } finally {
-                isProcessing = false;
-                processingLock = false;
+        unsubscribers.push(onValue(ref(db, `rankRewards/${userId}`), (snap) => {
+            rewards = snap.exists() ? (snap.val() || {}) : {};
+            ready.rw = true;
+            refresh();
+        }, (error) => {
+            console.error('rankRewards listener error:', error);
+            if (!rewardsErrorShown) {
+                rewardsErrorShown = true;
+                showToast('❌ Rank rewards load नहीं हो पाए (permission)।', 'error');
             }
-        }
-
-        renderUI(userData, rankRewardStatus);
-
-        document.getElementById('loadingContainer').style.display = 'none';
-        document.getElementById('contentContainer').style.display = 'block';
-
-        setupTeamBusinessListener(userId);
+            rewards = {};
+            ready.rw = true;
+            refresh();
+        }));
 
     } catch (error) {
         console.error('Error loading rank data:', error);
         document.getElementById('loadingContainer').innerHTML = `
             <div style="color:#ef4444;font-size:16px;text-align:center;">
                 <i class="bi bi-exclamation-triangle-fill" style="font-size:28px;display:block;margin-bottom:12px;"></i>
-                Error loading data: ${error.message}
+                Error loading data: ${escapeHtml(error.message)}
                 <br><br>
                 <button onclick="location.reload()" style="padding:10px 24px;background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.2);border-radius:10px;color:#2ecc71;cursor:pointer;">Retry</button>
             </div>
@@ -583,58 +441,11 @@ async function loadRankData(userId) {
 }
 
 // ============================================================
-// REAL-TIME TEAM BUSINESS LISTENER
-// ============================================================
-function setupTeamBusinessListener(userId) {
-    if (teamBusinessListenerOff) {
-        teamBusinessListenerOff();
-        teamBusinessListenerOff = null;
-    }
-
-    const teamBusinessRef = ref(db, 'users/' + userId + '/teamBusiness');
-
-    teamBusinessListenerOff = onValue(teamBusinessRef, async (snapshot) => {
-        const teamBusiness = snapshot.val();
-        if (teamBusiness === null || teamBusiness === undefined) return;
-
-        console.log(`📊 Real-time teamBusiness update: $${teamBusiness}`);
-
-        const userSnap = await get(ref(db, 'users/' + userId));
-        if (!userSnap.exists()) return;
-
-        const userData = userSnap.val();
-
-        let rankRewardStatus = await getRankRewardStatus(userId);
-
-        if (!isProcessing && !processingLock) {
-            processingLock = true;
-            isProcessing = true;
-            try {
-                const processingResult = await checkAndProcessAllRankRewards(userId, teamBusiness);
-                if (processingResult && processingResult.anyProcessed) {
-                    rankRewardStatus = await getRankRewardStatus(userId);
-                    showToast(`✅ ${processingResult.processed.join(', ')} rank rewards earned!`, 'success');
-                }
-            } catch (error) {
-                console.error('Error processing rewards:', error);
-            } finally {
-                isProcessing = false;
-                processingLock = false;
-            }
-        }
-
-        renderUI(userData, rankRewardStatus);
-    });
-}
-
-// ============================================================
 // CLEANUP
 // ============================================================
 function cleanup() {
-    if (teamBusinessListenerOff) {
-        teamBusinessListenerOff();
-        teamBusinessListenerOff = null;
-    }
+    unsubscribers.forEach((off) => { try { off(); } catch (_) {} });
+    unsubscribers.length = 0;
 }
 
 // ============================================================
@@ -664,19 +475,21 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSideb
 
 document.getElementById('logoutBtnSidebar').addEventListener('click', async (e) => {
     e.preventDefault();
-    await signOut(auth);
+    try { await signOut(auth); } catch (err) { console.error(err); }
     window.location.href = 'login.html';
 });
 
 // ============================================================
 // AUTH HANDLER
 // ============================================================
+let started = false;
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = 'login.html';
         return;
     }
-
+    if (started) return;
+    started = true;
     currentUserId = user.uid;
     await loadRankData(user.uid);
 });
