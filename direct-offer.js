@@ -1,4 +1,3 @@
-
 // ============================================================
 // direct-offer  (v4 - Live Realtime + Cost Optimised + Safe Final Sync)
 // File: direct-offer.js
@@ -747,7 +746,11 @@ async function submitWithdrawal() {
     const timestamp = Date.now() + serverOffset;
 
     const lockResult = await runTransaction(lockRef, (current) => {
-      if (current && (current.status === "pending" || current.status === "approved")) return;
+      if (current && (current.status === "pending" || current.status === "approved")) {
+        // 🆕 अधूरा (orphan) lock: lock बना पर withdrawal कभी नहीं बनी (ब्राउज़र बीच में बंद हुआ) तो यूज़र को अटकने न दो
+        const orphan = current.status === "pending" && (!current.withdrawalId || !withdrawalsData[current.withdrawalId]);
+        if (!orphan) return;
+      }
       return {
         ...(current || {}),
         status: "pending", walletAddress: addr, withdrawalId, transactionId: txId,
