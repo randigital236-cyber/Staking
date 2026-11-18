@@ -1,141 +1,274 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#100b22">
-<title>RND Stake - Offer Coming Soon</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0a0414"/>
+<meta name="color-scheme" content="dark"/>
+<title>🎁 Bumper Referral Offer — RND Stake</title>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin/>
 
-body {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  color: #fff;
-  background:
-    radial-gradient(circle at top left, #38205c, transparent 45%),
-    radial-gradient(circle at bottom right, #50320d, transparent 40%),
-    #100b22;
-}
-
-.container {
-  width: 100%;
-  max-width: 650px;
-  padding: 55px 25px;
-  text-align: center;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(251,191,36,0.35);
-  border-radius: 25px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-}
-
-.logo {
-  font-size: 38px;
-  font-weight: 900;
-  color: #fbbf24;
-  margin-bottom: 18px;
-  letter-spacing: 3px;
-}
-
-.brand {
-  font-size: 15px;
-  color: #cbd5e1;
-  letter-spacing: 5px;
-  margin-bottom: 35px;
-}
-
-h1 {
-  font-size: clamp(32px, 7vw, 53px);
-  line-height: 1.2;
-  font-weight: 900;
-  color: #fff;
-}
-
-h1 span {
-  color: #fbbf24;
-}
-
-.message {
-  margin: 25px auto;
-  max-width: 480px;
-  color: #cbd5e1;
-  font-size: 17px;
-  line-height: 1.8;
-}
-
-.status {
-  display: inline-block;
-  margin-top: 15px;
-  padding: 13px 25px;
-  border: 1px solid #fbbf24;
-  border-radius: 50px;
-  color: #fde68a;
-  background: rgba(251,191,36,0.10);
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 2px;
-}
-
-.footer {
-  margin-top: 40px;
-  color: #94a3b8;
-  font-size: 13px;
-}
-
-@media(max-width:480px) {
-  .container {
-    padding: 40px 18px;
-  }
-  .brand {
-    letter-spacing: 3px;
-  }
-}
-</style>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="direct-offer.css"/>
 </head>
+<body class="offer-body">
 
-<body>
+<div id="loadingOverlay">
+  <div class="loader-spinner"></div>
+  <div class="loader-text">Loading your offer…</div>
+</div>
+<div id="toastContainer" role="status" aria-live="polite"></div>
 
-<div class="container">
-
-  <div class="logo">RND</div>
-
-  <div class="brand">RND STAKE</div>
-
-  <h1>
-    OFFER<br>
-    <span>COMING SOON</span>
-  </h1>
-
-  <p class="message">
-    We are preparing something exciting
-    for our community.
-
-    <br><br>
-
-    A new offer is coming soon.
-    Stay connected with RND Stake
-    for upcoming announcements.
-  </p>
-
-  <div class="status">
-    NEW OFFER · COMING SOON
+<!-- POPUP -->
+<div class="days-remaining-popup" id="daysPopup" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
+  <div class="popup-content">
+    <span class="popup-icon" id="popupIcon">🎁</span>
+    <div class="popup-title" id="popupTitle">Withdrawal Not Available Yet</div>
+    <div class="popup-text" id="popupText">
+      Your Offer Balance is <strong>$<span id="popupRewardAmount">0</span></strong> USDT.
+      <br><br>Withdrawals unlock after the campaign ends.
+      <br><br>
+      <span style="color:#94a3b8;font-size:0.9rem;">Time remaining:</span>
+      <div class="popup-days" id="popupDaysRemaining">0</div>
+      <span style="color:#64748b;font-size:0.85rem;">until withdrawal opens</span>
+    </div>
+    <button type="button" class="popup-close-btn" id="popupCloseBtn">Got it!</button>
   </div>
-
-  <div class="footer">
-    Thank You for Being Part of RND Community.
-  </div>
-
 </div>
 
+<!-- MODAL -->
+<div class="confirmation-overlay" id="confirmationModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-content">
+    <span class="modal-icon">⚠️</span>
+    <div class="modal-title" id="confirmTitle">Confirm Withdrawal</div>
+    <div class="modal-details" id="confirmDetails">
+      <div class="row"><span class="label">Network</span><span class="value">BEP-20 / BNB Smart Chain</span></div>
+      <div class="row"><span class="label">Amount</span><span class="value warning" id="confirmAmount">$0.00 USDT</span></div>
+      <div class="row"><span class="label">Wallet Address</span><span class="value" id="confirmWallet">0x...</span></div>
+    </div>
+    <div class="modal-warning">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      Verify your wallet address. BEP-20 transactions are irreversible.
+    </div>
+    <div class="modal-buttons">
+      <button type="button" class="btn-cancel" id="confirmCancel">Cancel</button>
+      <button type="button" class="btn-confirm" id="confirmSubmit"><i class="bi bi-check-circle me-1"></i>Confirm Withdrawal</button>
+    </div>
+  </div>
+</div>
+
+<nav class="navbar-custom" aria-label="Main navigation">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="dashboard.html" class="brand">
+        RND<span>Stake</span>
+        <small>Bumper Referral Offer</small>
+      </a>
+      <div class="nav-right">
+        <a href="dashboard.html" class="nav-link"><i class="bi bi-speedometer2"></i>Dashboard</a>
+        <a href="direct-offer.html" class="nav-link active" aria-current="page"><i class="bi bi-fire"></i>Direct Offer</a>
+        <div class="user-badge" id="userBadge">
+          <div class="avatar" id="userAvatar">U</div>
+          <span class="name" id="userName">Loading...</span>
+          <button type="button" class="logout-btn" id="logoutBtn" title="Logout" aria-label="Logout"><i class="bi bi-box-arrow-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main-content offer-main">
+  <section class="offer-hero">
+    <div class="grid-layer"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+    <div class="glow-orb orb-3"></div>
+
+    <div class="hero-inner">
+      <span class="offer-badge"><i class="bi bi-stars"></i> Limited Time Referral Bonus</span>
+      <h1 class="offer-title" id="campaignTitle">🎁 BUMPER REFERRAL OFFER 🚀</h1>
+      <p class="offer-subtitle">INVITE • EARN • WITHDRAW</p>
+      <p class="offer-dates">
+        <i class="bi bi-calendar-event"></i>
+        <span id="campaignDates">20 Nov – 25 Nov 2026</span>
+        <span class="duration-pill" id="campaignDuration">6 Days Only</span>
+      </p>
+      <div id="campaignStatusBadge" class="mt-3"></div>
+
+      <div id="countdownContainer">
+        <div class="countdown-wrapper" id="countdownWrapper">
+          <div class="countdown-item"><div class="number" id="countdownDays">00</div><div class="label">Days</div></div>
+          <div class="countdown-item"><div class="number" id="countdownHours">00</div><div class="label">Hours</div></div>
+          <div class="countdown-item"><div class="number" id="countdownMinutes">00</div><div class="label">Minutes</div></div>
+          <div class="countdown-item"><div class="number" id="countdownSeconds">00</div><div class="label">Seconds</div></div>
+        </div>
+        <div id="campaignEndedMessage" style="display:none;">
+          <span class="campaign-ended-text"><i class="bi bi-clock-history"></i> The Bumper Referral Offer has ended.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="reward-wallet-card" id="rewardWalletCard">
+    <span class="wallet-icon-big">💎</span>
+    <div class="wallet-label" id="walletLabel">Your Offer Balance</div>
+    <div class="wallet-amount">
+      $<span id="walletAmount">0.00</span> <span class="currency">USDT</span>
+      <span class="final-badge" id="finalBadge" style="display:none;">✓ FINAL</span>
+    </div>
+    <div class="wallet-sub" id="walletStatusText">Get your direct referrals to buy eligible packages and grow your reward balance!</div>
+  </section>
+
+  <section class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+      <div class="number green" id="statEligibleIds">0</div>
+      <div class="label">Eligible Direct Purchases</div>
+      <div class="sub">Counted per ID purchase</div>
+    </div>
+    <div class="stat-card">
+      <div class="number gold" id="statEligibleReward">$0</div>
+      <div class="label">Total Offer Rewards</div>
+      <div class="sub" id="statRewardNote">Sum of all eligible IDs</div>
+    </div>
+    <div class="stat-card">
+      <div class="number blue" id="statWithdrawable">$0</div>
+      <div class="label">Withdrawable (after end)</div>
+      <div class="sub" id="statWithdrawNote">Available after offer ends</div>
+    </div>
+    <div class="stat-card">
+      <div class="number purple" id="statPaid">$0</div>
+      <div class="label">Already Paid</div>
+      <div class="sub">Verified USDT transfers</div>
+    </div>
+  </section>
+
+  <section class="offer-section">
+    <h2 class="section-title"><i class="bi bi-table"></i> Reward Structure</h2>
+    <div class="rewards-table-wrap">
+      <table class="rewards-table">
+        <thead>
+          <tr>
+            <th scope="col">Package Amount (USDT)</th>
+            <th scope="col">Reward Per Qualified ID</th>
+          </tr>
+        </thead>
+        <tbody id="rewardsTableBody">
+          <!-- Rendered by JS -->
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">
+      <i class="bi bi-info-circle"></i>
+      Every eligible ID is rewarded separately. No single-ID limit.
+    </p>
+  </section>
+
+  <section class="offer-section">
+    <h2 class="section-title"><i class="bi bi-lightbulb"></i> How It Works</h2>
+    <div class="how-grid">
+      <div class="how-step">
+        <div class="step-num">1</div>
+        <h5>Share Your Link</h5>
+        <p>Send your unique referral link to friends and followers.</p>
+      </div>
+      <div class="how-step">
+        <div class="step-num">2</div>
+        <h5>Referral Buys Package</h5>
+        <p>Your direct referral purchases any eligible package.</p>
+      </div>
+      <div class="how-step">
+        <div class="step-num">3</div>
+        <h5>Instant Bonus</h5>
+        <p>Reward is added instantly to your Offer Balance.</p>
+      </div>
+      <div class="how-step">
+        <div class="step-num">4</div>
+        <h5>Withdraw After Offer Ends</h5>
+        <p>Withdraw the full accumulated balance once the campaign ends.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="offer-section">
+    <h2 class="section-title"><i class="bi bi-receipt"></i> My Earnings Breakdown</h2>
+    <div class="breakdown-grid" id="breakdownGrid">
+      <div class="breakdown-card"><div class="bd-label">$50 – $99</div><div class="bd-count" id="bdCount50">0</div><div class="bd-reward">$<span id="bdReward50">0</span></div></div>
+      <div class="breakdown-card"><div class="bd-label">$100 – $199</div><div class="bd-count" id="bdCount100">0</div><div class="bd-reward">$<span id="bdReward100">0</span></div></div>
+      <div class="breakdown-card"><div class="bd-label">$200 – $499</div><div class="bd-count" id="bdCount200">0</div><div class="bd-reward">$<span id="bdReward200">0</span></div></div>
+      <div class="breakdown-card"><div class="bd-label">$500 – $999</div><div class="bd-count" id="bdCount500">0</div><div class="bd-reward">$<span id="bdReward500">0</span></div></div>
+      <div class="breakdown-card highlight"><div class="bd-label">$1,000+</div><div class="bd-count" id="bdCount1000">0</div><div class="bd-reward">$<span id="bdReward1000">0</span></div></div>
+    </div>
+  </section>
+
+  <section class="offer-section withdrawal-section" id="withdrawalSection">
+    <h2 class="section-title"><i class="bi bi-credit-card"></i> 🎁 Offer Reward Withdrawal</h2>
+    <div class="subtitle" id="withdrawalSubtitle">Withdrawals will unlock after the campaign ends.</div>
+
+    <div class="reward-amount-display">
+      <span class="label">Your Offer Balance</span>
+      <span class="amount" id="withdrawAmount">$0.00 USDT</span>
+    </div>
+
+    <div id="withdrawalInfoBox" class="withdrawal-info-box">
+      <span id="withdrawalInfoText"></span>
+    </div>
+
+    <div class="withdrawal-details" id="withdrawalDetails">
+      <div class="detail-row"><span class="key">Amount</span><span class="value" id="detailAmount">$0.00 USDT</span></div>
+      <div class="detail-row"><span class="key">Network</span><span class="value">BEP-20 / BNB Smart Chain</span></div>
+      <div class="detail-row"><span class="key">Wallet</span><span class="value" id="detailWallet">---</span></div>
+      <div class="detail-row"><span class="key">Paid Date</span><span class="value" id="detailPaidDate">---</span></div>
+      <div class="detail-row"><span class="key">TX Hash</span><span class="value tx-hash" id="detailTxHash">---</span></div>
+    </div>
+
+    <div class="form-group" id="walletFormGroup">
+      <label for="walletAddressInput">
+        <i class="bi bi-wallet2 me-1"></i> USDT BEP-20 Wallet Address
+        <span class="network-badge ms-2">BNB Smart Chain (BEP-20)</span>
+      </label>
+      <input type="text" class="form-control-custom" id="walletAddressInput"
+             placeholder="Enter your BEP-20 USDT wallet address (0x...)"
+             autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="walletValidationMsg"/>
+      <div class="wallet-validation-msg" id="walletValidationMsg"></div>
+      <div class="warning-text">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Sending to an unsupported network/address may result in loss of funds.
+      </div>
+    </div>
+
+    <button type="button" class="btn-withdraw" id="withdrawBtn" disabled><i class="bi bi-arrow-up-right me-2"></i>Withdraw Offer Reward</button>
+    <div class="withdrawal-status" id="withdrawalStatus"></div>
+  </section>
+
+  <section class="offer-section notice-section">
+    <h2 class="section-title"><i class="bi bi-shield-check"></i> Offer Terms</h2>
+    <ul class="offer-rules">
+      <li>Rewards are calculated <strong>per eligible ID</strong> across all five tiers.</li>
+      <li>Rewards are credited automatically upon verified referral purchase confirmation.</li>
+      <li>Duplicate transactions for the same purchase are blocked server-side.</li>
+      <li>Offer rewards are tracked separately from regular referral commissions.</li>
+      <li>Withdrawals unlock <strong>after the campaign ends on 25 Nov 2026</strong>.</li>
+      <li>New offer reward accruals stop automatically at campaign end.</li>
+      <li>All campaign dates use Indian Standard Time (IST).</li>
+    </ul>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+    "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+  }
+}
+</script>
+
+<script type="module" src="direct-offer.js"></script>
 </body>
 </html>
