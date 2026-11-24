@@ -1070,3 +1070,81 @@ body::before {
         scroll-behavior: auto !important;
     }
 }
+/* ==========================================================================
+   v9.0 ADDITIONS — paste this block at the very END of withdrawal.css
+   (nothing existing needs to be removed)
+   ========================================================================== */
+
+/* ---------- 20. Amount field with MAX button ---------- */
+.amount-wrap { position: relative; display: block; }
+.amount-wrap .form-control-custom { padding-right: 82px !important; }
+
+.max-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    background: rgba(46, 204, 113, .12);
+    border: 1px solid rgba(46, 204, 113, .3);
+    color: var(--primary);
+    font-weight: 800;
+    font-size: .72rem;
+    letter-spacing: .6px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease);
+}
+
+.max-btn:hover {
+    background: rgba(46, 204, 113, .22);
+    border-color: var(--primary);
+}
+
+.max-btn:active { transform: translateY(-50%) scale(.96); }
+
+/* ---------- 21. Available balance line ---------- */
+.available-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 9px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--line-soft);
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.available-line strong {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 22. Keyboard focus on wallet option cards ---------- */
+.withdraw-option-card:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
+
+/* ---------- 23. History footnote ---------- */
+.history-note {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: .72rem;
+    font-weight: 600;
+    margin-top: 12px;
+}
+
+/* ---------- 24. Mobile: iOS zoom fix + safe spacing ---------- */
+@media (max-width: 480px) {
+    .form-control-custom,
+    .amount-wrap .form-control-custom { font-size: 16px; }
+    .amount-wrap .form-control-custom { padding-right: 76px !important; }
+    .available-line { padding: 8px 12px; }
+}
