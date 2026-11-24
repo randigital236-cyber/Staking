@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#040810">
     <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex, nofollow">
     <title>Withdraw · RND Staking</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +20,7 @@
 <a href="#withdrawalContent" class="skip-link">Skip to content</a>
 
 <!-- Toasts (filled by withdrawal.js) -->
-<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="false"></div>
+<div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <!-- ======================= NAVBAR ======================= -->
 <nav class="navbar navbar-custom" aria-label="Top navigation">
@@ -52,7 +53,7 @@
         </div>
     </div>
 
-    <a href="dashboard.html" class="nav-item active">
+    <a href="dashboard.html" class="nav-item">
         <i class="bi bi-speedometer2"></i>
         <span>Dashboard</span>
     </a>
@@ -62,7 +63,7 @@
         <span>Deposit</span>
     </a>
 
-    <a href="withdrawal.html" class="nav-item">
+    <a href="withdrawal.html" class="nav-item active" aria-current="page">
         <i class="bi bi-arrow-up-circle"></i>
         <span>Withdraw</span>
     </a>
@@ -84,7 +85,7 @@
     </a>
 
     <a href="transfer.html" class="nav-item">
-        <i class="bi bi-arrow-left-right"></i>
+        <i class="bi bi-send"></i>
         <span>Send Money</span>
     </a>
 
@@ -112,7 +113,7 @@
         <i class="bi bi-person"></i>
         <span>Profile</span>
     </a>
-    <a href="support.html" target="_blank" rel="noopener" class="nav-item">
+    <a href="support.html" target="_blank" rel="noopener noreferrer" class="nav-item">
         <i class="bi bi-headset"></i><span>Support Center</span>
     </a>
 
@@ -157,7 +158,7 @@
                 <div class="pwd-wrap">
                     <input type="password" id="withdrawPasswordInput"
                            class="form-control form-control-custom"
-                           autocomplete="new-password"
+                           autocomplete="new-password" maxlength="64" spellcheck="false"
                            placeholder="Enter your withdrawal password">
                     <button type="button" class="pwd-eye-btn" id="toggleWdPwd1"
                             title="Show / hide password" aria-label="Show password">
@@ -171,7 +172,7 @@
                     <div class="pwd-wrap">
                         <input type="password" id="withdrawPasswordConfirm"
                                class="form-control form-control-custom"
-                               autocomplete="new-password"
+                               autocomplete="new-password" maxlength="64" spellcheck="false"
                                placeholder="Re-enter your withdrawal password">
                         <button type="button" class="pwd-eye-btn" id="toggleWdPwd2"
                                 title="Show / hide password" aria-label="Show password">
@@ -225,7 +226,7 @@
                 <div class="pwd-wrap">
                     <input type="password" id="fpAccountPassword"
                            class="form-control form-control-custom"
-                           autocomplete="current-password"
+                           autocomplete="current-password" spellcheck="false"
                            placeholder="Enter your account password">
                     <button type="button" class="pwd-eye-btn" id="toggleFpAcc"
                             title="Show / hide password" aria-label="Show password">
@@ -239,7 +240,7 @@
                 <div class="pwd-wrap">
                     <input type="password" id="fpNewPassword"
                            class="form-control form-control-custom"
-                           autocomplete="new-password"
+                           autocomplete="new-password" maxlength="64" spellcheck="false"
                            placeholder="Enter new withdrawal password">
                     <button type="button" class="pwd-eye-btn" id="toggleFpNew"
                             title="Show / hide password" aria-label="Show password">
@@ -251,7 +252,7 @@
                 <div class="pwd-wrap">
                     <input type="password" id="fpConfirmPassword"
                            class="form-control form-control-custom"
-                           autocomplete="new-password"
+                           autocomplete="new-password" maxlength="64" spellcheck="false"
                            placeholder="Re-enter new withdrawal password">
                     <button type="button" class="pwd-eye-btn" id="toggleFpConfirm"
                             title="Show / hide password" aria-label="Show password">
